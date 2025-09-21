@@ -1,0 +1,97 @@
+import * as React from "react"
+import { Card, CardContent } from "@/components/ui/card"
+import { PresenceAvatar } from "@/components/ui/presence-avatar"
+import { ChevronRight } from "lucide-react"
+import { cn } from "@/lib/utils"
+
+interface MatchCardProps {
+  name: string
+  jobTitle: string
+  company?: string
+  avatarUrl?: string
+  matchBases: string[]
+  summary: string
+  isPresent?: boolean
+  onClick: () => void
+  className?: string
+}
+
+export function MatchCard({ 
+  name, 
+  jobTitle, 
+  company,
+  avatarUrl, 
+  matchBases, 
+  summary, 
+  isPresent = false,
+  onClick,
+  className 
+}: MatchCardProps) {
+  const getMatchBasisColor = (basis: string) => {
+    switch (basis) {
+      case 'career':
+        return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+      case 'personality':
+        return 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+      case 'interests':
+        return 'bg-green-500/20 text-green-400 border-green-500/30'
+      default:
+        return 'bg-muted text-muted-foreground border-border'
+    }
+  }
+
+  const formatMatchBases = (bases: string[]) => {
+    return bases.map(basis => 
+      basis.charAt(0).toUpperCase() + basis.slice(1)
+    ).join(' / ')
+  }
+
+  return (
+    <Card 
+      className={cn(
+        "bg-card border-border shadow-elevation cursor-pointer hover:shadow-lg transition-shadow",
+        className
+      )}
+      onClick={onClick}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-start space-x-3">
+          <PresenceAvatar
+            src={avatarUrl}
+            fallback={name.split(' ').map(n => n[0]).join('')}
+            isPresent={isPresent}
+            size="md"
+          />
+          
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h3 className="font-medium text-foreground truncate">
+                  {name}
+                </h3>
+                <p className="text-sm text-muted-foreground truncate">
+                  {jobTitle}
+                  {company && ` at ${company}`}
+                </p>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+            </div>
+            
+            <div className="mb-2">
+              <span className={cn(
+                "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border",
+                getMatchBasisColor(matchBases[0])
+              )}>
+                Matches: {formatMatchBases(matchBases)}
+              </span>
+            </div>
+            
+            <p className="text-sm text-muted-foreground line-clamp-2">
+              {summary}
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}

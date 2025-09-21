@@ -1,36 +1,136 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Intro - Conference Networking App
 
-## Getting Started
+A mobile-first web app for conference networking with AI-powered matching, built with Next.js 14, TypeScript, TailwindCSS, and Supabase.
 
-First, run the development server:
+## Features
+
+- **Authentication**: Google OAuth and email/password signup
+- **Profile Setup**: Complete onboarding with photo upload, job details, and interests
+- **Event Joining**: QR code scanning or manual event code entry
+- **Smart Matching**: AI-powered recommendations based on career, personality, and interests
+- **QR Connections**: Instant connections via QR code scanning
+- **Presence System**: "I'm Here" toggle with real-time status
+- **Messaging**: Direct messaging between attendees
+- **Responsive Design**: Mobile-first with dark theme
+
+## Tech Stack
+
+- **Frontend**: Next.js 14 (App Router), TypeScript, React Server Components
+- **Styling**: TailwindCSS, Shadcn/ui components, Lucide React icons
+- **Backend**: Supabase (Auth, Postgres DB, Storage, Realtime)
+- **AI**: OpenAI for matching algorithms
+- **Email**: Resend for transactional emails
+- **Deployment**: Vercel
+
+## Setup Instructions
+
+### 1. Environment Variables
+
+Create a `.env.local` file in the root directory with the following variables:
+
+```env
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
+
+# OpenAI
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Admin
+ADMIN_API_KEY=your_admin_api_key_here
+
+# Email
+RESEND_API_KEY=your_resend_api_key_here
+
+# Owner
+OWNER_EMAIL=your_owner_email_here
+```
+
+### 2. Supabase Setup
+
+1. Create a new Supabase project
+2. Run the SQL schema from `supabase-schema.sql` in your Supabase SQL editor
+3. Enable Google OAuth in Authentication > Providers
+4. Set up storage buckets for avatars and event headers
+
+### 3. Install Dependencies
+
+```bash
+npm install
+```
+
+### 4. Run Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The app will be available at `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+├── app/                    # Next.js App Router pages
+│   ├── auth/              # Authentication page
+│   ├── onboarding/        # User onboarding flow
+│   ├── home/              # Main dashboard
+│   └── layout.tsx         # Root layout
+├── components/            # React components
+│   ├── auth/              # Authentication components
+│   ├── onboarding/        # Onboarding components
+│   ├── home/              # Home page components
+│   └── ui/                # Reusable UI components
+└── lib/                   # Utilities and configurations
+    ├── supabase.ts        # Supabase client
+    ├── types.ts           # TypeScript types
+    └── utils.ts           # Utility functions
+```
 
-## Learn More
+## Key Components
 
-To learn more about Next.js, take a look at the following resources:
+- **GradientButton**: Custom button with orange-to-red gradient
+- **PresenceAvatar**: Avatar with optional green presence dot
+- **MatchCard**: Card displaying match recommendations
+- **QRCard**: QR code display and scanning interface
+- **HobbiesGrid**: Interactive hobbies selection grid
+- **EventJoinScanner**: QR scanner and manual code input
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Database Schema
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The app uses the following main tables:
+- `profiles`: User profile information
+- `events`: Conference events
+- `event_members`: User-event relationships
+- `matches`: AI-generated match recommendations
+- `connections`: User connections (QR or match-based)
+- `messages`: Direct messages between users
 
-## Deploy on Vercel
+## Deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The app is configured for Vercel deployment with:
+- Automatic preview deployments for PRs
+- Environment variable configuration
+- Optimized build settings
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Next Steps
+
+To complete the MVP, the following features need to be implemented:
+1. Profile pages with AI-generated content
+2. Messaging system with real-time updates
+3. AI matching system with OpenAI integration
+4. QR code generation and scanning
+5. Email notifications
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## License
+
+This project is proprietary and confidential.

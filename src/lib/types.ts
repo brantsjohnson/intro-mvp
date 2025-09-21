@@ -1,0 +1,70 @@
+export interface User {
+  id: string
+  email?: string
+  user_metadata?: {
+    first_name?: string
+    last_name?: string
+    avatar_url?: string
+  }
+}
+
+export interface Profile {
+  id: string
+  first_name: string
+  last_name: string
+  email: string
+  avatar_url: string | null
+  job_title: string | null
+  company: string | null
+  location: string | null
+  linkedin_url: string | null
+  mbti: string | null
+  enneagram: string | null
+  consent: boolean
+}
+
+export interface Event {
+  id: string
+  name: string
+  code: string
+  starts_at: string | null
+  ends_at: string | null
+  header_image_url: string | null
+  is_active: boolean
+}
+
+export interface Hobby {
+  id: number
+  label: string
+}
+
+export interface Match {
+  id: string
+  event_id: string
+  a: string
+  b: string
+  bases: string[]
+  summary: string
+  panels: Record<string, unknown>
+  created_at: string
+  is_system: boolean
+}
+
+export interface Connection {
+  id: string
+  event_id: string
+  a: string
+  b: string
+  source: string
+  created_at: string
+}
+
+export interface Message {
+  id: string
+  event_id: string
+  thread_id: string
+  sender: string | null
+  recipient: string | null
+  body: string
+  created_at: string
+}
