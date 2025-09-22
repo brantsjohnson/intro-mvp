@@ -7,8 +7,11 @@ import { GradientButton } from "@/components/ui/gradient-button"
 import { AccordionSection } from "@/components/ui/accordion-section"
 import { HobbiesGrid } from "@/components/ui/hobbies-grid"
 import { PresenceAvatar } from "@/components/ui/presence-avatar"
+import { QRCard } from "@/components/ui/qr-card"
+import { QRScanner } from "@/components/ui/qr-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
 import { Profile, Hobby } from "@/lib/types"
+import { AIService, ProfileData } from "@/lib/ai-service"
 import { toast } from "sonner"
 import { ArrowLeft, MessageSquare } from "lucide-react"
 
@@ -23,9 +26,18 @@ export function UserProfile({ userId }: UserProfileProps) {
   const [currentUserHobbies, setCurrentUserHobbies] = useState<number[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isPresent, setIsPresent] = useState(false)
+  const [aiInsights, setAiInsights] = useState<{
+    why: string
+    activities: string
+    deeper: string
+  } | null>(null)
+  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false)
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false)
+  const [isOwnProfile, setIsOwnProfile] = useState(false)
   
   const router = useRouter()
   const supabase = createClientComponentClient()
+  const aiService = new AIService()
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -68,6 +80,9 @@ export function UserProfile({ userId }: UserProfileProps) {
         // Load current user's hobbies for comparison
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
+          // Check if this is the user's own profile
+          setIsOwnProfile(user.id === userId)
+
           const { data: currentUserHobbiesData } = await supabase
             .from("profile_hobbies")
             .select("hobby_id")
@@ -100,6 +115,118 @@ export function UserProfile({ userId }: UserProfileProps) {
     loadProfile()
   }, [userId, router, supabase])
 
+  // Generate AI insights when profile and current user data are loaded
+  useEffect(() => {
+    const generateInsights = async () => {
+      if (!profile || isGeneratingInsights) return
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || user.id === userId) return // Don't generate insights for self
+
+      setIsGeneratingInsights(true)
+      try {
+        // Get current user's profile data
+        const { data: currentUserProfile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single()
+
+        if (!currentUserProfile) return
+
+        // Get current user's hobbies
+        const { data: currentUserHobbiesData } = await supabase
+          .from("profile_hobbies")
+          .select(`
+            hobbies!inner (label)
+          `)
+          .eq("user_id", user.id)
+
+        // Get current user's expertise
+        const { data: currentUserExpertise } = await supabase
+          .from("profile_expertise")
+          .select(`
+            expertise_tags!inner (label)
+          `)
+          .eq("user_id", user.id)
+
+        // Get current user's networking goals for current event
+        const { data: currentUserNetworkingGoals } = await supabase
+          .from("event_networking_goals")
+          .select("networking_goals")
+          .eq("user_id", user.id)
+          .limit(1)
+          .single()
+
+        // Get target user's hobbies
+        const { data: targetUserHobbiesData } = await supabase
+          .from("profile_hobbies")
+          .select(`
+            hobbies!inner (label)
+          `)
+          .eq("user_id", userId)
+
+        // Get target user's expertise
+        const { data: targetUserExpertise } = await supabase
+          .from("profile_expertise")
+          .select(`
+            expertise_tags!inner (label)
+          `)
+          .eq("user_id", userId)
+
+        // Get target user's networking goals for current event
+        const { data: targetUserNetworkingGoals } = await supabase
+          .from("event_networking_goals")
+          .select("networking_goals")
+          .eq("user_id", userId)
+          .limit(1)
+          .single()
+
+        // Create profile data for AI
+        const currentUserData: ProfileData = {
+          id: currentUserProfile.id,
+          first_name: currentUserProfile.first_name,
+          last_name: currentUserProfile.last_name,
+          job_title: currentUserProfile.job_title,
+          company: currentUserProfile.company,
+          what_do_you_do: currentUserProfile.what_do_you_do,
+          location: currentUserProfile.location,
+          mbti: currentUserProfile.mbti,
+          enneagram: currentUserProfile.enneagram,
+          networking_goals: currentUserNetworkingGoals?.networking_goals || [],
+          hobbies: currentUserHobbiesData?.map(h => h.hobbies.label) || [],
+          expertise: currentUserExpertise?.map(e => e.expertise_tags.label) || []
+        }
+
+        const targetUserData: ProfileData = {
+          id: profile.id,
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          job_title: profile.job_title,
+          company: profile.company,
+          what_do_you_do: profile.what_do_you_do,
+          location: profile.location,
+          mbti: profile.mbti,
+          enneagram: profile.enneagram,
+          networking_goals: targetUserNetworkingGoals?.networking_goals || [],
+          hobbies: targetUserHobbiesData?.map(h => h.hobbies.label) || [],
+          expertise: targetUserExpertise?.map(e => e.expertise_tags.label) || []
+        }
+
+        // Generate AI insights
+        const insights = await aiService.generateProfileInsights(currentUserData, targetUserData)
+        setAiInsights(insights)
+      } catch (error) {
+        console.error("Error generating AI insights:", error)
+        // Don't show error to user, just use fallback content
+      } finally {
+        setIsGeneratingInsights(false)
+      }
+    }
+
+    generateInsights()
+  }, [profile, userId, supabase, aiService, isGeneratingInsights])
+
   const handleMessage = () => {
     // TODO: Implement messaging
     toast.info("Messaging will be implemented")
@@ -108,6 +235,15 @@ export function UserProfile({ userId }: UserProfileProps) {
   const handleBack = () => {
     // TODO: Implement back button guard for suggested matches
     router.back()
+  }
+
+  const handleQRScan = () => {
+    setIsQRScannerOpen(true)
+  }
+
+  const handleConnectionCreated = () => {
+    // Refresh the profile or show success message
+    toast.success("Connection created successfully!")
   }
 
   if (isLoading) {
@@ -205,36 +341,59 @@ export function UserProfile({ userId }: UserProfileProps) {
             </CardContent>
           </Card>
 
+          {/* QR Code Card - Only show for own profile */}
+          {isOwnProfile && (
+            <QRCard onScanClick={handleQRScan} />
+          )}
+
           {/* Accordions */}
           <div className="space-y-4">
             <AccordionSection
               title="Why You Two Should Meet"
               defaultOpen={true}
             >
-              <p className="text-muted-foreground">
-                Based on your shared interests in technology and similar personality types, 
-                you both would benefit from discussing career growth strategies and networking opportunities.
-              </p>
+              {isGeneratingInsights ? (
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                  <p className="text-muted-foreground">Generating insights...</p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">
+                  {aiInsights?.why || "Based on your shared interests and complementary backgrounds, you both would benefit from discussing career growth strategies and networking opportunities."}
+                </p>
+              )}
             </AccordionSection>
 
             <AccordionSection
               title="Activities You Might Enjoy"
               defaultOpen={true}
             >
-              <p className="text-muted-foreground">
-                Consider attending the networking mixer together, or grab coffee during the 
-                morning break to discuss your shared interests in digital marketing.
-              </p>
+              {isGeneratingInsights ? (
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                  <p className="text-muted-foreground">Generating insights...</p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">
+                  {aiInsights?.activities || "Consider attending the networking mixer together, or grab coffee during the morning break to discuss your shared interests."}
+                </p>
+              )}
             </AccordionSection>
 
             <AccordionSection
               title="Where To Dive Deeper"
               defaultOpen={false}
             >
-              <p className="text-muted-foreground">
-                Then it will have a paragraph below that will be filled in using AI, 
-                providing recommended conversation starters or topics they should ask one another.
-              </p>
+              {isGeneratingInsights ? (
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                  <p className="text-muted-foreground">Generating insights...</p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">
+                  {aiInsights?.deeper || "What drives you most in your current role? This open-ended question can lead to meaningful conversations about career aspirations and values."}
+                </p>
+              )}
             </AccordionSection>
           </div>
 
@@ -289,6 +448,13 @@ export function UserProfile({ userId }: UserProfileProps) {
           </Card>
         </div>
       </main>
+
+      {/* QR Scanner Modal */}
+      <QRScanner
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+        onConnectionCreated={handleConnectionCreated}
+      />
     </div>
   )
 }

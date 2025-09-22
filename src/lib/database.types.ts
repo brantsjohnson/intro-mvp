@@ -19,10 +19,12 @@ export interface Database {
           avatar_url: string | null
           job_title: string | null
           company: string | null
+          what_do_you_do: string | null
           location: string | null
           linkedin_url: string | null
           mbti: string | null
           enneagram: string | null
+          networking_goals: string[] | null
           consent: boolean
         }
         Insert: {
@@ -34,10 +36,12 @@ export interface Database {
           avatar_url?: string | null
           job_title?: string | null
           company?: string | null
+          what_do_you_do?: string | null
           location?: string | null
           linkedin_url?: string | null
           mbti?: string | null
           enneagram?: string | null
+          networking_goals?: string[] | null
           consent?: boolean
         }
         Update: {
@@ -49,10 +53,12 @@ export interface Database {
           avatar_url?: string | null
           job_title?: string | null
           company?: string | null
+          what_do_you_do?: string | null
           location?: string | null
           linkedin_url?: string | null
           mbti?: string | null
           enneagram?: string | null
+          networking_goals?: string[] | null
           consent?: boolean
         }
       }
@@ -65,6 +71,7 @@ export interface Database {
           ends_at: string | null
           header_image_url: string | null
           is_active: boolean
+          matchmaking_enabled: boolean
         }
         Insert: {
           id?: string
@@ -74,6 +81,7 @@ export interface Database {
           ends_at?: string | null
           header_image_url?: string | null
           is_active?: boolean
+          matchmaking_enabled?: boolean
         }
         Update: {
           id?: string
@@ -83,6 +91,7 @@ export interface Database {
           ends_at?: string | null
           header_image_url?: string | null
           is_active?: boolean
+          matchmaking_enabled?: boolean
         }
       }
       event_members: {
@@ -159,6 +168,29 @@ export interface Database {
         Update: {
           user_id?: string
           tag_id?: number
+        }
+      }
+      event_networking_goals: {
+        Row: {
+          event_id: string
+          user_id: string
+          networking_goals: string[]
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          event_id: string
+          user_id: string
+          networking_goals: string[]
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          event_id?: string
+          user_id?: string
+          networking_goals?: string[]
+          created_at?: string
+          updated_at?: string
         }
       }
       matches: {

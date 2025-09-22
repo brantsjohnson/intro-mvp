@@ -12,6 +12,7 @@ create table public.profiles (
   linkedin_url text,
   mbti text check (char_length(mbti) <= 4),
   enneagram text, -- e.g., '8' or '8w7'
+  networking_goals text[], -- array of networking goals including custom ones
   consent boolean default false
 );
 
@@ -22,7 +23,8 @@ create table public.events (
   starts_at timestamptz,
   ends_at timestamptz,
   header_image_url text, -- manually uploaded into storage with this path
-  is_active boolean default true
+  is_active boolean default true,
+  matchmaking_enabled boolean default false -- admin can enable/disable matching for this event
 );
 
 create table public.event_members (
@@ -53,6 +55,15 @@ create table public.profile_expertise (
   user_id uuid references public.profiles on delete cascade,
   tag_id int references public.expertise_tags on delete cascade,
   primary key (user_id, tag_id)
+);
+
+create table public.event_networking_goals (
+  event_id uuid references public.events on delete cascade,
+  user_id uuid references public.profiles on delete cascade,
+  networking_goals text[] not null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  primary key (event_id, user_id)
 );
 
 create type match_basis as enum ('career','personality','interests');
@@ -141,6 +152,7 @@ alter table public.hobbies enable row level security;
 alter table public.profile_hobbies enable row level security;
 alter table public.expertise_tags enable row level security;
 alter table public.profile_expertise enable row level security;
+alter table public.event_networking_goals enable row level security;
 alter table public.matches enable row level security;
 alter table public.connections enable row level security;
 alter table public.messages enable row level security;
@@ -220,6 +232,19 @@ create policy "Users can view profile expertise of event attendees" on public.pr
   );
 
 create policy "Users can manage their own expertise" on public.profile_expertise
+  for all using (auth.uid() = user_id);
+
+-- Event networking goals policies
+create policy "Users can view networking goals of event attendees" on public.event_networking_goals
+  for select using (
+    exists (
+      select 1 from public.event_members em1
+      join public.event_members em2 on em1.event_id = em2.event_id
+      where em1.user_id = auth.uid() and em2.user_id = event_networking_goals.user_id
+    )
+  );
+
+create policy "Users can manage their own event networking goals" on public.event_networking_goals
   for all using (auth.uid() = user_id);
 
 -- Matches policies

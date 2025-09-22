@@ -9,7 +9,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { HobbiesGrid } from "@/components/ui/hobbies-grid"
-import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
 import { User, Hobby } from "@/lib/types"
 import { toast } from "sonner"
@@ -26,6 +25,7 @@ interface OnboardingStep {
 export function OnboardingFlow() {
   const searchParams = useSearchParams()
   const fromEventJoin = searchParams.get('from') === 'event-join'
+  const eventId = searchParams.get('eventId')
   const [currentStep, setCurrentStep] = useState(fromEventJoin ? 2 : 0) // networking goals only used when coming from an event
   const [isLoading, setIsLoading] = useState(false)
   const [user, setUser] = useState<User | null>(null)
@@ -35,6 +35,7 @@ export function OnboardingFlow() {
   const [customExpertiseTags, setCustomExpertiseTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState("")
   const [networkingGoals, setNetworkingGoals] = useState<string[]>([])
+  const [customNetworkingGoal, setCustomNetworkingGoal] = useState("")
   
   // Profile data
   const [firstName, setFirstName] = useState("")
@@ -208,51 +209,6 @@ export function OnboardingFlow() {
     setCustomExpertiseTags(customExpertiseTags.filter(t => t !== tag))
   }
 
-  const handleJoinEvent = async (eventCode: string) => {
-    if (!user) return
-    
-    setIsLoading(true)
-    try {
-      // First, get the event by code
-      const { data: event, error: eventError } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-        .from("events")
-        .select("*")
-        .eq("code", eventCode.toUpperCase())
-        .eq("is_active", true)
-        .maybeSingle()
-
-      if (eventError) {
-        console.error("Event query error:", eventError)
-        toast.error("Failed to check event. Please try again.")
-        return
-      }
-
-      if (!event) {
-        toast.error("Event not found or inactive")
-        return
-      }
-
-      // Join the event
-      const { error: joinError } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-        .from("event_members")
-        .insert({
-          event_id: event.id,
-          user_id: user.id
-        })
-
-      if (joinError) {
-        toast.error("Failed to join event")
-        return
-      }
-
-      toast.success("Successfully joined event!")
-      setCurrentStep(2) // Go directly to networking goals step
-    } catch {
-      toast.error("An error occurred")
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const handleScanQR = () => {
     // TODO: Implement QR scanning
@@ -285,7 +241,9 @@ export function OnboardingFlow() {
           linkedin_url: linkedinUrl,
           mbti: mbti,
           enneagram: enneagram,
-          networking_goals: networkingGoals,
+          networking_goals: customNetworkingGoal.trim() 
+            ? [...networkingGoals, customNetworkingGoal.trim()]
+            : networkingGoals,
           consent: true
         })
 
@@ -345,6 +303,29 @@ export function OnboardingFlow() {
         if (expertiseError) {
           toast.error("Failed to save expertise")
           return
+        }
+      }
+
+      // Save event-specific networking goals if coming from event join
+      if (fromEventJoin && eventId) {
+        const allNetworkingGoals = customNetworkingGoal.trim() 
+          ? [...networkingGoals, customNetworkingGoal.trim()]
+          : networkingGoals
+
+        if (allNetworkingGoals.length > 0) {
+          const { error: eventNetworkingError } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+            .from("event_networking_goals")
+            .upsert({
+              event_id: eventId,
+              user_id: user.id,
+              networking_goals: allNetworkingGoals
+            })
+
+          if (eventNetworkingError) {
+            console.error("Event networking goals error:", eventNetworkingError)
+            toast.error("Failed to save networking goals for this event")
+            return
+          }
         }
       }
 
@@ -667,6 +648,21 @@ export function OnboardingFlow() {
               </div>
             ))}
           </div>
+          
+          {/* Custom networking goal input */}
+          <div>
+            <Label htmlFor="customNetworkingGoal" className="text-sm font-medium text-foreground">
+              Other (tell us what type of people you hope to meet)
+            </Label>
+            <Textarea
+              id="customNetworkingGoal"
+              value={customNetworkingGoal}
+              onChange={(e) => setCustomNetworkingGoal(e.target.value)}
+              placeholder="e.g., I'm looking to meet startup founders in the fintech space..."
+              className="mt-1 rounded-xl"
+              rows={3}
+            />
+          </div>
         </div>
       )
     }
@@ -695,69 +691,89 @@ export function OnboardingFlow() {
     }
   }
 
+  // Show loading state if we don't have valid step data
+  if (!currentStepData || visibleSteps.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
         <Card className="bg-card border-border shadow-elevation">
           <CardHeader className="pb-4">
             <CardTitle className="text-xl font-semibold text-foreground">
-              {currentStepData?.title || 'Loading...'}
+              {currentStepData.title}
             </CardTitle>
             <p className="text-muted-foreground">
-              {currentStepData?.description || 'Please wait...'}
+              {currentStepData.description}
             </p>
           </CardHeader>
           <CardContent className="space-y-6">
-            {currentStepData?.component || <div>Loading...</div>}
+            {currentStepData.component}
             
             <div className="flex justify-between pt-4">
-              <GradientButton
-                variant="outline"
-                onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-                disabled={currentStep === 0 || (fromEventJoin && currentStep === 2)}
-              >
-                Back
-              </GradientButton>
-              
-              {isLastStep ? (
+              {/* Only show back button if not on step 3 (networking goals) */}
+              {!isLastStep && (
                 <GradientButton
-                  onClick={handleCompleteOnboarding}
-                  disabled={isLoading || !firstName || !lastName || !jobTitle || !company}
+                  variant="outline"
+                  onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+                  disabled={currentStep === 0}
                 >
-                  {isLoading ? "Completing..." : "Complete Setup"}
-                </GradientButton>
-              ) : (
-                <GradientButton
-                  onClick={() => setCurrentStep(currentStep + 1)}
-                  disabled={
-                    (currentStep === 0 && (!firstName || !lastName)) ||
-                    (currentStep === 1 && (!jobTitle || !company))
-                  }
-                >
-                  Continue
-                  <ArrowRight className="h-4 w-4 ml-2" />
+                  Back
                 </GradientButton>
               )}
+              
+              {/* Center the button if no back button */}
+              <div className={isLastStep ? "w-full flex justify-center" : ""}>
+                {isLastStep ? (
+                  <GradientButton
+                    onClick={handleCompleteOnboarding}
+                    disabled={isLoading || (fromEventJoin ? false : (!firstName || !lastName || !jobTitle || !company))}
+                  >
+                    {isLoading ? "Completing..." : "Find Matches"}
+                  </GradientButton>
+                ) : (
+                  <GradientButton
+                    onClick={() => setCurrentStep(currentStep + 1)}
+                    disabled={
+                      (currentStep === 0 && (!firstName || !lastName)) ||
+                      (currentStep === 1 && (!jobTitle || !company))
+                    }
+                  >
+                    Continue
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </GradientButton>
+                )}
+              </div>
             </div>
           </CardContent>
           
-          {/* Progress Bar at Bottom */}
-          <div className="px-6 pb-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-muted-foreground">
-                Step {currentStep + 1} of {visibleSteps.length}
-              </span>
-              <span className="text-sm text-muted-foreground">
-                {Math.round(((currentStep + 1) / visibleSteps.length) * 100)}%
-              </span>
+          {/* Progress Bar at Bottom - only show for non-final steps */}
+          {!isLastStep && (
+            <div className="px-6 pb-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">
+                  Step {currentStep + 1} of {visibleSteps.length}
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  {Math.round(((currentStep + 1) / visibleSteps.length) * 100)}%
+                </span>
+              </div>
+              <div className="w-full bg-muted rounded-full h-2">
+                <div
+                  className="gradient-primary h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${((currentStep + 1) / visibleSteps.length) * 100}%` }}
+                />
+              </div>
             </div>
-            <div className="w-full bg-muted rounded-full h-2">
-              <div
-                className="gradient-primary h-2 rounded-full transition-all duration-300"
-                style={{ width: `${((currentStep + 1) / visibleSteps.length) * 100}%` }}
-              />
-            </div>
-          </div>
+          )}
         </Card>
       </div>
     </div>

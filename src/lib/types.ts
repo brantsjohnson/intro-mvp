@@ -16,10 +16,12 @@ export interface Profile {
   avatar_url: string | null
   job_title: string | null
   company: string | null
+  what_do_you_do: string | null
   location: string | null
   linkedin_url: string | null
   mbti: string | null
   enneagram: string | null
+  networking_goals: string[] | null
   consent: boolean
 }
 
@@ -31,6 +33,7 @@ export interface Event {
   ends_at: string | null
   header_image_url: string | null
   is_active: boolean
+  matchmaking_enabled: boolean
 }
 
 export interface Hobby {

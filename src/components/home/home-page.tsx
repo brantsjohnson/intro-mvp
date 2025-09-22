@@ -7,6 +7,7 @@ import { GradientButton } from "@/components/ui/gradient-button"
 import { PresenceAvatar } from "@/components/ui/presence-avatar"
 import { MatchCard } from "@/components/ui/match-card"
 import { QRCard } from "@/components/ui/qr-card"
+import { QRScanner } from "@/components/ui/qr-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
 import { User, Profile, Event } from "@/lib/types"
 import { toast } from "sonner"
@@ -37,6 +38,7 @@ export function HomePage() {
   const [matches, setMatches] = useState<MatchWithProfile[]>([])
   const [isPresent, setIsPresent] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false)
   
   const router = useRouter()
   const supabase = createClientComponentClient()
@@ -111,7 +113,8 @@ export function HomePage() {
             name,
             code,
             starts_at,
-            ends_at
+            ends_at,
+            matchmaking_enabled
           )
         `)
         .eq("user_id", user.id)
@@ -126,9 +129,9 @@ export function HomePage() {
         setMatches([])
       } else if (eventData) {
         const eventMember = eventData as any // eslint-disable-line @typescript-eslint/no-explicit-any
-        if (eventMember.events) {
+        if (eventMember?.events) {
           setCurrentEvent(eventMember.events as Event)
-          setIsPresent(eventMember.is_present)
+          setIsPresent(eventMember.is_present || false)
           loadMatches(eventMember.events.id)
         } else {
           // No event data, clear everything
@@ -233,8 +236,14 @@ export function HomePage() {
   }
 
   const handleQRScan = () => {
-    // TODO: Implement QR scanning
-    toast.info("QR scanning will be implemented")
+    setIsQRScannerOpen(true)
+  }
+
+  const handleConnectionCreated = () => {
+    // Refresh matches when a new connection is created
+    if (currentEvent) {
+      loadMatches(currentEvent.id)
+    }
   }
 
   if (isLoading) {
@@ -322,9 +331,7 @@ export function HomePage() {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
+        <div className="max-w-2xl mx-auto space-y-6">
             {/* Welcome Section */}
             <Card className="bg-card border-border shadow-elevation">
               <CardContent className="p-6">
@@ -360,6 +367,18 @@ export function HomePage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* QR Code Section - Prominently displayed */}
+            {currentEvent && (
+              <Card className="bg-card border-border shadow-elevation">
+                <CardContent className="p-6 text-center space-y-4">
+                  <h3 className="text-lg font-medium text-foreground">
+                    Connect with other attendees and see what you have in common.
+                  </h3>
+                  <QRCard onScanClick={handleQRScan} />
+                </CardContent>
+              </Card>
+            )}
 
             {/* If no current event, prompt to join */}
             {!currentEvent && (
@@ -404,6 +423,23 @@ export function HomePage() {
                       onClick={() => handleMatchClick(match)}
                     />
                   ))
+                ) : currentEvent && !currentEvent.matchmaking_enabled ? (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                      <Users className="h-8 w-8 text-primary" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-foreground mb-3">
+                      Waiting for matchmaking to begin
+                    </h3>
+                    <p className="text-muted-foreground max-w-md mx-auto leading-relaxed">
+                      The event organizer will start the AI matchmaking process soon. Check back later for personalized introductions!
+                    </p>
+                    <div className="mt-6 flex items-center justify-center space-x-2 text-sm text-muted-foreground">
+                      <div className="w-2 h-2 bg-primary/60 rounded-full animate-pulse"></div>
+                      <div className="w-2 h-2 bg-primary/60 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="w-2 h-2 bg-primary/60 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                    </div>
+                  </div>
                 ) : (
                   <div className="text-center py-8">
                     <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -417,43 +453,15 @@ export function HomePage() {
                 )}
               </CardContent>
             </Card>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* QR Code */}
-            <QRCard
-              qrCodeUrl={undefined} // TODO: Generate QR code
-              onScanClick={handleQRScan}
-            />
-
-            {/* Quick Actions */}
-            <Card className="bg-card border-border shadow-elevation">
-              <CardHeader>
-                <CardTitle className="text-lg">Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <GradientButton
-                  onClick={() => router.push("/messages")}
-                  className="w-full justify-start"
-                  variant="outline"
-                >
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Messages
-                </GradientButton>
-                <GradientButton
-                  onClick={() => router.push("/event/join")}
-                  className="w-full justify-start"
-                  variant="outline"
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  Join Another Event
-                </GradientButton>
-              </CardContent>
-            </Card>
-          </div>
         </div>
       </main>
+
+      {/* QR Scanner Modal */}
+      <QRScanner
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+        onConnectionCreated={handleConnectionCreated}
+      />
     </div>
   )
 }

@@ -51,12 +51,18 @@ export function EventJoinPage() {
       const typedEvent = event as Event
 
       // Check if user is already a member
-      const { data: existingMember } = await supabase
+      const { data: existingMember, error: memberCheckError } = await supabase
         .from("event_members")
-        .select("id")
+        .select("event_id, user_id")
         .eq("event_id", typedEvent.id)
         .eq("user_id", user.id)
         .maybeSingle()
+
+      if (memberCheckError) {
+        console.error("Error checking membership:", memberCheckError)
+        toast.error("Failed to check membership. Please try again.")
+        return
+      }
 
       if (existingMember) {
         toast.error("You're already a member of this event")
@@ -76,9 +82,26 @@ export function EventJoinPage() {
         return
       }
 
+      // Trigger match refresh for the new user (in background)
+      try {
+        await fetch('/api/refresh-matches', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            eventId: typedEvent.id, 
+            newUserId: user.id 
+          }),
+        })
+      } catch (error) {
+        console.error('Failed to refresh matches for new user:', error)
+        // Don't show error to user, this is a background process
+      }
+
       toast.success("Successfully joined event!")
       // After joining from Home, ask networking goals; but if user completes onboarding first, they can come back from Home too
-      router.push("/onboarding?from=event-join")
+      router.push(`/onboarding?from=event-join&eventId=${typedEvent.id}`)
     } catch (error) {
       console.error("Error joining event:", error)
       toast.error("An error occurred")
