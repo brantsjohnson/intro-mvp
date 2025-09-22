@@ -32,6 +32,7 @@ export function OnboardingFlow() {
   const [hobbies, setHobbies] = useState<Hobby[]>([])
   const [selectedHobbies, setSelectedHobbies] = useState<number[]>([])
   const [expertiseTags, setExpertiseTags] = useState<string[]>([])
+  const [customExpertiseTags, setCustomExpertiseTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState("")
   const [networkingGoals, setNetworkingGoals] = useState<string[]>([])
   
@@ -193,14 +194,18 @@ export function OnboardingFlow() {
   }
 
   const addExpertiseTag = () => {
-    if (newTag.trim() && !expertiseTags.includes(newTag.trim())) {
-      setExpertiseTags([...expertiseTags, newTag.trim()])
+    if (newTag.trim() && !customExpertiseTags.includes(newTag.trim()) && !expertiseTags.includes(newTag.trim())) {
+      setCustomExpertiseTags([...customExpertiseTags, newTag.trim()])
       setNewTag("")
     }
   }
 
   const removeExpertiseTag = (tag: string) => {
     setExpertiseTags(expertiseTags.filter(t => t !== tag))
+  }
+
+  const removeCustomExpertiseTag = (tag: string) => {
+    setCustomExpertiseTags(customExpertiseTags.filter(t => t !== tag))
   }
 
   const handleJoinEvent = async (eventCode: string) => {
@@ -307,11 +312,12 @@ export function OnboardingFlow() {
         }
       }
 
-      // Add expertise tags
-      if (expertiseTags.length > 0) {
+      // Add expertise tags (both suggested and custom)
+      const allExpertiseTags = [...expertiseTags, ...customExpertiseTags]
+      if (allExpertiseTags.length > 0) {
         // First, get or create expertise tags
         const tagInserts = await Promise.all(
-          expertiseTags.map(async (tag) => {
+          allExpertiseTags.map(async (tag) => {
             const { data: existingTag } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
               .from("expertise_tags")
               .select("id")
@@ -583,16 +589,16 @@ export function OnboardingFlow() {
             )}
 
             {/* Custom tags displayed below suggested tags */}
-            {expertiseTags.length > 0 && (
+            {customExpertiseTags.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {expertiseTags.map((tag) => (
+                {customExpertiseTags.map((tag) => (
                   <span
                     key={tag}
                     className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary/10 text-primary border border-primary/20"
                   >
                     {tag}
                     <button
-                      onClick={() => removeExpertiseTag(tag)}
+                      onClick={() => removeCustomExpertiseTag(tag)}
                       className="ml-2 hover:text-destructive"
                     >
                       ×
