@@ -26,7 +26,7 @@ interface OnboardingStep {
 export function OnboardingFlow() {
   const searchParams = useSearchParams()
   const fromEventJoin = searchParams.get('from') === 'event-join'
-  const [currentStep, setCurrentStep] = useState(fromEventJoin ? 3 : 0) // Start at networking goals if coming from event join
+  const [currentStep, setCurrentStep] = useState(fromEventJoin ? 3 : 0) // networking goals only used when coming from an event
   const [isLoading, setIsLoading] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [hobbies, setHobbies] = useState<Hobby[]>([])
@@ -627,18 +627,6 @@ export function OnboardingFlow() {
       )
     },
     {
-      id: "join-event",
-      title: "Join an Event",
-      description: "Scan a QR code or enter an event code to get started",
-      component: (
-        <EventJoinScanner
-          onJoinEvent={handleJoinEvent}
-          onScanQR={handleScanQR}
-          isLoading={isLoading}
-        />
-      )
-    },
-    {
       id: "networking-goals",
       title: "Networking Goals",
       description: "What are you looking to network about?",
@@ -693,8 +681,10 @@ export function OnboardingFlow() {
     </div>
   }
 
-  const currentStepData = steps[currentStep]
-  const isLastStep = currentStep === steps.length - 1
+  // If not coming from event join, onboarding only has 2 steps
+  const visibleSteps = fromEventJoin ? steps : steps.slice(0, 2)
+  const currentStepData = visibleSteps[currentStep]
+  const isLastStep = currentStep === visibleSteps.length - 1
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -746,16 +736,16 @@ export function OnboardingFlow() {
           <div className="px-6 pb-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-muted-foreground">
-                Step {currentStep + 1} of {steps.length}
+                Step {currentStep + 1} of {visibleSteps.length}
               </span>
               <span className="text-sm text-muted-foreground">
-                {Math.round(((currentStep + 1) / steps.length) * 100)}%
+                {Math.round(((currentStep + 1) / visibleSteps.length) * 100)}%
               </span>
             </div>
             <div className="w-full bg-muted rounded-full h-2">
               <div
                 className="gradient-primary h-2 rounded-full transition-all duration-300"
-                style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
+                style={{ width: `${((currentStep + 1) / visibleSteps.length) * 100}%` }}
               />
             </div>
           </div>

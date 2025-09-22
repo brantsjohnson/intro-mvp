@@ -113,6 +113,7 @@ export function HomePage() {
           loadMatches(eventMember.events.id)
         }
       }
+      // If no events, keep currentEvent null; Home will show empty-state to join via code/QR
 
     } catch {
       toast.error("Failed to load user data")
@@ -323,6 +324,26 @@ export function HomePage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* If no current event, prompt to join */}
+            {!currentEvent && (
+              <Card className="bg-card border-border shadow-elevation">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Users className="h-5 w-5" />
+                    <span>Join an Event</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">You are not part of any events yet. Join using an invite link, QR code, or a 5‑character code.</p>
+                  <div className="flex gap-3">
+                    <GradientButton onClick={() => router.push('/event/join')} className="flex-1">
+                      Enter Code / Scan QR
+                    </GradientButton>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* People You Should Know */}
             <Card className="bg-card border-border shadow-elevation">

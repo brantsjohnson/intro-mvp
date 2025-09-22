@@ -77,7 +77,7 @@ export function EventJoinPage() {
       }
 
       toast.success("Successfully joined event!")
-      // Navigate to the next step in onboarding (networking goals)
+      // After joining from Home, ask networking goals; but if user completes onboarding first, they can come back from Home too
       router.push("/onboarding?from=event-join")
     } catch (error) {
       console.error("Error joining event:", error)

@@ -23,6 +23,7 @@ export function EventJoinScanner({
   const [scanError, setScanError] = React.useState<string | null>(null)
   const videoRef = React.useRef<HTMLVideoElement>(null)
   const codeReader = React.useRef<BrowserQRCodeReader | null>(null)
+  const activeStreamRef = React.useRef<MediaStream | null>(null)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,6 +49,15 @@ export function EventJoinScanner({
     if (codeReader.current) {
       codeReader.current.reset()
     }
+    const videoEl = videoRef.current
+    const stream = (videoEl?.srcObject as MediaStream | null) || activeStreamRef.current
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop())
+    }
+    if (videoEl) {
+      videoEl.srcObject = null
+    }
+    activeStreamRef.current = null
     setIsScanning(false)
     setScanError(null)
   }
@@ -82,6 +92,10 @@ export function EventJoinScanner({
           videoElement,
           (result, error) => {
             if (didCancel) return
+            const streamFromVideo = (videoElement as HTMLVideoElement).srcObject as MediaStream | null
+            if (streamFromVideo) {
+              activeStreamRef.current = streamFromVideo
+            }
             if (result) {
               const scannedText = result.getText()
               if (scannedText && scannedText.length === 5 && /^[A-Z0-9]+$/.test(scannedText)) {
