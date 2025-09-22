@@ -8,6 +8,12 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+const changaOne = {
+  fontFamily: 'Changa One, cursive',
+  fontWeight: 400,
+  fontStyle: 'normal',
+};
+
 export const metadata: Metadata = {
   title: "Intro - Conference Networking",
   description: "Connect with the right people at your next conference",

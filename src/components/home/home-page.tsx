@@ -282,7 +282,7 @@ export function HomePage() {
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center">
             {/* Left: User avatar with presence indicator */}
             <PresenceAvatar
               src={profile.avatar_url || undefined}
@@ -291,23 +291,32 @@ export function HomePage() {
               size="md"
             />
             
-            {/* Center: Intro wordmark */}
-            <div className="flex items-center">
-              <img 
-                src="/intro-logo.svg" 
-                alt="Intro" 
-                className="h-8 w-auto"
-              />
+            {/* Right of avatar: Intro wordmark */}
+            <div className="ml-4">
+              <h1 
+                className="text-2xl font-bold"
+                style={{ 
+                  fontFamily: 'Changa One, cursive',
+                  color: '#EB7437'
+                }}
+              >
+                INTRO
+              </h1>
             </div>
             
-            {/* Right: Message icon */}
-            <GradientButton
-              onClick={() => router.push("/messages")}
-              variant="outline"
-              size="icon"
-            >
-              <MessageSquare className="h-5 w-5" />
-            </GradientButton>
+            {/* Right: Message icon with gradient */}
+            <div className="ml-auto">
+              <button
+                onClick={() => router.push("/messages")}
+                className="w-10 h-10 rounded-full flex items-center justify-center"
+                style={{
+                  background: 'linear-gradient(135deg, #EC874E 0%, #BF341E 100%)',
+                  border: 'none'
+                }}
+              >
+                <MessageSquare className="h-5 w-5 text-white" />
+              </button>
+            </div>
           </div>
         </div>
       </header>
