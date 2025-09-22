@@ -113,8 +113,7 @@ export function HomePage() {
             name,
             code,
             starts_at,
-            ends_at,
-            matchmaking_enabled
+            ends_at
           )
         `)
         .eq("user_id", user.id)
@@ -132,7 +131,12 @@ export function HomePage() {
         const eventMember = eventData[0] as any // eslint-disable-line @typescript-eslint/no-explicit-any
         console.log("Event member data:", eventMember)
         if (eventMember?.events) {
-          setCurrentEvent(eventMember.events as Event)
+          const event = eventMember.events as Event
+          // Set matchmaking_enabled to false by default if not present
+          if (!event.matchmaking_enabled) {
+            event.matchmaking_enabled = false
+          }
+          setCurrentEvent(event)
           setIsPresent(eventMember.is_present || false)
           loadMatches(eventMember.events.id)
         } else {
