@@ -119,7 +119,8 @@ export function HomePage() {
         `)
         .eq("user_id", user.id)
         .limit(1)
-        .maybeSingle()
+
+      console.log("Event membership query result:", { eventData, eventError, userId: user.id })
 
       if (eventError) {
         console.error("Error loading event membership:", eventError)
@@ -127,8 +128,9 @@ export function HomePage() {
         setCurrentEvent(null)
         setIsPresent(false)
         setMatches([])
-      } else if (eventData) {
-        const eventMember = eventData as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      } else if (eventData && eventData.length > 0) {
+        const eventMember = eventData[0] as any // eslint-disable-line @typescript-eslint/no-explicit-any
+        console.log("Event member data:", eventMember)
         if (eventMember?.events) {
           setCurrentEvent(eventMember.events as Event)
           setIsPresent(eventMember.is_present || false)
@@ -141,6 +143,7 @@ export function HomePage() {
         }
       } else {
         // No event membership found, clear everything
+        console.log("No event membership found for user:", user.id)
         setCurrentEvent(null)
         setIsPresent(false)
         setMatches([])
@@ -243,6 +246,12 @@ export function HomePage() {
     // Refresh matches when a new connection is created
     if (currentEvent) {
       loadMatches(currentEvent.id)
+    }
+  }
+
+  const handleRefreshData = () => {
+    if (user) {
+      loadUserData()
     }
   }
 
@@ -394,6 +403,9 @@ export function HomePage() {
                   <div className="flex gap-3">
                     <GradientButton onClick={() => router.push('/event/join')} className="flex-1">
                       Enter Code / Scan QR
+                    </GradientButton>
+                    <GradientButton onClick={handleRefreshData} variant="outline" size="sm">
+                      Refresh
                     </GradientButton>
                   </div>
                 </CardContent>
