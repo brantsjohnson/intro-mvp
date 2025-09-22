@@ -14,11 +14,8 @@ import { toast } from "sonner"
 import { 
   Users, 
   MessageSquare, 
-  Settings, 
-  LogOut, 
   MapPin,
   Calendar,
-  Sparkles,
   Plus
 } from "lucide-react"
 
@@ -286,56 +283,31 @@ export function HomePage() {
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-foreground">Intro</h1>
-                {currentEvent && (
-                  <p className="text-sm text-muted-foreground">{currentEvent.name}</p>
-                )}
-              </div>
+            {/* Left: User avatar with presence indicator */}
+            <PresenceAvatar
+              src={profile.avatar_url || undefined}
+              fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
+              isPresent={isPresent}
+              size="md"
+            />
+            
+            {/* Center: Intro wordmark */}
+            <div className="flex items-center">
+              <img 
+                src="/intro-logo.svg" 
+                alt="Intro" 
+                className="h-8 w-auto"
+              />
             </div>
             
-            <div className="flex items-center space-x-3">
-              <GradientButton
-                onClick={() => router.push("/event/join")}
-                variant="outline"
-                size="sm"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Event
-              </GradientButton>
-              <PresenceAvatar
-                src={profile.avatar_url || undefined}
-                fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
-                isPresent={isPresent}
-                size="sm"
-              />
-              <GradientButton
-                onClick={togglePresence}
-                disabled={isLoading}
-                size="sm"
-                variant={isPresent ? "secondary" : "default"}
-              >
-                {isPresent ? "I'm Here" : "Mark Present"}
-              </GradientButton>
-              <GradientButton
-                onClick={() => router.push("/settings")}
-                variant="outline"
-                size="icon"
-              >
-                <Settings className="h-4 w-4" />
-              </GradientButton>
-              <GradientButton
-                onClick={handleSignOut}
-                variant="outline"
-                size="icon"
-              >
-                <LogOut className="h-4 w-4" />
-              </GradientButton>
-            </div>
+            {/* Right: Message icon */}
+            <GradientButton
+              onClick={() => router.push("/messages")}
+              variant="outline"
+              size="icon"
+            >
+              <MessageSquare className="h-5 w-5" />
+            </GradientButton>
           </div>
         </div>
       </header>
