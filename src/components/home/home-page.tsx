@@ -178,9 +178,6 @@ export function HomePage() {
             job_title,
             company,
             avatar_url
-          ),
-          event_members!inner (
-            is_present
           )
         `)
         .eq("event_id", eventId)
@@ -198,7 +195,7 @@ export function HomePage() {
         bases: match.bases,
         panels: match.panels,
         profile: match.profiles,
-        is_present: match.event_members.is_present
+        is_present: false // Default to false since we're not loading presence data for matches
       })) || []
 
       setMatches(formattedMatches)

@@ -33,6 +33,12 @@ export class QRCodeService {
         }
       })
 
+      // For now, return the data URL directly to avoid storage issues
+      // This is more reliable and doesn't require storage permissions
+      return qrCodeDataURL
+
+      // TODO: Re-enable storage upload once storage policies are confirmed working
+      /*
       // Upload to Supabase storage
       const fileName = `${userId}/${eventId}-${Date.now()}.png`
       const response = await fetch(qrCodeDataURL)
@@ -57,6 +63,7 @@ export class QRCodeService {
         .getPublicUrl(fileName)
 
       return urlData.publicUrl
+      */
     } catch (error) {
       console.error('Error generating QR code:', error)
       return null
