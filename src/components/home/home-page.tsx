@@ -323,6 +323,44 @@ export function HomePage() {
 
       <main className="container mx-auto px-4 py-6">
         <div className="max-w-2xl mx-auto space-y-6">
+            {/* Event Title and Presence Section */}
+            {currentEvent && (
+              <Card className="bg-card border-border shadow-elevation">
+                <CardContent className="p-6 text-center space-y-6">
+                  {/* Event Title */}
+                  <h2 className="text-2xl font-semibold text-foreground">
+                    {currentEvent.name}
+                  </h2>
+                  
+                  {/* Gradient Separator Line */}
+                  <div 
+                    className="h-1 w-full rounded-full"
+                    style={{
+                      background: 'linear-gradient(90deg, #EC874E 0%, #BF341E 100%)'
+                    }}
+                  />
+                  
+                  {/* Description Text */}
+                  <p className="text-muted-foreground text-center">
+                    We'll start loading your Intro matches once you let us know you're here
+                  </p>
+                  
+                  {/* I'm Here Button */}
+                  <button
+                    onClick={togglePresence}
+                    disabled={isLoading}
+                    className="px-8 py-3 rounded-lg text-white font-medium text-lg mx-auto block"
+                    style={{
+                      background: 'linear-gradient(135deg, #4B915A 0%, #0B3E16 100%)',
+                      border: 'none'
+                    }}
+                  >
+                    {isPresent ? "I'm Here" : "I'm Here"}
+                  </button>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Welcome Section */}
             <Card className="bg-card border-border shadow-elevation">
               <CardContent className="p-6">
