@@ -361,77 +361,6 @@ export function HomePage() {
               </Card>
             )}
 
-            {/* Welcome Section */}
-            <Card className="bg-card border-border shadow-elevation">
-              <CardContent className="p-6">
-                <div className="flex items-center space-x-4">
-                  <PresenceAvatar
-                    src={profile.avatar_url || undefined}
-                    fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
-                    isPresent={isPresent}
-                    size="lg"
-                  />
-                  <div>
-                    <h2 className="text-2xl font-semibold text-foreground">
-                      Welcome back, {profile.first_name}!
-                    </h2>
-                    <p className="text-muted-foreground">
-                      {profile.job_title} at {profile.company}
-                    </p>
-                    {currentEvent && (
-                      <div className="flex items-center space-x-4 mt-2 text-sm text-muted-foreground">
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="h-4 w-4" />
-                          <span>
-                            {currentEvent.starts_at ? new Date(currentEvent.starts_at).toLocaleDateString() : 'TBD'}
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <MapPin className="h-4 w-4" />
-                          <span>Conference Venue</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* QR Code Section - Prominently displayed */}
-            {currentEvent && (
-              <Card className="bg-card border-border shadow-elevation">
-                <CardContent className="p-6 text-center space-y-4">
-                  <h3 className="text-lg font-medium text-foreground">
-                    Connect with other attendees and see what you have in common.
-                  </h3>
-                  <QRCard onScanClick={handleQRScan} />
-                </CardContent>
-              </Card>
-            )}
-
-            {/* If no current event, prompt to join */}
-            {!currentEvent && (
-              <Card className="bg-card border-border shadow-elevation">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Users className="h-5 w-5" />
-                    <span>Join an Event</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-muted-foreground">You are not part of any events yet. Join using an invite link, QR code, or a 5‑character code.</p>
-                  <div className="flex gap-3">
-                    <GradientButton onClick={() => router.push('/event/join')} className="flex-1">
-                      Enter Code / Scan QR
-                    </GradientButton>
-                    <GradientButton onClick={handleRefreshData} variant="outline" size="sm">
-                      Refresh
-                    </GradientButton>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             {/* People You Should Know */}
             <Card className="bg-card border-border shadow-elevation">
               <CardHeader>
@@ -485,6 +414,64 @@ export function HomePage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* QR Code Section */}
+            {currentEvent && (
+              <Card className="bg-card border-border shadow-elevation">
+                <CardContent className="p-6 text-center space-y-4">
+                  <h3 className="text-lg font-medium text-foreground">
+                    Connect with other attendees and see what you have in common.
+                  </h3>
+                  <QRCard onScanClick={handleQRScan} />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Your Connections - Only show when connections exist */}
+            {currentEvent && matches.length > 0 && (
+              <Card className="bg-card border-border shadow-elevation">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <MessageSquare className="h-5 w-5" />
+                    <span>Your Connections</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="text-center py-8">
+                    <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-foreground mb-2">
+                      No connections yet
+                    </h3>
+                    <p className="text-muted-foreground">
+                      Your connections will appear here once you start chatting with people.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* If no current event, prompt to join */}
+            {!currentEvent && (
+              <Card className="bg-card border-border shadow-elevation">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Users className="h-5 w-5" />
+                    <span>Join an Event</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">You are not part of any events yet. Join using an invite link, QR code, or a 5‑character code.</p>
+                  <div className="flex gap-3">
+                    <GradientButton onClick={() => router.push('/event/join')} className="flex-1">
+                      Enter Code / Scan QR
+                    </GradientButton>
+                    <GradientButton onClick={handleRefreshData} variant="outline" size="sm">
+                      Refresh
+                    </GradientButton>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
         </div>
       </main>
 
