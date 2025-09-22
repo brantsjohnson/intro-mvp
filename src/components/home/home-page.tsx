@@ -43,13 +43,25 @@ export function HomePage() {
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push("/auth")
-        return
+      if (user) {
+        setUser(user)
       }
-      setUser(user)
     }
+    
+    // Initial check
     getUser()
+    
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state changed:', event, session?.user?.id)
+      if (session?.user) {
+        setUser(session.user)
+      } else if (event === 'SIGNED_OUT') {
+        router.push("/auth")
+      }
+    })
+    
+    return () => subscription.unsubscribe()
   }, [router, supabase.auth])
 
   useEffect(() => {

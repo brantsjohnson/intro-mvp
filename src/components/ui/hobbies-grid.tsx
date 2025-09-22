@@ -13,6 +13,7 @@ interface HobbiesGridProps {
   onHobbyChange: (hobbyId: number, checked: boolean) => void
   mode?: "select" | "display"
   mutualHobbies?: number[]
+  theirUniqueHobbies?: number[]
   className?: string
 }
 
@@ -22,15 +23,18 @@ export function HobbiesGrid({
   onHobbyChange, 
   mode = "select",
   mutualHobbies = [],
+  theirUniqueHobbies = [],
   className 
 }: HobbiesGridProps) {
   const isMutual = (hobbyId: number) => mutualHobbies.includes(hobbyId)
+  const isTheirUnique = (hobbyId: number) => theirUniqueHobbies.includes(hobbyId)
   const isSelected = (hobbyId: number) => selectedHobbies.includes(hobbyId)
 
   return (
     <div className={cn("grid grid-cols-2 gap-3", className)}>
       {hobbies.map((hobby) => {
         const isMutualHobby = isMutual(hobby.id)
+        const isTheirUniqueHobby = isTheirUnique(hobby.id)
         const isHobbySelected = isSelected(hobby.id)
         
         return (
@@ -39,7 +43,8 @@ export function HobbiesGrid({
             className={cn(
               "flex items-center space-x-3 rounded-xl p-3 transition-colors",
               mode === "display" && isMutualHobby && "bg-primary/10 border border-primary/20",
-              mode === "display" && !isMutualHobby && "bg-muted/50"
+              mode === "display" && isTheirUniqueHobby && "bg-muted/50",
+              mode === "display" && !isMutualHobby && !isTheirUniqueHobby && "opacity-50"
             )}
           >
             {mode === "select" ? (
@@ -54,6 +59,8 @@ export function HobbiesGrid({
                 "h-4 w-4 rounded border-2 flex items-center justify-center",
                 isMutualHobby 
                   ? "bg-primary border-primary" 
+                  : isTheirUniqueHobby
+                  ? "border-muted-foreground/50"
                   : "border-muted-foreground/30"
               )}>
                 {isMutualHobby && (
@@ -66,7 +73,8 @@ export function HobbiesGrid({
               className={cn(
                 "text-sm font-medium cursor-pointer flex-1",
                 mode === "display" && isMutualHobby && "text-primary",
-                mode === "display" && !isMutualHobby && "text-muted-foreground"
+                mode === "display" && isTheirUniqueHobby && "text-muted-foreground",
+                mode === "display" && !isMutualHobby && !isTheirUniqueHobby && "text-muted-foreground/50"
               )}
             >
               {hobby.label}

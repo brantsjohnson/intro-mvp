@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { GradientButton } from "@/components/ui/gradient-button"
-// import { Checkbox } from "@/components/ui/checkbox"
+import { Checkbox } from "@/components/ui/checkbox"
 import { HobbiesGrid } from "@/components/ui/hobbies-grid"
 import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
@@ -24,38 +24,123 @@ interface OnboardingStep {
 }
 
 export function OnboardingFlow() {
-  const [currentStep, setCurrentStep] = useState(0)
+  const searchParams = useSearchParams()
+  const fromEventJoin = searchParams.get('from') === 'event-join'
+  const [currentStep, setCurrentStep] = useState(fromEventJoin ? 3 : 0) // Start at networking goals if coming from event join
   const [isLoading, setIsLoading] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [hobbies, setHobbies] = useState<Hobby[]>([])
   const [selectedHobbies, setSelectedHobbies] = useState<number[]>([])
   const [expertiseTags, setExpertiseTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState("")
+  const [networkingGoals, setNetworkingGoals] = useState<string[]>([])
   
   // Profile data
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
   const [jobTitle, setJobTitle] = useState("")
   const [company, setCompany] = useState("")
+  const [whatDoYouDo, setWhatDoYouDo] = useState("")
   const [linkedinUrl, setLinkedinUrl] = useState("")
   const [mbti, setMbti] = useState("")
   const [enneagram, setEnneagram] = useState("")
-  const [networkingGoals, setNetworkingGoals] = useState("")
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   
   const router = useRouter()
   const supabase = createClientComponentClient()
 
+  // Generate AI-based expertise suggestions based on job title
+  const generateExpertiseSuggestions = (jobTitle: string): string[] => {
+    const title = jobTitle.toLowerCase()
+    
+    if (title.includes('engineer') || title.includes('developer') || title.includes('programmer')) {
+      return ['Software Development', 'System Architecture', 'Code Review', 'Technical Leadership', 'API Design', 'Database Management']
+    } else if (title.includes('designer') || title.includes('ux') || title.includes('ui')) {
+      return ['User Experience Design', 'Visual Design', 'Prototyping', 'Design Systems', 'User Research', 'Interface Design']
+    } else if (title.includes('manager') || title.includes('director') || title.includes('lead')) {
+      return ['Team Leadership', 'Project Management', 'Strategic Planning', 'Process Improvement', 'Stakeholder Management', 'Budget Planning']
+    } else if (title.includes('marketing') || title.includes('growth') || title.includes('brand')) {
+      return ['Digital Marketing', 'Content Strategy', 'Brand Management', 'Campaign Planning', 'Analytics', 'Social Media']
+    } else if (title.includes('sales') || title.includes('business development')) {
+      return ['Client Relations', 'Sales Strategy', 'Lead Generation', 'Negotiation', 'Market Analysis', 'Revenue Growth']
+    } else if (title.includes('product') || title.includes('pm')) {
+      return ['Product Strategy', 'Feature Planning', 'User Stories', 'Market Research', 'Roadmap Development', 'Cross-functional Collaboration']
+    } else if (title.includes('data') || title.includes('analyst') || title.includes('scientist')) {
+      return ['Data Analysis', 'Statistical Modeling', 'Machine Learning', 'Data Visualization', 'Predictive Analytics', 'Database Querying']
+    } else if (title.includes('finance') || title.includes('accounting') || title.includes('cfo')) {
+      return ['Financial Analysis', 'Budget Management', 'Risk Assessment', 'Investment Strategy', 'Financial Reporting', 'Cost Optimization']
+    } else if (title.includes('hr') || title.includes('human resources') || title.includes('people')) {
+      return ['Talent Acquisition', 'Employee Relations', 'Performance Management', 'Training & Development', 'Organizational Culture', 'Compensation Planning']
+    } else {
+      return ['Problem Solving', 'Communication', 'Project Coordination', 'Process Optimization', 'Client Service', 'Strategic Thinking']
+    }
+  }
+
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push("/auth")
-        return
+      if (user) {
+        setUser(user)
+        // Pre-fill form fields from Google OAuth data
+        if (user.user_metadata) {
+          const metadata = user.user_metadata
+          if (metadata.first_name) setFirstName(metadata.first_name)
+          if (metadata.last_name) setLastName(metadata.last_name)
+          if (metadata.full_name) {
+            const nameParts = metadata.full_name.split(' ')
+            if (nameParts.length >= 2) {
+              setFirstName(nameParts[0])
+              setLastName(nameParts.slice(1).join(' '))
+            }
+          }
+          if (metadata.avatar_url) setAvatarPreview(metadata.avatar_url)
+        }
       }
-      setUser(user)
     }
+    
+    // Initial check
     getUser()
-  }, [router, supabase.auth])
+    
+    // Set a timeout to redirect if no user is found after 3 seconds
+    const timeoutId = setTimeout(() => {
+      if (!user) {
+        console.log('Timeout: No user found after 3 seconds, redirecting to auth')
+        router.push("/auth")
+      }
+    }, 3000)
+    
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state changed:', event, session?.user?.id)
+      if (session?.user) {
+        clearTimeout(timeoutId) // Clear timeout if user is found
+        setUser(session.user)
+        // Pre-fill form fields from Google OAuth data
+        if (session.user.user_metadata) {
+          const metadata = session.user.user_metadata
+          if (metadata.first_name) setFirstName(metadata.first_name)
+          if (metadata.last_name) setLastName(metadata.last_name)
+          if (metadata.full_name) {
+            const nameParts = metadata.full_name.split(' ')
+            if (nameParts.length >= 2) {
+              setFirstName(nameParts[0])
+              setLastName(nameParts.slice(1).join(' '))
+            }
+          }
+          if (metadata.avatar_url) setAvatarPreview(metadata.avatar_url)
+        }
+      } else if (event === 'SIGNED_OUT') {
+        clearTimeout(timeoutId)
+        router.push("/auth")
+      }
+    })
+    
+    return () => {
+      clearTimeout(timeoutId)
+      subscription.unsubscribe()
+    }
+  }, [router, supabase.auth, user])
 
   useEffect(() => {
     const fetchHobbies = async () => {
@@ -128,10 +213,17 @@ export function OnboardingFlow() {
         .from("events")
         .select("*")
         .eq("code", eventCode.toUpperCase())
-        .single()
+        .eq("is_active", true)
+        .maybeSingle()
 
-      if (eventError || !event) {
-        toast.error("Event not found")
+      if (eventError) {
+        console.error("Event query error:", eventError)
+        toast.error("Failed to check event. Please try again.")
+        return
+      }
+
+      if (!event) {
+        toast.error("Event not found or inactive")
         return
       }
 
@@ -149,7 +241,7 @@ export function OnboardingFlow() {
       }
 
       toast.success("Successfully joined event!")
-      setCurrentStep(currentStep + 1)
+      setCurrentStep(3) // Go directly to networking goals step
     } catch {
       toast.error("An error occurred")
     } finally {
@@ -178,20 +270,23 @@ export function OnboardingFlow() {
         .from("profiles")
         .upsert({
           id: user.id,
-          first_name: user.user_metadata?.first_name || "",
-          last_name: user.user_metadata?.last_name || "",
+          first_name: firstName,
+          last_name: lastName,
           email: user.email || "",
           avatar_url: avatarUrl,
           job_title: jobTitle,
           company: company,
+          what_do_you_do: whatDoYouDo,
           linkedin_url: linkedinUrl,
           mbti: mbti,
           enneagram: enneagram,
+          networking_goals: networkingGoals,
           consent: true
         })
 
       if (profileError) {
-        toast.error("Failed to update profile")
+        console.error("Profile update error:", profileError)
+        toast.error("Failed to update profile. Please try again.")
         return
       }
 
@@ -298,6 +393,92 @@ export function OnboardingFlow() {
             </div>
           </div>
 
+          {/* Name Information */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="firstName" className="text-sm font-medium text-foreground">
+                First Name *
+              </Label>
+              <Input
+                id="firstName"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="e.g. John"
+                className="mt-1 rounded-xl"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="lastName" className="text-sm font-medium text-foreground">
+                Last Name *
+              </Label>
+              <Input
+                id="lastName"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="e.g. Doe"
+                className="mt-1 rounded-xl"
+                required
+              />
+            </div>
+          </div>
+
+          {/* Personality Types */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="mbti" className="text-sm font-medium text-foreground">
+                Myers-Briggs Type (Optional)
+              </Label>
+              <Input
+                id="mbti"
+                value={mbti}
+                onChange={(e) => setMbti(e.target.value.toUpperCase())}
+                placeholder="e.g. ENFP"
+                maxLength={4}
+                className="mt-1 rounded-xl"
+              />
+            </div>
+            <div>
+              <Label htmlFor="enneagram" className="text-sm font-medium text-foreground">
+                Enneagram Type (Optional)
+              </Label>
+              <Input
+                id="enneagram"
+                value={enneagram}
+                onChange={(e) => setEnneagram(e.target.value)}
+                placeholder="e.g. 8 or 8w7"
+                className="mt-1 rounded-xl"
+              />
+            </div>
+          </div>
+
+          {/* Hobbies & Interests */}
+          <div>
+            <Label className="text-sm font-medium text-foreground mb-3 block">
+              Hobbies & Interests
+            </Label>
+            <HobbiesGrid
+              hobbies={hobbies}
+              selectedHobbies={selectedHobbies}
+              onHobbyChange={(hobbyId, checked) => {
+                if (checked) {
+                  setSelectedHobbies([...selectedHobbies, hobbyId])
+                } else {
+                  setSelectedHobbies(selectedHobbies.filter(id => id !== hobbyId))
+                }
+              }}
+              mode="select"
+            />
+          </div>
+        </div>
+      )
+    },
+    {
+      id: "professional",
+      title: "Professional Information",
+      description: "Tell us about your work and expertise",
+      component: (
+        <div className="space-y-6">
           {/* Job Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -328,98 +509,34 @@ export function OnboardingFlow() {
             </div>
           </div>
 
+          {/* What do you do */}
           <div>
-            <Label htmlFor="linkedinUrl" className="text-sm font-medium text-foreground">
-              LinkedIn URL
-            </Label>
-            <Input
-              id="linkedinUrl"
-              type="url"
-              value={linkedinUrl}
-              onChange={(e) => setLinkedinUrl(e.target.value)}
-              placeholder="https://linkedin.com/in/yourname"
-              className="mt-1 rounded-xl"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="networkingGoals" className="text-sm font-medium text-foreground">
-              What are you looking to network about?
+            <Label htmlFor="whatDoYouDo" className="text-sm font-medium text-foreground">
+              What do you do? (Optional)
             </Label>
             <Textarea
-              id="networkingGoals"
-              value={networkingGoals}
-              onChange={(e) => setNetworkingGoals(e.target.value)}
-              placeholder="e.g. Career opportunities, mentorship, collaboration on AI projects..."
+              id="whatDoYouDo"
+              value={whatDoYouDo}
+              onChange={(e) => setWhatDoYouDo(e.target.value)}
+              placeholder="Briefly describe your role and responsibilities..."
               className="mt-1 rounded-xl"
               rows={3}
             />
           </div>
-        </div>
-      )
-    },
-    {
-      id: "personality",
-      title: "Personality & Interests",
-      description: "Help us understand your personality and interests for better matching",
-      component: (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="mbti" className="text-sm font-medium text-foreground">
-                Myers-Briggs Type (Optional)
-              </Label>
-              <Input
-                id="mbti"
-                value={mbti}
-                onChange={(e) => setMbti(e.target.value.toUpperCase())}
-                placeholder="e.g. ENFP"
-                maxLength={4}
-                className="mt-1 rounded-xl"
-              />
-            </div>
-            <div>
-              <Label htmlFor="enneagram" className="text-sm font-medium text-foreground">
-                Enneagram Type (Optional)
-              </Label>
-              <Input
-                id="enneagram"
-                value={enneagram}
-                onChange={(e) => setEnneagram(e.target.value)}
-                placeholder="e.g. 8 or 8w7"
-                className="mt-1 rounded-xl"
-              />
-            </div>
-          </div>
 
-          <div>
-            <Label className="text-sm font-medium text-foreground mb-3 block">
-              Hobbies & Interests
-            </Label>
-            <HobbiesGrid
-              hobbies={hobbies}
-              selectedHobbies={selectedHobbies}
-              onHobbyChange={(hobbyId, checked) => {
-                if (checked) {
-                  setSelectedHobbies([...selectedHobbies, hobbyId])
-                } else {
-                  setSelectedHobbies(selectedHobbies.filter(id => id !== hobbyId))
-                }
-              }}
-              mode="select"
-            />
-          </div>
-
+          {/* Areas of Expertise with AI suggestions */}
           <div>
             <Label className="text-sm font-medium text-foreground mb-3 block">
               Areas of Expertise
             </Label>
-            <div className="space-y-3">
+            
+            {/* Custom input field first */}
+            <div className="mb-4">
               <div className="flex space-x-2">
                 <Input
                   value={newTag}
                   onChange={(e) => setNewTag(e.target.value)}
-                  placeholder="Add expertise area"
+                  placeholder="Add your own expertise area"
                   className="rounded-xl"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -432,25 +549,73 @@ export function OnboardingFlow() {
                   Add
                 </GradientButton>
               </div>
-              {expertiseTags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {expertiseTags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary/10 text-primary border border-primary/20"
-                    >
-                      {tag}
-                      <button
-                        onClick={() => removeExpertiseTag(tag)}
-                        className="ml-2 hover:text-destructive"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
+
+            {/* Suggested tags below custom input */}
+            {jobTitle && (
+              <div className="mb-4">
+                <p className="text-sm text-muted-foreground mb-2">Suggested based on your job title:</p>
+                <div className="flex flex-wrap gap-2">
+                  {generateExpertiseSuggestions(jobTitle).map((suggestion) => {
+                    const isSelected = expertiseTags.includes(suggestion)
+                    return (
+                      <button
+                        key={suggestion}
+                        onClick={() => {
+                          if (isSelected) {
+                            removeExpertiseTag(suggestion)
+                          } else {
+                            setExpertiseTags([...expertiseTags, suggestion])
+                          }
+                        }}
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-sm border transition-colors ${
+                          isSelected
+                            ? 'bg-primary/10 text-primary border-primary/20'
+                            : 'bg-muted/50 text-foreground border-border hover:bg-primary/10 hover:border-primary/20'
+                        }`}
+                      >
+                        {isSelected ? '✓' : '+'} {suggestion}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Custom tags displayed below suggested tags */}
+            {expertiseTags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {expertiseTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary/10 text-primary border border-primary/20"
+                  >
+                    {tag}
+                    <button
+                      onClick={() => removeExpertiseTag(tag)}
+                      className="ml-2 hover:text-destructive"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* LinkedIn URL */}
+          <div>
+            <Label htmlFor="linkedinUrl" className="text-sm font-medium text-foreground">
+              LinkedIn URL
+            </Label>
+            <Input
+              id="linkedinUrl"
+              type="url"
+              value={linkedinUrl}
+              onChange={(e) => setLinkedinUrl(e.target.value)}
+              placeholder="https://linkedin.com/in/yourname"
+              className="mt-1 rounded-xl"
+            />
           </div>
         </div>
       )
@@ -466,11 +631,55 @@ export function OnboardingFlow() {
           isLoading={isLoading}
         />
       )
+    },
+    {
+      id: "networking-goals",
+      title: "Networking Goals",
+      description: "What are you looking to network about?",
+      component: (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              "Advice & Guidance",
+              "Business Development",
+              "Career Advancement",
+              "Collaboration Opportunities",
+              "Friends & Connections",
+              "Industry Insights",
+              "Mentorship",
+              "Peer Relationships",
+              "Professional Growth",
+              "Skill Enhancement"
+            ].map((goal) => (
+              <div key={goal} className="flex items-center space-x-3 rounded-xl p-3 transition-colors">
+                <Checkbox
+                  id={`networking-${goal}`}
+                  checked={networkingGoals.includes(goal)}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setNetworkingGoals([...networkingGoals, goal])
+                    } else {
+                      setNetworkingGoals(networkingGoals.filter(g => g !== goal))
+                    }
+                  }}
+                  className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                />
+                <label
+                  htmlFor={`networking-${goal}`}
+                  className="text-sm font-medium cursor-pointer flex-1"
+                >
+                  {goal}
+                </label>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
     }
   ]
 
   if (!user) {
-    return <div className="min-h-screen bg-background flex items-center justify-center">
+    return <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
         <p className="text-muted-foreground">Loading...</p>
@@ -482,26 +691,8 @@ export function OnboardingFlow() {
   const isLastStep = currentStep === steps.length - 1
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
-        {/* Progress */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-muted-foreground">
-              Step {currentStep + 1} of {steps.length}
-            </span>
-            <span className="text-sm text-muted-foreground">
-              {Math.round(((currentStep + 1) / steps.length) * 100)}%
-            </span>
-          </div>
-          <div className="w-full bg-muted rounded-full h-2">
-            <div
-              className="gradient-primary h-2 rounded-full transition-all duration-300"
-              style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
-            />
-          </div>
-        </div>
-
         <Card className="bg-card border-border shadow-elevation">
           <CardHeader className="pb-4">
             <CardTitle className="text-xl font-semibold text-foreground">
@@ -518,7 +709,7 @@ export function OnboardingFlow() {
               <GradientButton
                 variant="outline"
                 onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-                disabled={currentStep === 0}
+                disabled={currentStep === 0 || (fromEventJoin && currentStep === 3)}
               >
                 Back
               </GradientButton>
@@ -526,14 +717,17 @@ export function OnboardingFlow() {
               {isLastStep ? (
                 <GradientButton
                   onClick={handleCompleteOnboarding}
-                  disabled={isLoading || !jobTitle || !company}
+                  disabled={isLoading || !firstName || !lastName || !jobTitle || !company}
                 >
                   {isLoading ? "Completing..." : "Complete Setup"}
                 </GradientButton>
               ) : (
                 <GradientButton
                   onClick={() => setCurrentStep(currentStep + 1)}
-                  disabled={currentStep === 0 && (!jobTitle || !company)}
+                  disabled={
+                    (currentStep === 0 && (!firstName || !lastName)) ||
+                    (currentStep === 1 && (!jobTitle || !company))
+                  }
                 >
                   Continue
                   <ArrowRight className="h-4 w-4 ml-2" />
@@ -541,6 +735,24 @@ export function OnboardingFlow() {
               )}
             </div>
           </CardContent>
+          
+          {/* Progress Bar at Bottom */}
+          <div className="px-6 pb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-muted-foreground">
+                Step {currentStep + 1} of {steps.length}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                {Math.round(((currentStep + 1) / steps.length) * 100)}%
+              </span>
+            </div>
+            <div className="w-full bg-muted rounded-full h-2">
+              <div
+                className="gradient-primary h-2 rounded-full transition-all duration-300"
+                style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
+              />
+            </div>
+          </div>
         </Card>
       </div>
     </div>

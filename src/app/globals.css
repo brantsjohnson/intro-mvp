@@ -137,6 +137,10 @@
     box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.4);
   }
   
+  .shadow-modern {
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+  
   /* Custom ring utilities */
   .ring-subtle {
     @apply ring-1 ring-white/5;
@@ -154,5 +158,29 @@
   .touch-target {
     min-height: 44px;
     min-width: 44px;
+  }
+  
+  /* Retro gradient animation */
+  @keyframes gradientShift {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+  
+  .animate-gradient {
+    animation: gradientShift 8s ease infinite;
+  }
+  
+  /* Moving gradient background */
+  .gradient-bg {
+    background: linear-gradient(-45deg, #EC874E, #BF341E, #EC874E, #BF341E);
+    background-size: 400% 400%;
+    animation: gradientShift 15s ease infinite;
   }
 }
