@@ -17,7 +17,8 @@ import {
   LogOut, 
   MapPin,
   Calendar,
-  Sparkles
+  Sparkles,
+  Plus
 } from "lucide-react"
 
 interface MatchWithProfile {
@@ -70,6 +71,18 @@ export function HomePage() {
     }
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Refresh data when page comes into focus (e.g., after returning from event join)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user) {
+        loadUserData()
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const loadUserData = async () => {
     if (!user) return
     
@@ -89,7 +102,7 @@ export function HomePage() {
       setProfile(profileData)
 
       // Load current event (for now, just get the first event the user is in)
-      const { data: eventData } = await supabase
+      const { data: eventData, error: eventError } = await supabase
         .from("event_members")
         .select(`
           is_present,
@@ -103,17 +116,32 @@ export function HomePage() {
         `)
         .eq("user_id", user.id)
         .limit(1)
-        .single()
+        .maybeSingle()
 
-      if (eventData) {
+      if (eventError) {
+        console.error("Error loading event membership:", eventError)
+        // Clear current event if there's an error
+        setCurrentEvent(null)
+        setIsPresent(false)
+        setMatches([])
+      } else if (eventData) {
         const eventMember = eventData as any // eslint-disable-line @typescript-eslint/no-explicit-any
         if (eventMember.events) {
           setCurrentEvent(eventMember.events as Event)
           setIsPresent(eventMember.is_present)
           loadMatches(eventMember.events.id)
+        } else {
+          // No event data, clear everything
+          setCurrentEvent(null)
+          setIsPresent(false)
+          setMatches([])
         }
+      } else {
+        // No event membership found, clear everything
+        setCurrentEvent(null)
+        setIsPresent(false)
+        setMatches([])
       }
-      // If no events, keep currentEvent null; Home will show empty-state to join via code/QR
 
     } catch {
       toast.error("Failed to load user data")
@@ -252,6 +280,14 @@ export function HomePage() {
             </div>
             
             <div className="flex items-center space-x-3">
+              <GradientButton
+                onClick={() => router.push("/event/join")}
+                variant="outline"
+                size="sm"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Event
+              </GradientButton>
               <PresenceAvatar
                 src={profile.avatar_url || undefined}
                 fallback={`${profile.first_name[0]}${profile.last_name[0]}`}

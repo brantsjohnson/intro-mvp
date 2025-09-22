@@ -26,7 +26,7 @@ interface OnboardingStep {
 export function OnboardingFlow() {
   const searchParams = useSearchParams()
   const fromEventJoin = searchParams.get('from') === 'event-join'
-  const [currentStep, setCurrentStep] = useState(fromEventJoin ? 3 : 0) // networking goals only used when coming from an event
+  const [currentStep, setCurrentStep] = useState(fromEventJoin ? 2 : 0) // networking goals only used when coming from an event
   const [isLoading, setIsLoading] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [hobbies, setHobbies] = useState<Hobby[]>([])
@@ -246,7 +246,7 @@ export function OnboardingFlow() {
       }
 
       toast.success("Successfully joined event!")
-      setCurrentStep(3) // Go directly to networking goals step
+      setCurrentStep(2) // Go directly to networking goals step
     } catch {
       toast.error("An error occurred")
     } finally {
@@ -686,26 +686,35 @@ export function OnboardingFlow() {
   const currentStepData = visibleSteps[currentStep]
   const isLastStep = currentStep === visibleSteps.length - 1
 
+  // Safety check - if currentStepData is undefined, reset to a valid step
+  if (!currentStepData && visibleSteps.length > 0) {
+    console.error('Invalid currentStep:', currentStep, 'visibleSteps length:', visibleSteps.length)
+    // Reset to first step if we're in an invalid state
+    if (currentStep >= visibleSteps.length) {
+      setCurrentStep(0)
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
         <Card className="bg-card border-border shadow-elevation">
           <CardHeader className="pb-4">
             <CardTitle className="text-xl font-semibold text-foreground">
-              {currentStepData.title}
+              {currentStepData?.title || 'Loading...'}
             </CardTitle>
             <p className="text-muted-foreground">
-              {currentStepData.description}
+              {currentStepData?.description || 'Please wait...'}
             </p>
           </CardHeader>
           <CardContent className="space-y-6">
-            {currentStepData.component}
+            {currentStepData?.component || <div>Loading...</div>}
             
             <div className="flex justify-between pt-4">
               <GradientButton
                 variant="outline"
                 onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-                disabled={currentStep === 0 || (fromEventJoin && currentStep === 3)}
+                disabled={currentStep === 0 || (fromEventJoin && currentStep === 2)}
               >
                 Back
               </GradientButton>
