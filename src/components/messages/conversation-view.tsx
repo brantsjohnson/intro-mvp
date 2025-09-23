@@ -181,7 +181,10 @@ export function ConversationView() {
     if (threadId) {
       const subscription = messageService.subscribeToMessages(eventId, (payload) => {
         if (payload.new?.thread_id === threadId) {
-          loadConversation() // Reload messages when new message arrives
+          // Only reload if we're not currently sending a message
+          if (!isSending) {
+            loadConversation() // Reload messages when new message arrives
+          }
         }
       })
 
@@ -208,7 +211,7 @@ export function ConversationView() {
     setNewMessage("")
     setIsSending(true)
 
-    // Optimistically add the message to the UI immediately
+    // Get user info first
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       setNewMessage(messageText)
@@ -216,6 +219,7 @@ export function ConversationView() {
       return
     }
 
+    // Create optimistic message immediately (no async calls)
     const optimisticMessage: ConversationMessage = {
       id: `temp-${Date.now()}`,
       event_id: eventId,
@@ -228,16 +232,26 @@ export function ConversationView() {
       read_at: null,
       sender_profile: {
         id: user.id,
-        first_name: user.user_metadata?.first_name || 'You',
-        last_name: user.user_metadata?.last_name || '',
-        avatar_url: user.user_metadata?.avatar_url || null,
-        job_title: user.user_metadata?.job_title || null
+        first_name: 'You',
+        last_name: '',
+        avatar_url: null,
+        job_title: null
       },
       is_from_current_user: true
     }
 
     // Add optimistic message immediately
-    setMessages(prev => [...prev, optimisticMessage])
+    console.log("Adding optimistic message:", optimisticMessage)
+    setMessages(prev => {
+      const newMessages = [...prev, optimisticMessage]
+      console.log("Updated messages array:", newMessages)
+      return newMessages
+    })
+    
+    // Scroll to bottom immediately
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    }, 50)
 
     try {
       if (threadId) {

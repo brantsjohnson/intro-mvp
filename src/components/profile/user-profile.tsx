@@ -323,14 +323,16 @@ export function UserProfile({ userId }: UserProfileProps) {
         throw insertError
       }
 
-      // Increment per-user event stats for both users
-      const upsertStats = async (targetUserId: string) => {
+      // Increment per-user event stats for current user only
+      try {
         await supabase
           .from('user_event_stats')
-          .upsert({ event_id: eventId, user_id: targetUserId, match_connections: 1 }, { onConflict: 'event_id,user_id' })
-        await supabase.rpc('increment_match_connections', { p_event_id: eventId, p_user_id: targetUserId }).catch(() => {})
+          .upsert({ event_id: eventId, user_id: user.id, match_connections: 1 }, { onConflict: 'event_id,user_id' })
+        await supabase.rpc('increment_match_connections', { p_event_id: eventId, p_user_id: user.id }).catch(() => {})
+      } catch (error) {
+        console.warn('Failed to update user stats:', error)
+        // Don't fail the connection creation if stats update fails
       }
-      await Promise.all([upsertStats(user.id), upsertStats(userId)])
 
       // Optional: mark feedback yes timestamp
       await supabase

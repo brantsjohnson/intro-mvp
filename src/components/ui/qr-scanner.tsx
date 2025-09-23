@@ -78,7 +78,14 @@ export function QRScanner({ isOpen, onClose, onConnectionCreated }: QRScannerPro
 
   const stopScanning = () => {
     if (readerRef.current) {
-      readerRef.current.reset()
+      try {
+        // Try to reset if the method exists
+        if (typeof readerRef.current.reset === 'function') {
+          readerRef.current.reset()
+        }
+      } catch (error) {
+        console.warn('Error resetting QR reader:', error)
+      }
       readerRef.current = null
     }
     setIsScanning(false)
