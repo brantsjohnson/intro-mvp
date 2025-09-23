@@ -596,13 +596,13 @@ export function UserProfile({ userId }: UserProfileProps) {
 
           {/* Hobbies */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardHeader>
-              <CardTitle className="text-lg">Hobbies</CardTitle>
+            <CardHeader className="pb-1">
+              <CardTitle className="text-primary">Hobbies</CardTitle>
               <p className="text-sm text-muted-foreground">
                 {profile.first_name} has all listed but checked are mutual.
               </p>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               <HobbiesGrid
                 hobbies={hobbies}
                 selectedHobbies={userHobbies}
@@ -617,13 +617,13 @@ export function UserProfile({ userId }: UserProfileProps) {
 
           {/* Expertise */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardHeader>
-              <CardTitle className="text-lg">Expertise</CardTitle>
+            <CardHeader className="pb-1">
+              <CardTitle className="text-primary">Expertise</CardTitle>
               <p className="text-sm text-muted-foreground">
                 {profile.first_name} has all listed but checked are mutual.
               </p>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               <ExpertiseGrid
                 expertise={expertise}
                 selectedExpertise={userExpertise}
@@ -638,10 +638,10 @@ export function UserProfile({ userId }: UserProfileProps) {
 
           {/* About */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardHeader>
-              <CardTitle className="text-lg">About</CardTitle>
+            <CardHeader className="pb-1">
+              <CardTitle className="text-primary">About</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="pt-0 space-y-3">
               <div className="flex justify-between items-center py-2 border-b border-border">
                 <span className="text-muted-foreground">Company</span>
                 <span className="text-foreground">{profile.company}</span>

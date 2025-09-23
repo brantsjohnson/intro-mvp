@@ -30,7 +30,7 @@ export function AccordionSection({
             <AccordionTrigger className="text-left hover:no-underline py-4 px-6 bg-card">
               <span className="text-lg font-medium bg-gradient-to-r from-[#EC874E] to-[#BF341E] bg-clip-text text-transparent">{title}</span>
             </AccordionTrigger>
-            <AccordionContent className="pb-4 px-6 text-white bg-card">
+            <AccordionContent className="pt-4 pb-4 px-6 text-white bg-card">
               {children}
             </AccordionContent>
           </div>
@@ -50,7 +50,7 @@ export function AccordionSection({
         <AccordionTrigger className="text-left text-foreground hover:no-underline py-4">
           <span className="text-lg font-medium">{title}</span>
         </AccordionTrigger>
-        <AccordionContent className="pb-4 text-muted-foreground">
+        <AccordionContent className="pt-4 pb-4 text-muted-foreground">
           {children}
         </AccordionContent>
       </AccordionItem>
