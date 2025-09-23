@@ -240,6 +240,65 @@ export function SettingsPage() {
     }
   }
 
+  const handleSaveChanges = async () => {
+    if (!profile) return
+
+    try {
+      setIsSaving(true)
+
+      // Update profile
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          job_title: jobTitle,
+          company: company,
+          linkedin_url: linkedinUrl,
+          mbti: mbti,
+          enneagram: enneagram,
+          location: location
+        })
+        .eq("id", profile.id)
+
+      if (profileError) {
+        toast.error("Failed to update profile")
+        return
+      }
+
+      // Update hobbies
+      const { error: hobbiesError } = await supabase
+        .from("profile_hobbies")
+        .delete()
+        .eq("user_id", profile.id)
+
+      if (hobbiesError) {
+        toast.error("Failed to update hobbies")
+        return
+      }
+
+      if (selectedHobbies.length > 0) {
+        const { error: insertError } = await supabase
+          .from("profile_hobbies")
+          .insert(selectedHobbies.map(hobbyId => ({
+            user_id: profile.id,
+            hobby_id: hobbyId
+          })))
+
+        if (insertError) {
+          toast.error("Failed to update hobbies")
+          return
+        }
+      }
+
+      toast.success("Profile updated successfully")
+      setIsEditing(false)
+    } catch (error) {
+      console.error("Error saving changes:", error)
+      toast.error("Failed to save changes")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
