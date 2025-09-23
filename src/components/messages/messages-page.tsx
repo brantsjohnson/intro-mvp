@@ -191,14 +191,13 @@ export function MessagesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen gradient-bg">
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <GradientButton
               onClick={() => router.back()}
-              variant="outline"
               size="icon"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -258,7 +257,7 @@ export function MessagesPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {filteredAttendees.map((attendee, index) => {
               const sectionHeader = getSectionHeader(attendee, index)
               
@@ -278,7 +277,7 @@ export function MessagesPage() {
                     className="bg-card border-border cursor-pointer hover:bg-card/80 transition-colors"
                     onClick={() => handleAttendeeClick(attendee)}
                   >
-                    <CardContent className="p-4">
+                    <CardContent className="p-3">
                       <div className="flex items-center space-x-3">
                         <div className="relative">
                           <PresenceAvatar
