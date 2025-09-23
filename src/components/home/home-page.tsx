@@ -8,6 +8,7 @@ import { PresenceAvatar } from "@/components/ui/presence-avatar"
 import { MatchCard } from "@/components/ui/match-card"
 import { QRCard } from "@/components/ui/qr-card"
 import { QRScanner } from "@/components/ui/qr-scanner"
+import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
 import { User, Profile, Event } from "@/lib/types"
 import { toast } from "sonner"
@@ -37,6 +38,7 @@ export function HomePage() {
   const [isPresent, setIsPresent] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false)
+  const [isJoiningEvent, setIsJoiningEvent] = useState(false)
   
   const router = useRouter()
   const supabase = createClientComponentClient()
@@ -248,6 +250,94 @@ export function HomePage() {
     }
   }
 
+  const handleJoinEvent = async (eventCode: string) => {
+    setIsJoiningEvent(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error("Please sign in first")
+        return
+      }
+
+      // First, get the event by code
+      const { data: event, error: eventError } = await supabase
+        .from("events")
+        .select("*")
+        .eq("code", eventCode.toUpperCase())
+        .eq("is_active", true)
+        .maybeSingle()
+
+      if (eventError) {
+        console.error("Event query error:", eventError)
+        toast.error("Failed to check event. Please try again.")
+        return
+      }
+
+      if (!event) {
+        toast.error("Event not found or inactive")
+        return
+      }
+
+      // Check if user is already a member
+      const { data: existingMember, error: memberCheckError } = await supabase
+        .from("event_members")
+        .select("event_id, user_id")
+        .eq("event_id", event.id)
+        .eq("user_id", user.id)
+        .maybeSingle()
+
+      if (memberCheckError) {
+        console.error("Error checking membership:", memberCheckError)
+        toast.error("Failed to check membership. Please try again.")
+        return
+      }
+
+      if (existingMember) {
+        toast.error("You're already a member of this event")
+        return
+      }
+
+      // Join the event
+      const { error: joinError } = await supabase
+        .from("event_members")
+        .insert({
+          event_id: event.id,
+          user_id: user.id
+        })
+
+      if (joinError) {
+        toast.error("Failed to join event")
+        return
+      }
+
+      // Trigger match refresh for the new user (in background)
+      try {
+        await fetch('/api/refresh-matches', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            eventId: event.id, 
+            newUserId: user.id 
+          }),
+        })
+      } catch (error) {
+        console.error('Failed to refresh matches for new user:', error)
+        // Don't show error to user, this is a background process
+      }
+
+      toast.success("Successfully joined event!")
+      // After joining from Home, ask networking goals; but if user completes onboarding first, they can come back from Home too
+      router.push(`/onboarding?from=event-join&eventId=${event.id}`)
+    } catch (error) {
+      console.error("Error joining event:", error)
+      toast.error("An error occurred")
+    } finally {
+      setIsJoiningEvent(false)
+    }
+  }
+
   const handleRefreshData = () => {
     if (user) {
       loadUserData()
@@ -329,24 +419,6 @@ export function HomePage() {
 
       <main className="container mx-auto px-4 py-6">
         <div className="max-w-2xl mx-auto space-y-6">
-          {/* Profile Setup Complete Notification - Show when user has completed onboarding but no event yet */}
-          {!currentEvent && profile && (
-            <Card className="bg-card border-border shadow-elevation">
-              <CardContent className="p-6 text-center space-y-4">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                  <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-semibold text-foreground">
-                  Profile is all set up!
-                </h2>
-                <p className="text-muted-foreground">
-                  Waiting for event organizer to allow for matches. Join an event to get started.
-                </p>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Event Title and Presence Section */}
           {currentEvent && (
@@ -483,22 +555,15 @@ export function HomePage() {
             {/* If no current event, show join event section */}
             {!currentEvent && (
               <Card className="bg-card border-border shadow-elevation">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Users className="h-5 w-5" />
-                    <span>Join an Event</span>
-                  </CardTitle>
+                <CardHeader className="text-center">
+                  <CardTitle className="text-xl">JOIN AN EVENT</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-muted-foreground">You are not part of any events yet. Join using an invite link, QR code, or a 5‑character code.</p>
-                  <div className="flex gap-3">
-                    <GradientButton onClick={() => router.push('/event/join')} className="flex-1">
-                      Enter Code / Scan QR
-                    </GradientButton>
-                    <GradientButton onClick={handleRefreshData} variant="outline" size="sm">
-                      Refresh
-                    </GradientButton>
-                  </div>
+                <CardContent>
+                  <EventJoinScanner
+                    onJoinEvent={handleJoinEvent}
+                    onScanQR={() => {}} // QR scanning is handled within EventJoinScanner
+                    isLoading={isJoiningEvent}
+                  />
                 </CardContent>
               </Card>
             )}
