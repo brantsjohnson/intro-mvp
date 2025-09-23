@@ -23,6 +23,7 @@ export function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [showEventDropdown, setShowEventDropdown] = useState(false)
+  const [isPresent, setIsPresent] = useState(false)
   
   // Form fields
   const [jobTitle, setJobTitle] = useState("")
@@ -91,6 +92,18 @@ export function SettingsPage() {
         // Set current event (first one for now)
         if (events.length > 0) {
           setCurrentEvent(events[0])
+          
+          // Load presence status for current event
+          const { data: presenceData, error: presenceError } = await supabase
+            .from("event_members")
+            .select("is_present")
+            .eq("user_id", user.id)
+            .eq("event_id", events[0].id)
+            .single()
+          
+          if (!presenceError && presenceData) {
+            setIsPresent(presenceData.is_present || false)
+          }
         }
       }
 
@@ -204,6 +217,29 @@ export function SettingsPage() {
     )
   }
 
+  const handlePresenceToggle = async () => {
+    if (!currentEvent || !profile) return
+
+    try {
+      const { error } = await supabase
+        .from("event_members")
+        .update({ is_present: !isPresent })
+        .eq("user_id", profile.id)
+        .eq("event_id", currentEvent.id)
+
+      if (error) {
+        toast.error("Failed to update presence status")
+        return
+      }
+
+      setIsPresent(!isPresent)
+      toast.success(`You are now ${!isPresent ? 'present' : 'not present'} at the event`)
+    } catch (error) {
+      console.error("Error toggling presence:", error)
+      toast.error("Failed to update presence status")
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -265,7 +301,7 @@ export function SettingsPage() {
                 <PresenceAvatar
                   src={profile.avatar_url || undefined}
                   fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
-                  isPresent={false}
+                  isPresent={isPresent}
                   size="lg"
                 />
                 <div className="flex-1">
@@ -281,6 +317,25 @@ export function SettingsPage() {
                     </p>
                   )}
                 </div>
+                {currentEvent && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-muted-foreground">
+                      {isPresent ? 'Present' : 'Not Present'}
+                    </span>
+                    <button
+                      onClick={handlePresenceToggle}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                        isPresent ? 'bg-primary' : 'bg-muted'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          isPresent ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -437,23 +437,53 @@ export function HomePage() {
                   }}
                 />
                 
-                {/* Description Text */}
-                <p className="text-muted-foreground text-center">
-                  We'll start loading your Intro matches once you let us know you're here
-                </p>
+                {/* Event Details */}
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  {currentEvent.starts_at && (
+                    <p>
+                      {new Date(currentEvent.starts_at).toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  )}
+                  {currentEvent.starts_at && (
+                    <p>
+                      {new Date(currentEvent.starts_at).toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })}
+                    </p>
+                  )}
+                  {currentEvent.location && (
+                    <p>{currentEvent.location}</p>
+                  )}
+                </div>
                 
-                {/* I'm Here Button */}
-                <button
-                  onClick={togglePresence}
-                  disabled={isLoading}
-                  className="px-8 py-3 rounded-lg text-white font-medium text-lg mx-auto block"
-                  style={{
-                    background: 'linear-gradient(135deg, #4B915A 0%, #0B3E16 100%)',
-                    border: 'none'
-                  }}
-                >
-                  {isPresent ? "I'm Here" : "I'm Here"}
-                </button>
+                {/* I'm Here Button - Only show if not present */}
+                {!isPresent && (
+                  <button
+                    onClick={togglePresence}
+                    disabled={isLoading}
+                    className="px-8 py-3 rounded-lg text-white font-medium text-lg mx-auto block"
+                    style={{
+                      background: 'linear-gradient(135deg, #4B915A 0%, #0B3E16 100%)',
+                      border: 'none'
+                    }}
+                  >
+                    I'm Here
+                  </button>
+                )}
+                
+                {/* Instructions - Only show if not present */}
+                {!isPresent && (
+                  <p className="text-muted-foreground text-center text-sm">
+                    Let your Intro matches know you're at the conference
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}
