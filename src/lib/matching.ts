@@ -15,7 +15,10 @@ export interface MatchingResult {
 export class MatchingService {
   private supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    // Use service role key if available, otherwise fall back to anon key for local dev
+    process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY !== 'your_service_role_key_here' 
+      ? process.env.SUPABASE_SERVICE_ROLE_KEY!
+      : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
   private aiService = new AIService()
 
