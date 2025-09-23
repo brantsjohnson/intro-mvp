@@ -152,14 +152,14 @@ export function SettingsPage() {
 
       // Load user's selected expertise
       const { data: userExpertiseData, error: userExpertiseError } = await supabase
-          .from("profile_expertise")
-        .select("expertise_id")
-          .eq("user_id", user.id)
+        .from("profile_expertise")
+        .select("tag_id")
+        .eq("user_id", user.id)
 
       if (userExpertiseError) {
         console.error("Error loading user expertise:", userExpertiseError)
       } else {
-        const expertiseIds = userExpertiseData?.map(item => item.expertise_id) || []
+        const expertiseIds = userExpertiseData?.map(item => item.tag_id) || []
         setSelectedExpertise(expertiseIds)
       }
 
@@ -362,9 +362,9 @@ export function SettingsPage() {
       if (selectedExpertise.length > 0) {
         const { error: expertiseInsertError } = await supabase
           .from("profile_expertise")
-          .insert(selectedExpertise.map(expertiseId => ({
+          .insert(selectedExpertise.map(tagId => ({
             user_id: profile.id,
-            expertise_id: expertiseId
+            tag_id: tagId
           })))
 
         if (expertiseInsertError) {
@@ -451,14 +451,35 @@ export function SettingsPage() {
         <div className="max-w-2xl mx-auto space-y-4">
           {/* Profile Block */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardContent className="p-3">
+            <CardContent className="p-2">
               <div className="flex items-center space-x-3">
-                <PresenceAvatar
-                  src={profile.avatar_url || undefined}
-                  fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
-                  isPresent={isPresent}
-                  size="xl"
-                />
+                <div className="flex flex-col items-center space-y-2">
+                  <PresenceAvatar
+                    src={profile.avatar_url || undefined}
+                    fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
+                    isPresent={isPresent}
+                    size="xl"
+                  />
+                  {currentEvent && (
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={handlePresenceToggle}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                          isPresent ? 'bg-gradient-to-r from-[#4B915A] to-[#0B3E16]' : 'bg-muted'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            isPresent ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                      <span className="text-sm text-muted-foreground">
+                        {isPresent ? 'Here' : 'Away'}
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <div className="flex-1">
                   <h2 className="text-xl font-semibold text-foreground">
                     {profile.first_name} {profile.last_name}
@@ -472,25 +493,6 @@ export function SettingsPage() {
                     </p>
                   )}
                 </div>
-                {currentEvent && (
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={handlePresenceToggle}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                        isPresent ? 'bg-gradient-to-r from-[#4B915A] to-[#0B3E16]' : 'bg-muted'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          isPresent ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                    <span className="text-sm text-muted-foreground">
-                      {isPresent ? 'Here' : 'Away'}
-                    </span>
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -678,7 +680,7 @@ export function SettingsPage() {
           {/* Networking Goals Section */}
           <Card className="bg-card border-border shadow-elevation">
             <CardHeader className="pb-1">
-              <CardTitle className="text-primary">Networking Goals</CardTitle>
+              <CardTitle className="text-primary">Networking Goals <span className="text-white text-sm font-normal">(Not visible on profile)</span></CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
               {!isEditing ? (
