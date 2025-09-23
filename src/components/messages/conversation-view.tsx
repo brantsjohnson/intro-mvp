@@ -301,9 +301,9 @@ export function ConversationView() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="h-screen bg-background flex flex-col overflow-hidden">
         {/* Header skeleton */}
-        <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+        <header className="border-b border-border bg-card/50 backdrop-blur-sm flex-shrink-0 z-10">
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
               <div className="w-9 h-9 bg-muted rounded-full animate-pulse"></div>
@@ -320,7 +320,13 @@ export function ConversationView() {
         </header>
 
         {/* Messages skeleton */}
-        <main className="flex-1 overflow-y-auto">
+        <main 
+          className="flex-1 overflow-y-auto overflow-x-hidden"
+          style={{ 
+            height: 'calc(100vh - 200px)',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
           <div className="container mx-auto px-4 py-6">
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
@@ -338,12 +344,12 @@ export function ConversationView() {
         </main>
 
         {/* System banner skeleton */}
-        <div className="bg-muted/50 border-t border-border px-4 py-2">
+        <div className="bg-muted/50 border-t border-border px-4 py-2 flex-shrink-0">
           <div className="h-3 w-full bg-muted rounded animate-pulse"></div>
         </div>
 
         {/* Composer skeleton */}
-        <div className="border-t border-border bg-card/50 backdrop-blur-sm p-4">
+        <div className="border-t border-border bg-card/50 backdrop-blur-sm p-4 flex-shrink-0">
           <div className="container mx-auto">
             <div className="flex items-center space-x-3">
               <div className="flex-1 h-10 bg-muted rounded animate-pulse"></div>
@@ -375,9 +381,9 @@ export function ConversationView() {
   }
 
   return (
-    <div className="h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10 flex-shrink-0">
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm flex-shrink-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <GradientButton
@@ -416,8 +422,12 @@ export function ConversationView() {
       {/* Messages */}
       <main 
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto min-h-0"
+        className="flex-1 overflow-y-auto overflow-x-hidden"
         onScroll={handleScroll}
+        style={{ 
+          height: 'calc(100vh - 200px)', // Fixed height to prevent page scroll
+          WebkitOverflowScrolling: 'touch' // Smooth scrolling on iOS
+        }}
       >
         <div className="container mx-auto px-4 py-6">
           {messages.length === 0 ? (

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { BrowserMultiFormatReader } from "@zxing/browser"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { GradientButton } from "@/components/ui/gradient-button"
@@ -22,6 +23,7 @@ export function QRScanner({ isOpen, onClose, onConnectionCreated }: QRScannerPro
   const readerRef = useRef<BrowserMultiFormatReader | null>(null)
   const qrService = new QRCodeService()
   const supabase = createClientComponentClient()
+  const router = useRouter()
 
   useEffect(() => {
     if (isOpen) {
@@ -113,6 +115,9 @@ export function QRScanner({ isOpen, onClose, onConnectionCreated }: QRScannerPro
         stopScanning()
         onClose()
         onConnectionCreated?.()
+        
+        // Navigate to the scanned user's profile
+        router.push(`/profile/${qrData.userId}?source=qr&eventId=${qrData.eventId}`)
       }
     } catch (error) {
       console.error('Error handling QR code result:', error)

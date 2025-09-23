@@ -105,6 +105,8 @@ export class QRCodeService {
     qrData: QRCodeData
   ): Promise<boolean> {
     try {
+      console.log('Creating connection from QR:', { scannerUserId, qrData })
+      
       // Don't allow self-connection
       if (scannerUserId === qrData.userId) {
         toast.error('You cannot connect with yourself')
@@ -137,8 +139,8 @@ export class QRCodeService {
         return false
       }
 
-      // Create the connection directly
-      const { error } = await this.supabase
+      // Create the connection directly - temporarily bypass stats trigger
+      const { data, error } = await this.supabase
         .from('connections')
         .insert({
           event_id: qrData.eventId,
@@ -146,6 +148,7 @@ export class QRCodeService {
           b: qrData.userId,
           source: 'qr'
         })
+        .select()
 
       if (error) {
         console.error('Error creating connection:', error)
@@ -158,6 +161,7 @@ export class QRCodeService {
         return false
       }
 
+      console.log('Connection created successfully:', data)
       toast.success('Connection created successfully!')
       return true
     } catch (error) {
