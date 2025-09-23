@@ -38,7 +38,7 @@ export function HobbiesGrid({
     : hobbies
 
   return (
-    <div className={cn("grid grid-cols-2 gap-3", className)}>
+    <div className={cn("grid grid-cols-2 gap-2", className)}>
       {displayHobbies.map((hobby) => {
         const isMutualHobby = isMutual(hobby.id)
         const isTheirUniqueHobby = isTheirUnique(hobby.id)
@@ -48,7 +48,7 @@ export function HobbiesGrid({
           <div
             key={hobby.id}
             className={cn(
-              "flex items-center space-x-3 rounded-xl p-3 transition-colors",
+              "flex items-center space-x-2 rounded-xl p-2 transition-colors",
               mode === "display" && isMutualHobby && "bg-primary/10 border border-primary/20",
               mode === "display" && isTheirUniqueHobby && "bg-muted/50",
               mode === "display" && !isMutualHobby && !isTheirUniqueHobby && "opacity-50"

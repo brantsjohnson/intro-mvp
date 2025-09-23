@@ -47,33 +47,33 @@ export function SettingsPage() {
   }, [])
 
   const loadUserData = async () => {
-    try {
+      try {
       // Get current user
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push("/auth")
-        return
-      }
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push("/auth")
+          return
+        }
 
-      // Load profile
+        // Load profile
       const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single()
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single()
 
       if (profileError) {
         toast.error("Failed to load profile")
         return
       }
 
-      setProfile(profileData)
-      setJobTitle(profileData.job_title || "")
-      setCompany(profileData.company || "")
-      setLinkedinUrl(profileData.linkedin_url || "")
-      setMbti(profileData.mbti || "")
-      setEnneagram(profileData.enneagram || "")
-      setLocation(profileData.location || "")
+          setProfile(profileData)
+          setJobTitle(profileData.job_title || "")
+          setCompany(profileData.company || "")
+          setLinkedinUrl(profileData.linkedin_url || "")
+          setMbti(profileData.mbti || "")
+          setEnneagram(profileData.enneagram || "")
+          setLocation(profileData.location || "")
 
       // Load user's events
       const { data: eventData, error: eventError } = await supabase
@@ -111,13 +111,13 @@ export function SettingsPage() {
             setIsPresent(presenceData.is_present || false)
           }
         }
-      }
+        }
 
-      // Load hobbies
+        // Load hobbies
       const { data: hobbiesData, error: hobbiesError } = await supabase
-        .from("hobbies")
-        .select("*")
-        .order("label")
+          .from("hobbies")
+          .select("*")
+          .order("label")
 
       if (hobbiesError) {
         console.error("Error loading hobbies:", hobbiesError)
@@ -127,18 +127,18 @@ export function SettingsPage() {
 
       // Load user's selected hobbies
       const { data: userHobbiesData, error: userHobbiesError } = await supabase
-        .from("profile_hobbies")
-        .select("hobby_id")
-        .eq("user_id", user.id)
+          .from("profile_hobbies")
+          .select("hobby_id")
+          .eq("user_id", user.id)
 
       if (userHobbiesError) {
         console.error("Error loading user hobbies:", userHobbiesError)
       } else {
         const hobbyIds = userHobbiesData?.map(item => item.hobby_id) || []
         setSelectedHobbies(hobbyIds)
-      }
+        }
 
-      // Load expertise tags
+        // Load expertise tags
       const { data: expertiseData, error: expertiseError } = await supabase
         .from("expertise_tags")
         .select("*")
@@ -152,9 +152,9 @@ export function SettingsPage() {
 
       // Load user's selected expertise
       const { data: userExpertiseData, error: userExpertiseError } = await supabase
-        .from("profile_expertise")
+          .from("profile_expertise")
         .select("expertise_id")
-        .eq("user_id", user.id)
+          .eq("user_id", user.id)
 
       if (userExpertiseError) {
         console.error("Error loading user expertise:", userExpertiseError)
@@ -168,13 +168,13 @@ export function SettingsPage() {
         setNetworkingGoals(profileData.networking_goals)
       }
 
-    } catch (error) {
+      } catch (error) {
       console.error("Error loading user data:", error)
       toast.error("Failed to load profile data")
-    } finally {
-      setIsLoading(false)
+      } finally {
+        setIsLoading(false)
+      }
     }
-  }
 
   const handleSave = async () => {
     if (!profile) return
@@ -436,12 +436,12 @@ export function SettingsPage() {
                   {isSaving ? "Saving..." : "Save Changes"}
                 </GradientButton>
               )}
-              <button
+            <button
                 onClick={() => setIsEditing(!isEditing)}
                 className="p-2 hover:bg-muted rounded-lg transition-colors"
-              >
+            >
                 <Edit3 className="h-4 w-4 text-muted-foreground" />
-              </button>
+            </button>
             </div>
           </div>
         </div>
@@ -452,13 +452,7 @@ export function SettingsPage() {
           {/* Profile Block */}
           <Card className="bg-card border-border shadow-elevation">
             <CardContent className="p-4">
-              <div className="flex items-center space-x-4">
-                <PresenceAvatar
-                  src={profile.avatar_url || undefined}
-                  fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
-                  isPresent={isPresent}
-                  size="lg"
-                />
+              <div className="flex items-start space-x-4">
                 <div className="flex-1">
                   <h2 className="text-2xl font-semibold text-foreground">
                     {profile.first_name} {profile.last_name}
@@ -471,33 +465,39 @@ export function SettingsPage() {
                       Attended: {currentEvent.name}
                     </p>
                   )}
-                </div>
-                {currentEvent && (
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-muted-foreground">
-                      {isPresent ? 'Here' : 'Away'}
-                    </span>
-                    <button
-                      onClick={handlePresenceToggle}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                        isPresent ? 'bg-gradient-to-r from-[#4B915A] to-[#0B3E16]' : 'bg-muted'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          isPresent ? 'translate-x-6' : 'translate-x-1'
+                  {currentEvent && (
+                    <div className="flex items-center space-x-2 mt-3">
+                      <button
+                        onClick={handlePresenceToggle}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                          isPresent ? 'bg-gradient-to-r from-[#4B915A] to-[#0B3E16]' : 'bg-muted'
                         }`}
-                      />
-                    </button>
-                  </div>
-                )}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            isPresent ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                      <span className="text-sm text-muted-foreground">
+                        {isPresent ? 'Here' : 'Away'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <PresenceAvatar
+                  src={profile.avatar_url || undefined}
+                  fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
+                  isPresent={isPresent}
+                  size="lg"
+                />
               </div>
             </CardContent>
           </Card>
 
           {/* Event Switching */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-1">
               <CardTitle className="text-primary">Change event</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 pt-0">
@@ -548,7 +548,7 @@ export function SettingsPage() {
 
           {/* Hobbies */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-1">
               <CardTitle className="text-primary">Hobbies</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
@@ -563,7 +563,7 @@ export function SettingsPage() {
 
           {/* About Section */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-1">
               <CardTitle className="text-primary">About</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 pt-0">
@@ -575,23 +575,23 @@ export function SettingsPage() {
                     value={company}
                     onChange={(e) => setCompany(e.target.value)}
                     disabled={!isEditing}
-                    className={isEditing ? "border-primary/20" : ""}
-                    style={isEditing ? { backgroundColor: '#DDDDDD' } : {}}
+                    className={isEditing ? "border-primary/20 focus:border-primary text-black" : ""}
+                    style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
                   />
-                </div>
-                
-                <div>
+              </div>
+
+              <div>
                   <Label htmlFor="jobTitle">Job Title</Label>
-                  <Input
+                <Input
                     id="jobTitle"
                     value={jobTitle}
                     onChange={(e) => setJobTitle(e.target.value)}
                     disabled={!isEditing}
-                    className={isEditing ? "border-primary/20" : ""}
-                    style={isEditing ? { backgroundColor: '#DDDDDD' } : {}}
-                  />
-                </div>
-                
+                    className={isEditing ? "border-primary/20 focus:border-primary text-black" : ""}
+                    style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
+                />
+              </div>
+
                 <div>
                   <Label htmlFor="linkedinUrl">LinkedIn URL</Label>
                   <Input
@@ -599,8 +599,8 @@ export function SettingsPage() {
                     value={linkedinUrl}
                     onChange={(e) => setLinkedinUrl(e.target.value)}
                     disabled={!isEditing}
-                    className={isEditing ? "border-primary/20" : ""}
-                    style={isEditing ? { backgroundColor: '#DDDDDD' } : {}}
+                    className={isEditing ? "border-primary/20 focus:border-primary text-black" : ""}
+                    style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
                     placeholder="https://linkedin.com/in/yourprofile"
                   />
                 </div>
@@ -612,8 +612,8 @@ export function SettingsPage() {
                     value={enneagram}
                     onChange={(e) => setEnneagram(e.target.value)}
                     disabled={!isEditing}
-                    className={isEditing ? "border-primary/20" : ""}
-                    style={isEditing ? { backgroundColor: '#DDDDDD' } : {}}
+                    className={isEditing ? "border-primary/20 focus:border-primary text-black" : ""}
+                    style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
                     placeholder="e.g., 8 - Challenger"
                   />
                 </div>
@@ -625,8 +625,8 @@ export function SettingsPage() {
                     value={mbti}
                     onChange={(e) => setMbti(e.target.value)}
                     disabled={!isEditing}
-                    className={isEditing ? "border-primary/20" : ""}
-                    style={isEditing ? { backgroundColor: '#DDDDDD' } : {}}
+                    className={isEditing ? "border-primary/20 focus:border-primary text-black" : ""}
+                    style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
                     placeholder="e.g., ENTJ"
                   />
                 </div>
@@ -636,7 +636,7 @@ export function SettingsPage() {
 
           {/* Expertise Section */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-1">
               <CardTitle className="text-primary">Expertise</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
@@ -655,7 +655,8 @@ export function SettingsPage() {
                       value={customExpertise}
                       onChange={(e) => setCustomExpertise(e.target.value)}
                       placeholder="e.g., Machine Learning, Sales Strategy"
-                      style={{ backgroundColor: '#DDDDDD' }}
+                      className="focus:border-primary text-black"
+                      style={{ backgroundColor: '#DDDDDD', color: 'black' }}
                     />
                     <GradientButton
                       onClick={() => {
@@ -676,7 +677,7 @@ export function SettingsPage() {
 
           {/* Networking Goals Section */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-1">
               <CardTitle className="text-primary">Networking Goals</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
@@ -697,17 +698,21 @@ export function SettingsPage() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-2">
                     {["Find mentors", "Build partnerships", "Learn new skills", "Find job opportunities", "Share knowledge", "Expand network"].map((goal) => (
-                      <button
-                        key={goal}
-                        onClick={() => handleNetworkingGoalToggle(goal)}
-                        className={`p-2 rounded-lg text-sm text-left transition-colors ${
-                          networkingGoals.includes(goal)
-                            ? "bg-primary text-white"
-                            : "bg-muted text-foreground hover:bg-muted/80"
-                        }`}
-                      >
-                        {goal}
-                      </button>
+                      <div key={goal} className="flex items-center space-x-3 p-2 rounded-lg">
+                        <input
+                          type="checkbox"
+                          id={`networking-${goal}`}
+                          checked={networkingGoals.includes(goal)}
+                          onChange={() => handleNetworkingGoalToggle(goal)}
+                          className="w-4 h-4 text-primary bg-muted border-border rounded focus:ring-primary focus:ring-2"
+                        />
+                        <label
+                          htmlFor={`networking-${goal}`}
+                          className="text-sm text-foreground cursor-pointer flex-1"
+                        >
+                          {goal}
+                        </label>
+                      </div>
                     ))}
                   </div>
                   <div>
@@ -718,7 +723,8 @@ export function SettingsPage() {
                         value={customNetworkingGoal}
                         onChange={(e) => setCustomNetworkingGoal(e.target.value)}
                         placeholder="e.g., Find co-founder"
-                        style={{ backgroundColor: '#DDDDDD' }}
+                        className="focus:border-primary text-black"
+                        style={{ backgroundColor: '#DDDDDD', color: 'black' }}
                       />
                       <GradientButton
                         onClick={addCustomNetworkingGoal}
@@ -727,24 +733,12 @@ export function SettingsPage() {
                         Add
                       </GradientButton>
                     </div>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </CardContent>
           </Card>
 
-          {/* Save Button */}
-          {isEditing && (
-            <div className="flex justify-end">
-              <GradientButton
-                onClick={handleSaveChanges}
-                disabled={isSaving}
-                className="px-8"
-              >
-                {isSaving ? "Saving..." : "Save Changes"}
-              </GradientButton>
-            </div>
-          )}
         </div>
       </main>
     </div>
