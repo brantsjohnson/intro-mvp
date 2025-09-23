@@ -328,45 +328,65 @@ export function HomePage() {
 
       <main className="container mx-auto px-4 py-6">
         <div className="max-w-2xl mx-auto space-y-6">
-            {/* Event Title and Presence Section */}
-            {currentEvent && (
-              <Card className="bg-card border-border shadow-elevation">
-                <CardContent className="p-6 text-center space-y-6">
-                  {/* Event Title */}
-                  <h2 className="text-2xl font-semibold text-foreground">
-                    {currentEvent.name}
-                  </h2>
-                  
-                  {/* Gradient Separator Line */}
-                  <div 
-                    className="h-1 w-full rounded-full"
-                    style={{
-                      background: 'linear-gradient(90deg, #EC874E 0%, #BF341E 100%)'
-                    }}
-                  />
-                  
-                  {/* Description Text */}
-                  <p className="text-muted-foreground text-center">
-                    We'll start loading your Intro matches once you let us know you're here
-                  </p>
-                  
-                  {/* I'm Here Button */}
-                  <button
-                    onClick={togglePresence}
-                    disabled={isLoading}
-                    className="px-8 py-3 rounded-lg text-white font-medium text-lg mx-auto block"
-                    style={{
-                      background: 'linear-gradient(135deg, #4B915A 0%, #0B3E16 100%)',
-                      border: 'none'
-                    }}
-                  >
-                    {isPresent ? "I'm Here" : "I'm Here"}
-                  </button>
-                </CardContent>
-              </Card>
-            )}
+          {/* Profile Setup Complete Notification - Show when user has completed onboarding but no event yet */}
+          {!currentEvent && profile && (
+            <Card className="bg-card border-border shadow-elevation">
+              <CardContent className="p-6 text-center space-y-4">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                  <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-semibold text-foreground">
+                  Profile is all set up!
+                </h2>
+                <p className="text-muted-foreground">
+                  Waiting for event organizer to allow for matches. Join an event to get started.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
-            {/* People You Should Know */}
+          {/* Event Title and Presence Section */}
+          {currentEvent && (
+            <Card className="bg-card border-border shadow-elevation">
+              <CardContent className="p-6 text-center space-y-6">
+                {/* Event Title */}
+                <h2 className="text-2xl font-semibold text-foreground">
+                  {currentEvent.name}
+                </h2>
+                
+                {/* Gradient Separator Line */}
+                <div 
+                  className="h-1 w-full rounded-full"
+                  style={{
+                    background: 'linear-gradient(90deg, #EC874E 0%, #BF341E 100%)'
+                  }}
+                />
+                
+                {/* Description Text */}
+                <p className="text-muted-foreground text-center">
+                  We'll start loading your Intro matches once you let us know you're here
+                </p>
+                
+                {/* I'm Here Button */}
+                <button
+                  onClick={togglePresence}
+                  disabled={isLoading}
+                  className="px-8 py-3 rounded-lg text-white font-medium text-lg mx-auto block"
+                  style={{
+                    background: 'linear-gradient(135deg, #4B915A 0%, #0B3E16 100%)',
+                    border: 'none'
+                  }}
+                >
+                  {isPresent ? "I'm Here" : "I'm Here"}
+                </button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* People You Should Know - Only show when event exists */}
+          {currentEvent && (
             <Card className="bg-card border-border shadow-elevation">
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
@@ -419,15 +439,19 @@ export function HomePage() {
                 )}
               </CardContent>
             </Card>
+          )}
 
-            {/* QR Code Section */}
+          {/* QR Code Section - Only show when event exists */}
             {currentEvent && (
               <Card className="bg-card border-border shadow-elevation">
-                <CardContent className="p-6 text-center space-y-4">
-                  <h3 className="text-lg font-medium text-foreground">
-                    Connect with other attendees and see what you have in common.
-                  </h3>
-                  <QRCard onScanClick={handleQRScan} />
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <QrCode className="h-5 w-5" />
+                    <span>Your QR Code</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <QRCard userId={user.id} eventId={currentEvent.id} />
                 </CardContent>
               </Card>
             )}

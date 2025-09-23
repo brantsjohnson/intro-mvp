@@ -98,7 +98,7 @@ export function SettingsPage() {
       const { data: hobbiesData, error: hobbiesError } = await supabase
         .from("hobbies")
         .select("*")
-        .order("name")
+        .order("label")
 
       if (hobbiesError) {
         console.error("Error loading hobbies:", hobbiesError)
