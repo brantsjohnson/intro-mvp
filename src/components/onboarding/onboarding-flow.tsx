@@ -26,7 +26,7 @@ export function OnboardingFlow() {
   const searchParams = useSearchParams()
   const fromEventJoin = searchParams.get('from') === 'event-join'
   const eventId = searchParams.get('eventId')
-  const [currentStep, setCurrentStep] = useState(0) // Always start from step 0 (profile setup) for all new users
+  const [currentStep, setCurrentStep] = useState(0) // Start from step 0 (profile setup)
   const [isLoading, setIsLoading] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(false)
   const [user, setUser] = useState<User | null>(null)
@@ -338,7 +338,13 @@ export function OnboardingFlow() {
       // Show loading screen while redirecting
       setIsRedirecting(true)
       setTimeout(() => {
-        router.push("/home")
+        if (fromEventJoin) {
+          // If coming from event join, go directly to home (event already joined)
+          router.push("/home")
+        } else {
+          // If not coming from event join, redirect to join event page (step 2)
+          router.push("/event/join")
+        }
       }, 1000) // Small delay to let user see the success message
     } catch {
       toast.error("An error occurred during onboarding")
@@ -686,8 +692,10 @@ export function OnboardingFlow() {
     </div>
   }
 
-  // All users go through all 3 steps: profile setup, professional info, and networking goals
-  const visibleSteps = steps
+  // Determine which steps to show based on how user arrived
+  // If coming from event join: show all 3 steps (profile, professional, networking)
+  // If not coming from event join: show only 2 steps (profile, professional), then redirect to /event/join
+  const visibleSteps = fromEventJoin ? steps : steps.slice(0, 2)
   const currentStepData = visibleSteps[currentStep]
   const isLastStep = currentStep === visibleSteps.length - 1
 
@@ -764,7 +772,7 @@ export function OnboardingFlow() {
                     onClick={handleCompleteOnboarding}
                     disabled={isLoading || (fromEventJoin ? false : (!firstName || !lastName || !jobTitle || !company))}
                   >
-                    {isLoading ? "Completing..." : "Find Matches"}
+                    {isLoading ? "Completing..." : (fromEventJoin ? "Find Matches" : "Join Event")}
                   </GradientButton>
                 ) : (
                   <GradientButton
