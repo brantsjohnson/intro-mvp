@@ -545,13 +545,13 @@ export function HomePage() {
             </Card>
           )}
 
-          {/* QR Code Section - Only show when event exists */}
+          {/* Add Other Attendees Section - Only show when event exists */}
             {currentEvent && (
               <Card className="bg-card border-border shadow-elevation">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center space-x-2">
                     <QrCode className="h-5 w-5" />
-                    <span>Your QR Code</span>
+                    <span>Add other attendees</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">

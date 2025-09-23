@@ -59,9 +59,6 @@ export function QRCard({ onScanClick, className }: QRCardProps) {
     generateQRCode()
   }, [])
 
-  const handleRefresh = () => {
-    generateQRCode()
-  }
   return (
     <div className={cn("space-y-4", className)}>
       {isGenerating ? (
@@ -90,7 +87,7 @@ export function QRCard({ onScanClick, className }: QRCardProps) {
         </div>
       )}
       
-      <div className="text-center space-y-3">
+      <div className="text-center">
         <GradientButton 
           onClick={onScanClick}
           className="w-full max-w-xs mx-auto"
@@ -99,18 +96,6 @@ export function QRCard({ onScanClick, className }: QRCardProps) {
           <Camera className="h-4 w-4 mr-2" />
           Scan a QR code
         </GradientButton>
-        
-        <div className="flex justify-center">
-          <GradientButton
-            onClick={handleRefresh}
-            variant="outline"
-            size="icon"
-            disabled={isGenerating}
-            className="opacity-60 hover:opacity-100"
-          >
-            <RefreshCw className={cn("h-4 w-4", isGenerating && "animate-spin")} />
-          </GradientButton>
-        </div>
       </div>
     </div>
   )
