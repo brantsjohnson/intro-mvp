@@ -23,7 +23,7 @@ export default function Home() {
           try {
             const { data: profile, error: profileError } = await supabase
               .from("profiles")
-              .select("id")
+              .select("id, first_name, last_name, job_title, company")
               .eq("id", user.id)
               .single()
             
@@ -31,8 +31,8 @@ export default function Home() {
               console.error("Error checking profile:", profileError)
               // If there's an error checking profile, assume user needs onboarding
               router.push("/onboarding")
-            } else if (profile) {
-              // User has completed onboarding, redirect to home
+            } else if (profile && profile.first_name && profile.last_name && profile.job_title && profile.company) {
+              // User has completed onboarding (has required fields), redirect to home
               router.push("/home")
             } else {
               // User hasn't completed onboarding, redirect to onboarding

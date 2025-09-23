@@ -108,7 +108,7 @@ export function SettingsPage() {
 
       // Load user's selected hobbies
       const { data: userHobbiesData, error: userHobbiesError } = await supabase
-        .from("user_hobbies")
+        .from("profile_hobbies")
         .select("hobby_id")
         .eq("user_id", user.id)
 
@@ -151,7 +151,7 @@ export function SettingsPage() {
 
       // Update hobbies
       const { error: deleteError } = await supabase
-        .from("user_hobbies")
+        .from("profile_hobbies")
         .delete()
         .eq("user_id", profile.id)
 
@@ -166,7 +166,7 @@ export function SettingsPage() {
         }))
 
         const { error: insertError } = await supabase
-          .from("user_hobbies")
+          .from("profile_hobbies")
           .insert(hobbyInserts)
 
         if (insertError) {

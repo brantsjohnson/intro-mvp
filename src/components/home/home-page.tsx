@@ -455,7 +455,7 @@ export function HomePage() {
               </Card>
             )}
 
-            {/* If no current event, prompt to join */}
+            {/* If no current event, show join event section */}
             {!currentEvent && (
               <Card className="bg-card border-border shadow-elevation">
                 <CardHeader>
