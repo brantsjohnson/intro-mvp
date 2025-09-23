@@ -39,12 +39,16 @@ export function QRScanner({ isOpen, onClose, onConnectionCreated }: QRScannerPro
     try {
       // Check for camera permission
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } // Use back camera if available
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
       })
       setHasPermission(true)
       stream.getTracks().forEach(track => track.stop()) // Stop the test stream
 
-      // Initialize the reader
+      // Initialize the reader with better error handling
       readerRef.current = new BrowserMultiFormatReader()
       
       // Start scanning
@@ -56,8 +60,12 @@ export function QRScanner({ isOpen, onClose, onConnectionCreated }: QRScannerPro
           if (result) {
             handleQRCodeResult(result.getText())
           }
-          if (error && error.name !== 'NotFoundException') {
-            console.error('QR scan error:', error)
+          // Only log meaningful errors, ignore common "not found" errors
+          if (error && 
+              error.name !== 'NotFoundException' && 
+              !error.message?.includes('No MultiFormat Readers') &&
+              !error.message?.includes('No QR code found')) {
+            console.warn('QR scan warning:', error.message)
           }
         }
       )
