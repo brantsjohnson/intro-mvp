@@ -19,7 +19,9 @@ import {
   MapPin,
   Calendar,
   Plus,
-  QrCode
+  QrCode,
+  UserPlus,
+  ArrowRight
 } from "lucide-react"
 
 interface MatchWithProfile {
@@ -31,11 +33,20 @@ interface MatchWithProfile {
   is_present: boolean
 }
 
+interface ConnectionWithProfile {
+  id: string
+  source: string
+  created_at: string
+  profile: Profile
+  connection_reason?: string
+}
+
 export function HomePage() {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [currentEvent, setCurrentEvent] = useState<Event | null>(null)
   const [matches, setMatches] = useState<MatchWithProfile[]>([])
+  const [connections, setConnections] = useState<ConnectionWithProfile[]>([])
   const [isPresent, setIsPresent] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false)
@@ -167,11 +178,13 @@ export function HomePage() {
           setCurrentEvent(event)
           setIsPresent(eventMember.is_present || false)
           loadMatches(eventMember.events.id)
+          loadConnections(eventMember.events.id)
         } else {
           // No event data, clear everything
           setCurrentEvent(null)
           setIsPresent(false)
           setMatches([])
+          setConnections([])
         }
       } else {
         // No event membership found, clear everything
@@ -179,6 +192,7 @@ export function HomePage() {
         setCurrentEvent(null)
         setIsPresent(false)
         setMatches([])
+        setConnections([])
       }
 
     } catch {
@@ -266,6 +280,84 @@ export function HomePage() {
       setMatches(deduped.slice(0, 3))
     } catch (error) {
       console.error("Failed to load matches:", error)
+    }
+  }
+
+  const loadConnections = async (eventId: string) => {
+    if (!user) return
+    
+    try {
+      // Load connections where current user is A (show profile B)
+      const aSidePromise = supabase
+        .from("connections")
+        .select(`
+          id,
+          source,
+          created_at,
+          profiles!connections_b_fkey (
+            id,
+            first_name,
+            last_name,
+            job_title,
+            company,
+            avatar_url
+          )
+        `)
+        .eq("event_id", eventId)
+        .eq("a", user.id)
+
+      // Load connections where current user is B (show profile A)
+      const bSidePromise = supabase
+        .from("connections")
+        .select(`
+          id,
+          source,
+          created_at,
+          profiles!connections_a_fkey (
+            id,
+            first_name,
+            last_name,
+            job_title,
+            company,
+            avatar_url
+          )
+        `)
+        .eq("event_id", eventId)
+        .eq("b", user.id)
+
+      const [{ data: aData, error: aError }, { data: bData, error: bError }] = await Promise.all([aSidePromise, bSidePromise])
+
+      if (aError || bError) {
+        console.error("Failed to load connections:", aError || bError)
+        return
+      }
+
+      const toFormatted = (rows: any[] | null) => // eslint-disable-line @typescript-eslint/no-explicit-any
+        (rows || []).map((connection: any) => ({
+          id: connection.id,
+          source: connection.source,
+          created_at: connection.created_at,
+          profile: connection.profiles,
+          connection_reason: connection.source === 'qr' ? 'QR Code Connection' : 'AI Match'
+        }))
+
+      // Merge and de-duplicate by id, prefer earliest
+      const merged = [...toFormatted(aData), ...toFormatted(bData)]
+      const seen = new Set<string>()
+      const deduped: ConnectionWithProfile[] = []
+      for (const c of merged) {
+        if (!seen.has(c.id)) {
+          seen.add(c.id)
+          deduped.push(c)
+        }
+      }
+
+      // Sort by creation date, newest first
+      deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      
+      setConnections(deduped)
+    } catch (error) {
+      console.error("Failed to load connections:", error)
     }
   }
 

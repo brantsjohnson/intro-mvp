@@ -144,8 +144,15 @@ export class MessageService {
     const { data: { user } } = await this.supabase.auth.getUser()
     if (!user) throw new Error('Not authenticated')
 
-    // Generate a thread ID (simple approach for now)
-    const threadId = [user.id, recipientId].sort().join('-')
+    // Get or create thread using the database function
+    const { data: threadId, error: threadError } = await this.supabase
+      .rpc('get_or_create_thread', {
+        p_event_id: eventId,
+        p_user_a: user.id,
+        p_user_b: recipientId
+      })
+
+    if (threadError) throw threadError
 
     // Insert message
     const { data, error } = await this.supabase
@@ -171,11 +178,10 @@ export class MessageService {
     if (!user) throw new Error('Not authenticated')
 
     const { error } = await this.supabase
-      .from('messages')
-      .update({ is_read: true, read_at: new Date().toISOString() })
-      .eq('thread_id', threadId)
-      .eq('recipient', user.id)
-      .eq('is_read', false)
+      .rpc('mark_messages_read', {
+        p_thread_id: threadId,
+        p_user_id: user.id
+      })
 
     if (error) throw error
   }
@@ -185,12 +191,11 @@ export class MessageService {
     const { data: { user } } = await this.supabase.auth.getUser()
     if (!user) throw new Error('Not authenticated')
 
-    const { count, error } = await this.supabase
-      .from('messages')
-      .select('id', { count: 'exact' })
-      .eq('event_id', eventId)
-      .eq('recipient', user.id)
-      .eq('is_read', false)
+    const { data: count, error } = await this.supabase
+      .rpc('get_unread_message_count', {
+        p_user_id: user.id,
+        p_event_id: eventId
+      })
 
     if (error) throw error
     return count || 0

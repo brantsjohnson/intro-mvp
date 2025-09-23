@@ -20,6 +20,8 @@ export function ConversationView() {
   const [isSending, setIsSending] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const [eventName, setEventName] = useState<string>("")
+  const [eventEnded, setEventEnded] = useState(false)
+  const [messagesDeleted, setMessagesDeleted] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -44,17 +46,26 @@ export function ConversationView() {
       return
     }
 
-    // Load event name for header subtitle
+    // Load event details and check status
     const loadEvent = async () => {
       try {
         const { data } = await supabase
           .from('events')
-          .select('name')
+          .select('name, ends_at')
           .eq('id', eventId)
           .single()
-        if (data?.name) setEventName(data.name)
+        
+        if (data) {
+          setEventName(data.name)
+          const now = new Date()
+          const eventEnd = new Date(data.ends_at)
+          const oneDayAfterEnd = new Date(eventEnd.getTime() + 24 * 60 * 60 * 1000)
+          
+          setEventEnded(now > eventEnd)
+          setMessagesDeleted(now > oneDayAfterEnd)
+        }
       } catch (e) {
-        // ignore subtitle failures
+        console.error("Error loading event:", e)
       }
     }
     loadEvent()
@@ -80,7 +91,21 @@ export function ConversationView() {
           
           // Mark messages as read
           await messageService.markThreadAsRead(threadId)
-        } else if (userId) {
+        } else         if (userId) {
+          // Validate that the user is in the same event
+          const { data: userInEvent } = await supabase
+            .from('event_members')
+            .select('user_id')
+            .eq('event_id', eventId)
+            .eq('user_id', userId)
+            .single()
+          
+          if (!userInEvent) {
+            toast.error("This user is not in the current event")
+            router.push(`/messages?eventId=${eventId}`)
+            return
+          }
+          
           // Start new conversation
           const threadsData = await messageService.getThreads(eventId)
           const existingThread = threadsData.find(t => 
@@ -141,6 +166,18 @@ export function ConversationView() {
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !eventId || isSending) return
+    
+    // Check if messages are deleted
+    if (messagesDeleted) {
+      toast.error("This event's messages are no longer available.")
+      return
+    }
+    
+    // Check if event has ended
+    if (eventEnded) {
+      toast.error("This event has ended. Messages are read-only.")
+      return
+    }
     
     const messageText = newMessage.trim()
     setNewMessage("")
@@ -239,9 +276,11 @@ export function ConversationView() {
               <h1 className="text-lg font-semibold text-foreground">
                 {thread.other_participant.first_name} {thread.other_participant.last_name}
               </h1>
-              <p className="text-sm text-muted-foreground">
-                {`Connected at: ${eventName || 'Event'}`}
-              </p>
+              {thread.other_participant.job_title && (
+                <p className="text-sm text-muted-foreground">
+                  {thread.other_participant.job_title}
+                </p>
+              )}
             </div>
 
             {/* spacer to balance layout */}
@@ -300,32 +339,39 @@ export function ConversationView() {
       {/* System Banner */}
       <div className="bg-muted/50 border-t border-border px-4 py-2">
         <p className="text-xs text-muted-foreground text-center">
-          Messages are only stored for one day after the end of the event. Use messages to find a location to meet and have your conversations in person.
+          {messagesDeleted 
+            ? "This event's messages are no longer available."
+            : eventEnded
+            ? "This event has ended. Messages are read-only."
+            : "Messages are only stored for one day after the end of the event. Use messages to find a location to meet and have your conversations in person."
+          }
         </p>
       </div>
 
-      {/* Message Composer */}
-      <div className="border-t border-border bg-card/50 backdrop-blur-sm p-4">
-        <div className="container mx-auto">
-          <div className="flex items-center space-x-3">
-            <Input
-              placeholder="Type a message..."
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              disabled={isSending}
-              className="flex-1"
-            />
-            <GradientButton
-              onClick={handleSendMessage}
-              disabled={!newMessage.trim() || isSending}
-              size="icon"
-            >
-              <Send className="h-4 w-4" />
-            </GradientButton>
+      {/* Message Composer - Only show if event hasn't ended and messages aren't deleted */}
+      {!eventEnded && !messagesDeleted && (
+        <div className="border-t border-border bg-card/50 backdrop-blur-sm p-4">
+          <div className="container mx-auto">
+            <div className="flex items-center space-x-3">
+              <Input
+                placeholder="Type a message..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                disabled={isSending}
+                className="flex-1"
+              />
+              <GradientButton
+                onClick={handleSendMessage}
+                disabled={!newMessage.trim() || isSending}
+                size="icon"
+              >
+                <Send className="h-4 w-4" />
+              </GradientButton>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

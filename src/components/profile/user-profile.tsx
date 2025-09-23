@@ -265,9 +265,13 @@ export function UserProfile({ userId }: UserProfileProps) {
   }, [profile, userId, aiService, aiInsights])
 
   const handleMessage = () => {
-    // Get current event ID from URL or context
-    const currentEventId = "current-event-id" // TODO: Get from context or URL
-    router.push(`/messages/conversation?eventId=${currentEventId}&userId=${userId}`)
+    // Get current event ID from URL parameters
+    const eventId = searchParams.get('eventId')
+    if (!eventId) {
+      toast.error("Event ID is required to send messages")
+      return
+    }
+    router.push(`/messages/conversation?eventId=${eventId}&userId=${userId}`)
   }
 
   const handleBack = () => {
