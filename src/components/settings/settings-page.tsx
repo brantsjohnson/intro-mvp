@@ -26,6 +26,7 @@ export function SettingsPage() {
   const [networkingGoals, setNetworkingGoals] = useState<string[]>([])
   const [selectedNetworkingGoals, setSelectedNetworkingGoals] = useState<number[]>([])
   const [customNetworkingGoal, setCustomNetworkingGoal] = useState("")
+  const [whatDoYouDo, setWhatDoYouDo] = useState("")
   
   // Define networking goals as a structured list like expertise tags
   const networkingGoalsList = [
@@ -85,6 +86,7 @@ export function SettingsPage() {
           setMbti(profileData.mbti || "")
           setEnneagram(profileData.enneagram || "")
           setLocation(profileData.location || "")
+          setWhatDoYouDo(profileData.what_do_you_do || "")
 
       // Load user's events
       const { data: eventData, error: eventError } = await supabase
@@ -328,6 +330,10 @@ export function SettingsPage() {
         const networkingGoalsStrings = selectedNetworkingGoals
           .map(id => networkingGoalsList.find(item => item.id === id)?.label)
           .filter(label => label !== undefined) as string[]
+        const combinedGoals = Array.from(new Set([...
+          networkingGoalsStrings,
+          ...networkingGoals
+        ]))
 
         const { error: profileError } = await supabase
         .from("profiles")
@@ -337,7 +343,8 @@ export function SettingsPage() {
           linkedin_url: linkedinUrl,
           mbti: mbti,
           enneagram: enneagram,
-          networking_goals: networkingGoalsStrings
+          what_do_you_do: whatDoYouDo,
+          networking_goals: combinedGoals
         })
         .eq("id", profile.id)
 
@@ -632,6 +639,20 @@ export function SettingsPage() {
                   </div>
 
                   <div>
+                    <Label htmlFor="whatDoYouDo">What do you do?</Label>
+                    <Textarea
+                      id="whatDoYouDo"
+                      value={whatDoYouDo}
+                      onChange={(e) => setWhatDoYouDo(e.target.value)}
+                      disabled={!isEditing}
+                      className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
+                      style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
+                      rows={3}
+                      placeholder="Briefly describe your role or focus"
+                    />
+                  </div>
+
+                  <div>
                     <Label htmlFor="linkedinUrl">LinkedIn URL</Label>
                     <Input
                       id="linkedinUrl"
@@ -684,6 +705,12 @@ export function SettingsPage() {
                     <span className="text-muted-foreground">Location</span>
                     <span className="text-foreground">{location || "—"}</span>
                   </div>
+                  {whatDoYouDo && (
+                    <div className="py-2 border-b border-border">
+                      <div className="text-muted-foreground">What do you do?</div>
+                      <div className="text-foreground whitespace-pre-wrap">{whatDoYouDo}</div>
+                    </div>
+                  )}
                   {enneagram && (
                     <div className="flex justify-between items-center py-2 border-b border-border">
                       <span className="text-muted-foreground">Enneagram type</span>
@@ -728,8 +755,41 @@ export function SettingsPage() {
                     <GradientButton
                       onClick={() => {
                         if (customExpertise.trim()) {
-                          // Add to expertise tags (this would need backend support)
-                          setCustomExpertise("")
+                          const addTag = async () => {
+                            if (!profile) return
+                            const label = customExpertise.trim()
+                            // Check if tag exists
+                            const { data: existing, error: selectErr } = await supabase
+                              .from("expertise_tags")
+                              .select("id,label")
+                              .eq("label", label)
+                              .maybeSingle()
+                            if (selectErr) {
+                              console.error(selectErr)
+                              toast.error("Failed to check expertise tag")
+                              return
+                            }
+                            let tagId = existing?.id as number | undefined
+                            if (!tagId) {
+                              const { data: inserted, error: insertErr } = await supabase
+                                .from("expertise_tags")
+                                .insert({ label })
+                                .select("id,label")
+                                .single()
+                              if (insertErr) {
+                                console.error(insertErr)
+                                toast.error("Failed to add expertise tag")
+                                return
+                              }
+                              tagId = inserted?.id as number
+                              setExpertiseTags(prev => [...prev, { id: tagId!, label } as any])
+                            }
+                            // Select the tag locally
+                            setSelectedExpertise(prev => prev.includes(tagId!) ? prev : [...prev, tagId!])
+                            setCustomExpertise("")
+                            toast.success("Added expertise")
+                          }
+                          addTag()
                         }
                       }}
                       size="sm"

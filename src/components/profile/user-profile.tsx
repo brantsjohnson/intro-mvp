@@ -566,12 +566,9 @@ export function UserProfile({ userId }: UserProfileProps) {
       <Dialog open={showFeedbackModal} onOpenChange={setShowFeedbackModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Have you met them yet?</DialogTitle>
-            <DialogDescription>
-              Let us know so we can improve suggestions.
-            </DialogDescription>
+            <DialogTitle className="text-center">Have you met them yet?</DialogTitle>
           </DialogHeader>
-          <div className="flex justify-end space-x-2">
+          <div className="flex justify-center space-x-2 mt-2">
             <GradientButton
               variant="outline"
               onClick={async () => {
