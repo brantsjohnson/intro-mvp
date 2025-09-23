@@ -42,6 +42,7 @@ export function UserProfile({ userId }: UserProfileProps) {
   const [hasConnection, setHasConnection] = useState(false)
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [matchBases, setMatchBases] = useState<string[]>([])
+  const [currentEvent, setCurrentEvent] = useState<{id: string, name: string} | null>(null)
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -156,10 +157,27 @@ export function UserProfile({ userId }: UserProfileProps) {
             // ignore errors; default is no connection
           }
 
+          // Load current event data
+          const eventId = searchParams.get('eventId')
+          if (eventId) {
+            try {
+              const { data: eventData } = await supabase
+                .from("events")
+                .select("id, name")
+                .eq("id", eventId)
+                .single()
+              
+              if (eventData) {
+                setCurrentEvent(eventData)
+              }
+            } catch (error) {
+              console.warn('Failed to load event data:', error)
+            }
+          }
+
           // Load match data if this is a suggested connection
           const source = searchParams.get('source')
           if (source === 'suggested') {
-            const eventId = searchParams.get('eventId')
             if (eventId) {
               try {
                 // Load match where current user is A and target is B
@@ -487,7 +505,7 @@ export function UserProfile({ userId }: UserProfileProps) {
                 {profile.first_name} {profile.last_name}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Connected at: Marketing Conference
+                Connected at: {currentEvent?.name || 'Event'}
               </p>
             </div>
 
