@@ -417,13 +417,13 @@ export function HomePage() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6">
-        <div className="max-w-2xl mx-auto space-y-6">
+      <main className="container mx-auto px-4 py-4">
+        <div className="max-w-2xl mx-auto space-y-4">
 
           {/* Event Title and Presence Section */}
           {currentEvent && (
             <Card className="bg-card border-border shadow-elevation">
-              <CardContent className="p-6 text-center space-y-6">
+              <CardContent className="p-4 text-center space-y-4">
                 {/* Event Title */}
                 <h2 className="text-2xl font-semibold text-foreground">
                   {currentEvent.name}
@@ -437,29 +437,30 @@ export function HomePage() {
                   }}
                 />
                 
-                {/* Event Details */}
-                <div className="space-y-1 text-sm text-muted-foreground">
+                {/* Event Details - Compact Format */}
+                <div className="text-sm text-muted-foreground space-y-1">
                   {currentEvent.starts_at && (
                     <p>
                       {new Date(currentEvent.starts_at).toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        year: 'numeric',
+                        day: 'numeric',
                         month: 'long',
-                        day: 'numeric'
-                      })}
-                    </p>
-                  )}
-                  {currentEvent.starts_at && (
-                    <p>
-                      {new Date(currentEvent.starts_at).toLocaleTimeString('en-US', {
+                        year: 'numeric'
+                      })} @ {new Date(currentEvent.starts_at).toLocaleTimeString('en-US', {
                         hour: 'numeric',
                         minute: '2-digit',
                         hour12: true
                       })}
+                      {currentEvent.ends_at && (
+                        <> - {new Date(currentEvent.ends_at).toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true
+                        })}</>
+                      )}
                     </p>
                   )}
                   {currentEvent.location && (
-                    <p>{currentEvent.location}</p>
+                    <p className="font-medium">Location: {currentEvent.location}</p>
                   )}
                 </div>
                 
@@ -491,13 +492,13 @@ export function HomePage() {
           {/* People You Should Know - Only show when event exists */}
           {currentEvent && (
             <Card className="bg-card border-border shadow-elevation">
-              <CardHeader>
+              <CardHeader className="pb-3">
                 <CardTitle className="flex items-center space-x-2">
                   <Users className="h-5 w-5" />
                   <span>People You Should Know</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3 pt-0">
                 {matches.length > 0 ? (
                   matches.map((match) => (
                     <MatchCard
@@ -547,13 +548,13 @@ export function HomePage() {
           {/* QR Code Section - Only show when event exists */}
             {currentEvent && (
               <Card className="bg-card border-border shadow-elevation">
-                <CardHeader>
+                <CardHeader className="pb-3">
                   <CardTitle className="flex items-center space-x-2">
                     <QrCode className="h-5 w-5" />
                     <span>Your QR Code</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-0">
                   <QRCard userId={user.id} eventId={currentEvent.id} />
                 </CardContent>
               </Card>
@@ -562,13 +563,13 @@ export function HomePage() {
             {/* Your Connections - Only show when connections exist */}
             {currentEvent && matches.length > 0 && (
               <Card className="bg-card border-border shadow-elevation">
-                <CardHeader>
+                <CardHeader className="pb-3">
                   <CardTitle className="flex items-center space-x-2">
                     <MessageSquare className="h-5 w-5" />
                     <span>Your Connections</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-3 pt-0">
                   <div className="text-center py-8">
                     <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-foreground mb-2">
@@ -583,20 +584,20 @@ export function HomePage() {
             )}
 
             {/* If no current event, show join event section */}
-            {!currentEvent && (
-              <Card className="bg-card border-border shadow-elevation">
-                <CardHeader className="text-center">
-                  <CardTitle className="text-xl">JOIN AN EVENT</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <EventJoinScanner
-                    onJoinEvent={handleJoinEvent}
-                    onScanQR={() => {}} // QR scanning is handled within EventJoinScanner
-                    isLoading={isJoiningEvent}
-                  />
-                </CardContent>
-              </Card>
-            )}
+        {!currentEvent && (
+          <Card className="bg-card border-border shadow-elevation">
+            <CardHeader className="text-center pb-3">
+              <CardTitle className="text-xl">JOIN AN EVENT</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <EventJoinScanner
+                onJoinEvent={handleJoinEvent}
+                onScanQR={() => {}} // QR scanning is handled within EventJoinScanner
+                isLoading={isJoiningEvent}
+              />
+            </CardContent>
+          </Card>
+        )}
         </div>
       </main>
 
