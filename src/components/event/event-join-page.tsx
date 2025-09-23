@@ -18,31 +18,46 @@ interface Event {
 export function EventJoinPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isAutoJoining, setIsAutoJoining] = useState(false)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClientComponentClient()
 
-  // Check for event code in URL parameters
+  // Check authentication first, then handle event code
   useEffect(() => {
-    const eventCode = searchParams.get('code')
-    if (eventCode) {
-      // Auto-join the event if code is provided in URL
-      handleAutoJoinEvent(eventCode)
+    const checkAuthAndHandleEvent = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        const eventCode = searchParams.get('code')
+        
+        if (!user) {
+          // User is not authenticated - redirect to auth with event code
+          if (eventCode) {
+            router.push(`/auth?eventCode=${eventCode}`)
+          } else {
+            router.push('/auth')
+          }
+          return
+        }
+
+        // User is authenticated - handle event joining
+        if (eventCode) {
+          await handleAutoJoinEvent(eventCode)
+        }
+      } catch (error) {
+        console.error("Error checking auth:", error)
+        router.push('/auth')
+      } finally {
+        setIsCheckingAuth(false)
+      }
     }
-  }, [searchParams])
+
+    checkAuthAndHandleEvent()
+  }, [searchParams, router, supabase.auth])
 
   const handleAutoJoinEvent = async (eventCode: string) => {
     setIsAutoJoining(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        // User is not authenticated - redirect to auth with event code
-        toast.info("Please sign in to join the event")
-        router.push(`/auth?eventCode=${eventCode}`)
-        return
-      }
-
       // User is authenticated - auto-join the event
       await handleJoinEvent(eventCode)
     } catch (error) {
@@ -146,6 +161,30 @@ export function EventJoinPage() {
   const handleScanQR = () => {
     // TODO: Implement QR scanning
     toast.info("QR scanning will be implemented")
+  }
+
+  // Show loading state while checking authentication
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show auto-joining state
+  if (isAutoJoining) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Joining event...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
