@@ -48,9 +48,7 @@ export function EventJoinScanner({
   }
 
   const stopScanning = () => {
-    if (codeReader.current) {
-      codeReader.current.reset()
-    }
+    // Stop all video tracks
     const videoEl = videoRef.current
     const stream = (videoEl?.srcObject as MediaStream | null) || activeStreamRef.current
     if (stream) {
@@ -60,6 +58,12 @@ export function EventJoinScanner({
       videoEl.srcObject = null
     }
     activeStreamRef.current = null
+    
+    // Reset the code reader
+    if (codeReader.current) {
+      codeReader.current = null
+    }
+    
     setIsScanning(false)
     setScanError(null)
   }
@@ -100,9 +104,12 @@ export function EventJoinScanner({
             }
             if (result) {
               const scannedText = result.getText()
+              console.log('QR Code scanned:', scannedText)
               
               // Try to parse as structured event QR code first
               const parsedEventCode = eventQRService.current.parseEventQRCodeData(scannedText)
+              console.log('Parsed event code:', parsedEventCode)
+              
               if (parsedEventCode) {
                 stopScanning()
                 onJoinEvent(parsedEventCode)
@@ -116,7 +123,10 @@ export function EventJoinScanner({
               }
             }
             if (error && !(error instanceof Error && error.name === 'NotFoundException')) {
-              console.error('QR scan error:', error)
+              // Only log meaningful errors, not the constant "not found" errors
+              if (error instanceof Error && !error.message.includes('No MultiFormat Readers')) {
+                console.warn('QR scan error:', error.message)
+              }
             }
           }
         )
