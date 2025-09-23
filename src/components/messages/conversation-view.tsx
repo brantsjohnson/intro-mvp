@@ -24,6 +24,7 @@ export function ConversationView() {
   const [messagesDeleted, setMessagesDeleted] = useState(false)
   const [userHasScrolled, setUserHasScrolled] = useState(false)
   const [hasLoadedMessages, setHasLoadedMessages] = useState(false)
+  const [hasCheckedForThread, setHasCheckedForThread] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
@@ -170,9 +171,13 @@ export function ConversationView() {
           setMessages([])
           setHasLoadedMessages(true)
         }
+        
+        // Mark that we've checked for threads
+        setHasCheckedForThread(true)
       } catch (error) {
         console.error("Error loading conversation:", error)
         toast.error("Failed to load conversation")
+        setHasCheckedForThread(true)
       } finally {
         setIsLoading(false)
       }
@@ -364,7 +369,71 @@ export function ConversationView() {
     )
   }
 
-  if (!thread) {
+  // If we don't have a thread and we're still loading, show loading state
+  if (!thread && !hasCheckedForThread) {
+    return (
+      <div className="h-screen bg-background flex flex-col overflow-hidden">
+        {/* Header skeleton */}
+        <header className="border-b border-border bg-card/50 backdrop-blur-sm flex-shrink-0 z-10">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="w-9 h-9 bg-muted rounded-full animate-pulse"></div>
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-muted rounded-full animate-pulse"></div>
+                <div>
+                  <div className="h-6 w-32 bg-muted rounded animate-pulse mb-2"></div>
+                  <div className="h-4 w-24 bg-muted rounded animate-pulse"></div>
+                </div>
+              </div>
+              <div className="w-9 h-9"></div>
+            </div>
+          </div>
+        </header>
+
+        {/* Messages skeleton */}
+        <main 
+          className="flex-1 overflow-y-auto overflow-x-hidden"
+          style={{ 
+            height: 'calc(100vh - 200px)',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
+          <div className="container mx-auto px-4 py-6">
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[70%] ${i % 2 === 0 ? 'order-2' : 'order-1'}`}>
+                    <div className={`rounded-2xl px-4 py-2 h-12 animate-pulse ${
+                      i % 2 === 0 ? 'bg-orange-400' : 'bg-white border border-gray-200'
+                    }`}></div>
+                    <div className="h-3 w-16 bg-muted rounded mt-1 animate-pulse"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
+
+        {/* System banner skeleton */}
+        <div className="bg-muted/50 border-t border-border px-4 py-2 flex-shrink-0">
+          <div className="h-3 w-full bg-muted rounded animate-pulse"></div>
+        </div>
+
+        {/* Composer skeleton */}
+        <div className="border-t border-border bg-card/50 backdrop-blur-sm p-4 flex-shrink-0">
+          <div className="container mx-auto">
+            <div className="flex items-center space-x-3">
+              <div className="flex-1 h-10 bg-muted rounded animate-pulse"></div>
+              <div className="w-10 h-10 bg-muted rounded animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // If we've checked and confirmed there's no thread, show error
+  if (!thread && hasCheckedForThread) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">

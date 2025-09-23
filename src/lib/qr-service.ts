@@ -139,7 +139,7 @@ export class QRCodeService {
         return false
       }
 
-      // Create the connection directly - temporarily bypass stats trigger
+      // Create the connection directly
       const { data, error } = await this.supabase
         .from('connections')
         .insert({

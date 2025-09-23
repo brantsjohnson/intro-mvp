@@ -122,15 +122,16 @@ export function QRScanner({ isOpen, onClose, onConnectionCreated }: QRScannerPro
         return
       }
 
-      // Just navigate to the profile - don't create connection automatically
-      // The user can decide to connect from the profile page
-      stopScanning()
-      onClose()
-      
-      // Navigate to the scanned user's profile
-      router.push(`/profile/${qrData.userId}?source=qr&eventId=${qrData.eventId}`)
-      
-      toast.success('Profile found! You can connect from their profile page.')
+      // Create connection automatically since they're meeting in person via QR scan
+      const success = await qrService.createConnectionFromQR(user.id, qrData)
+      if (success) {
+        stopScanning()
+        onClose()
+        onConnectionCreated?.()
+        
+        // Navigate to the scanned user's profile
+        router.push(`/profile/${qrData.userId}?source=qr&eventId=${qrData.eventId}`)
+      }
     } catch (error) {
       console.error('Error handling QR code result:', error)
       toast.error('Failed to process QR code')
