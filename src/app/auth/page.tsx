@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { AuthForm } from "@/components/auth/auth-form"
 
 export default function AuthPage() {
@@ -14,7 +15,9 @@ export default function AuthPage() {
           </p>
         </div>
         
-        <AuthForm />
+        <Suspense fallback={<div className="text-center text-muted-foreground">Loading...</div>}>
+          <AuthForm />
+        </Suspense>
       </div>
     </div>
   )
