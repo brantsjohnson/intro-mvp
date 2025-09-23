@@ -228,7 +228,7 @@ export function MessagesPage() {
               placeholder="Search attendees..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              className="pl-10 focus:bg-white focus:text-black focus:placeholder-gray-500"
             />
           </div>
         </div>
@@ -265,8 +265,8 @@ export function MessagesPage() {
                 <div key={attendee.id}>
                   {/* Section Header */}
                   {sectionHeader && (
-                    <div className="sticky top-16 bg-background/95 backdrop-blur-sm py-2 px-4 border-b border-border">
-                      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    <div className="sticky top-16 bg-transparent py-2 px-4">
+                      <h2 className="text-sm font-semibold text-black uppercase tracking-wide">
                         {sectionHeader}
                       </h2>
                     </div>
@@ -274,7 +274,7 @@ export function MessagesPage() {
                   
                   {/* Attendee Row */}
                   <Card
-                    className="bg-card border-border cursor-pointer hover:bg-card/80 transition-colors"
+                    className="bg-card border-border cursor-pointer hover:bg-card/80 transition-colors py-.5 gap-0"
                     onClick={() => handleAttendeeClick(attendee)}
                   >
                     <CardContent className="p-3">
