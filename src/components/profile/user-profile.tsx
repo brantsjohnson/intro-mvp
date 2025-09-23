@@ -228,8 +228,9 @@ export function UserProfile({ userId }: UserProfileProps) {
   }, [profile, userId, supabase, aiService, isGeneratingInsights])
 
   const handleMessage = () => {
-    // TODO: Implement messaging
-    toast.info("Messaging will be implemented")
+    // Get current event ID from URL or context
+    const currentEventId = "current-event-id" // TODO: Get from context or URL
+    router.push(`/messages/conversation?eventId=${currentEventId}&userId=${userId}`)
   }
 
   const handleBack = () => {

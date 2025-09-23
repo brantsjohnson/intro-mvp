@@ -24,7 +24,18 @@ export function SettingsPage() {
   const [selectedExpertise, setSelectedExpertise] = useState<number[]>([])
   const [customExpertise, setCustomExpertise] = useState("")
   const [networkingGoals, setNetworkingGoals] = useState<string[]>([])
+  const [selectedNetworkingGoals, setSelectedNetworkingGoals] = useState<number[]>([])
   const [customNetworkingGoal, setCustomNetworkingGoal] = useState("")
+  
+  // Define networking goals as a structured list like expertise tags
+  const networkingGoalsList = [
+    { id: 1, label: "Find mentors" },
+    { id: 2, label: "Build partnerships" },
+    { id: 3, label: "Learn new skills" },
+    { id: 4, label: "Find job opportunities" },
+    { id: 5, label: "Share knowledge" },
+    { id: 6, label: "Expand network" }
+  ]
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -147,6 +158,7 @@ export function SettingsPage() {
       if (expertiseError) {
         console.error("Error loading expertise tags:", expertiseError)
       } else {
+        console.log("Loaded expertise tags:", expertiseData)
         setExpertiseTags(expertiseData || [])
       }
 
@@ -160,12 +172,18 @@ export function SettingsPage() {
         console.error("Error loading user expertise:", userExpertiseError)
       } else {
         const expertiseIds = userExpertiseData?.map(item => item.tag_id) || []
+        console.log("Loaded expertise IDs:", expertiseIds)
         setSelectedExpertise(expertiseIds)
       }
 
       // Load networking goals from profile
       if (profileData.networking_goals) {
         setNetworkingGoals(profileData.networking_goals)
+        // Convert string array to selected IDs
+        const selectedIds = profileData.networking_goals
+          .map(goal => networkingGoalsList.find(item => item.label === goal)?.id)
+          .filter(id => id !== undefined) as number[]
+        setSelectedNetworkingGoals(selectedIds)
       }
 
       } catch (error) {
@@ -261,11 +279,11 @@ export function SettingsPage() {
     )
   }
 
-  const handleNetworkingGoalToggle = (goal: string) => {
-    setNetworkingGoals(prev => 
-      prev.includes(goal)
-        ? prev.filter(g => g !== goal)
-        : [...prev, goal]
+  const handleNetworkingGoalToggle = (goalId: number, checked: boolean) => {
+    setSelectedNetworkingGoals(prev => 
+      checked
+        ? [...prev, goalId]
+        : prev.filter(id => id !== goalId)
     )
   }
 
@@ -306,7 +324,12 @@ export function SettingsPage() {
       setIsSaving(true)
 
       // Update profile
-      const { error: profileError } = await supabase
+        // Convert selected networking goals back to strings
+        const networkingGoalsStrings = selectedNetworkingGoals
+          .map(id => networkingGoalsList.find(item => item.id === id)?.label)
+          .filter(label => label !== undefined) as string[]
+
+        const { error: profileError } = await supabase
         .from("profiles")
         .update({
           job_title: jobTitle,
@@ -314,7 +337,7 @@ export function SettingsPage() {
           linkedin_url: linkedinUrl,
           mbti: mbti,
           enneagram: enneagram,
-          networking_goals: networkingGoals
+          networking_goals: networkingGoalsStrings
         })
         .eq("id", profile.id)
 
@@ -448,7 +471,7 @@ export function SettingsPage() {
       </header>
 
       <main className="container mx-auto px-4 py-4">
-        <div className="max-w-2xl mx-auto space-y-4">
+        <div className="max-w-2xl mx-auto space-y-2">
           {/* Profile Block */}
           <Card className="bg-card border-border shadow-elevation">
             <CardContent className="p-2">
@@ -461,20 +484,20 @@ export function SettingsPage() {
                     size="xl"
                   />
                   {currentEvent && (
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-col items-center space-y-1">
                       <button
                         onClick={handlePresenceToggle}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                          isPresent ? 'bg-gradient-to-r from-[#4B915A] to-[#0B3E16]' : 'bg-muted'
+                        className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                          isPresent ? 'bg-gradient-to-r from-[#4B915A] to-[#0B3E16]' : 'bg-gray-300'
                         }`}
                       >
                         <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            isPresent ? 'translate-x-6' : 'translate-x-1'
+                          className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                            isPresent ? 'translate-x-4' : 'translate-x-0.5'
                           }`}
                         />
                       </button>
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {isPresent ? 'Here' : 'Away'}
                       </span>
                     </div>
@@ -577,7 +600,7 @@ export function SettingsPage() {
                     value={company}
                     onChange={(e) => setCompany(e.target.value)}
                     disabled={!isEditing}
-                    className={isEditing ? "border-primary/20 focus:border-primary text-black" : ""}
+                    className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
                     style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
                   />
               </div>
@@ -589,7 +612,7 @@ export function SettingsPage() {
                     value={jobTitle}
                     onChange={(e) => setJobTitle(e.target.value)}
                     disabled={!isEditing}
-                    className={isEditing ? "border-primary/20 focus:border-primary text-black" : ""}
+                    className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
                     style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
                 />
               </div>
@@ -601,7 +624,7 @@ export function SettingsPage() {
                     value={linkedinUrl}
                     onChange={(e) => setLinkedinUrl(e.target.value)}
                     disabled={!isEditing}
-                    className={isEditing ? "border-primary/20 focus:border-primary text-black" : ""}
+                    className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
                     style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
                     placeholder="https://linkedin.com/in/yourprofile"
                   />
@@ -614,7 +637,7 @@ export function SettingsPage() {
                     value={enneagram}
                     onChange={(e) => setEnneagram(e.target.value)}
                     disabled={!isEditing}
-                    className={isEditing ? "border-primary/20 focus:border-primary text-black" : ""}
+                    className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
                     style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
                     placeholder="e.g., 8 - Challenger"
                   />
@@ -627,7 +650,7 @@ export function SettingsPage() {
                     value={mbti}
                     onChange={(e) => setMbti(e.target.value)}
                     disabled={!isEditing}
-                    className={isEditing ? "border-primary/20 focus:border-primary text-black" : ""}
+                    className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
                     style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
                     placeholder="e.g., ENTJ"
                   />
@@ -657,7 +680,7 @@ export function SettingsPage() {
                       value={customExpertise}
                       onChange={(e) => setCustomExpertise(e.target.value)}
                       placeholder="e.g., Machine Learning, Sales Strategy"
-                      className="focus:border-primary text-black"
+                      className="focus:border-primary focus:ring-primary text-black"
                       style={{ backgroundColor: '#DDDDDD', color: 'black' }}
                     />
                     <GradientButton
@@ -683,61 +706,33 @@ export function SettingsPage() {
               <CardTitle className="text-primary">Networking Goals <span className="text-white text-sm font-normal">(Not visible on profile)</span></CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              {!isEditing ? (
-                <div className="space-y-2">
-                  {networkingGoals.length > 0 ? (
-                    networkingGoals.map((goal, index) => (
-                      <div key={index} className="flex items-center space-x-2">
-                        <div className="w-2 h-2 bg-primary rounded-full"></div>
-                        <span className="text-sm text-foreground">{goal}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-muted-foreground text-sm">No networking goals set</p>
-                  )}
+              <HobbiesGrid
+                hobbies={networkingGoalsList}
+                selectedHobbies={selectedNetworkingGoals}
+                onHobbyChange={handleNetworkingGoalToggle}
+                showOnlySelected={!isEditing}
+              />
+              {isEditing && (
+                <div className="mt-4">
+                  <Label htmlFor="customNetworkingGoal">Add custom goal</Label>
+                  <div className="flex space-x-2">
+                    <Input
+                      id="customNetworkingGoal"
+                      value={customNetworkingGoal}
+                      onChange={(e) => setCustomNetworkingGoal(e.target.value)}
+                      placeholder="e.g., Find co-founder"
+                      className="focus:border-primary focus:ring-primary text-black"
+                      style={{ backgroundColor: '#DDDDDD', color: 'black' }}
+                    />
+                    <GradientButton
+                      onClick={addCustomNetworkingGoal}
+                      size="sm"
+                    >
+                      Add
+                    </GradientButton>
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-2">
-                    {["Find mentors", "Build partnerships", "Learn new skills", "Find job opportunities", "Share knowledge", "Expand network"].map((goal) => (
-                      <div key={goal} className="flex items-center space-x-3 p-2 rounded-lg">
-                        <input
-                          type="checkbox"
-                          id={`networking-${goal}`}
-                          checked={networkingGoals.includes(goal)}
-                          onChange={() => handleNetworkingGoalToggle(goal)}
-                          className="w-4 h-4 text-primary bg-muted border-border rounded focus:ring-primary focus:ring-2"
-                        />
-                        <label
-                          htmlFor={`networking-${goal}`}
-                          className="text-sm text-foreground cursor-pointer flex-1"
-                        >
-                          {goal}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    <Label htmlFor="customNetworkingGoal">Add custom goal</Label>
-                    <div className="flex space-x-2">
-                      <Input
-                        id="customNetworkingGoal"
-                        value={customNetworkingGoal}
-                        onChange={(e) => setCustomNetworkingGoal(e.target.value)}
-                        placeholder="e.g., Find co-founder"
-                        className="focus:border-primary text-black"
-                        style={{ backgroundColor: '#DDDDDD', color: 'black' }}
-                      />
-                      <GradientButton
-                        onClick={addCustomNetworkingGoal}
-                        size="sm"
-                      >
-                        Add
-                      </GradientButton>
-                    </div>
-                    </div>
-                  </div>
-                )}
+              )}
             </CardContent>
           </Card>
 

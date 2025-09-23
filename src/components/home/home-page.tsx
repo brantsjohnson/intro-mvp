@@ -10,6 +10,7 @@ import { QRCard } from "@/components/ui/qr-card"
 import { QRScanner } from "@/components/ui/qr-scanner"
 import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
+import { MessageService } from "@/lib/message-service-simple"
 import { User, Profile, Event } from "@/lib/types"
 import { toast } from "sonner"
 import { 
@@ -39,9 +40,11 @@ export function HomePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false)
   const [isJoiningEvent, setIsJoiningEvent] = useState(false)
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0)
   
   const router = useRouter()
   const supabase = createClientComponentClient()
+  const messageService = new MessageService()
 
   useEffect(() => {
     const getUser = async () => {
@@ -72,6 +75,31 @@ export function HomePage() {
       loadUserData()
     }
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load unread message count when current event changes
+  useEffect(() => {
+    const loadUnreadCount = async () => {
+      if (currentEvent && user) {
+        try {
+          const count = await messageService.getUnreadCount(currentEvent.id)
+          setUnreadMessageCount(count)
+        } catch (error) {
+          console.error("Error loading unread count:", error)
+        }
+      }
+    }
+
+    loadUnreadCount()
+
+    // Subscribe to real-time message updates
+    if (currentEvent) {
+      const subscription = messageService.subscribeToMessages(currentEvent.id, () => {
+        loadUnreadCount() // Reload count when messages change
+      })
+
+      return () => subscription.unsubscribe()
+    }
+  }, [currentEvent, user, messageService])
 
   // Refresh data when page comes into focus (e.g., after returning from event join)
   useEffect(() => {
@@ -400,10 +428,10 @@ export function HomePage() {
               </h1>
             </div>
             
-            {/* Right: Message icon with gradient */}
-            <div className="ml-auto">
+            {/* Right: Message icon with gradient and unread badge */}
+            <div className="ml-auto relative">
               <button
-                onClick={() => router.push("/messages")}
+                onClick={() => router.push(`/messages?eventId=${currentEvent?.id || ''}`)}
                 className="w-10 h-10 rounded-full flex items-center justify-center"
                 style={{
                   background: 'linear-gradient(135deg, #EC874E 0%, #BF341E 100%)',
@@ -412,6 +440,11 @@ export function HomePage() {
               >
                 <MessageSquare className="h-5 w-5 text-white" />
               </button>
+              {unreadMessageCount > 0 && (
+                <div className="absolute -top-1 -right-1 bg-[#BF341E] text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                  {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
+                </div>
+              )}
             </div>
           </div>
         </div>

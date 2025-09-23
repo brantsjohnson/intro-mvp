@@ -263,6 +263,8 @@ export interface Database {
           recipient: string | null
           body: string
           created_at: string
+          is_read: boolean
+          read_at: string | null
         }
         Insert: {
           id?: string
@@ -272,6 +274,8 @@ export interface Database {
           recipient?: string | null
           body: string
           created_at?: string
+          is_read?: boolean
+          read_at?: string | null
         }
         Update: {
           id?: string
@@ -281,6 +285,37 @@ export interface Database {
           recipient?: string | null
           body?: string
           created_at?: string
+          is_read?: boolean
+          read_at?: string | null
+        }
+      }
+      message_threads: {
+        Row: {
+          id: string
+          event_id: string
+          participant_a: string
+          participant_b: string
+          created_at: string
+          updated_at: string
+          last_message_at: string | null
+        }
+        Insert: {
+          id?: string
+          event_id: string
+          participant_a: string
+          participant_b: string
+          created_at?: string
+          updated_at?: string
+          last_message_at?: string | null
+        }
+        Update: {
+          id?: string
+          event_id?: string
+          participant_a?: string
+          participant_b?: string
+          created_at?: string
+          updated_at?: string
+          last_message_at?: string | null
         }
       }
       notifications: {
