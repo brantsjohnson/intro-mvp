@@ -28,6 +28,7 @@ export function OnboardingFlow() {
   const eventId = searchParams.get('eventId')
   const [currentStep, setCurrentStep] = useState(fromEventJoin ? 2 : 0) // networking goals only used when coming from an event
   const [isLoading, setIsLoading] = useState(false)
+  const [isRedirecting, setIsRedirecting] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [hobbies, setHobbies] = useState<Hobby[]>([])
   const [selectedHobbies, setSelectedHobbies] = useState<number[]>([])
@@ -333,7 +334,12 @@ export function OnboardingFlow() {
       }
 
       toast.success("Onboarding completed!")
-      router.push("/home")
+      
+      // Show loading screen while redirecting
+      setIsRedirecting(true)
+      setTimeout(() => {
+        router.push("/home")
+      }, 1000) // Small delay to let user see the success message
     } catch {
       toast.error("An error occurred during onboarding")
     } finally {
@@ -708,6 +714,24 @@ export function OnboardingFlow() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
+      {/* Full-screen loading overlay */}
+      {(isLoading || isRedirecting) && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-card border border-border rounded-lg p-8 text-center shadow-elevation">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">
+              {isRedirecting ? "Redirecting to your dashboard..." : "Setting up your profile..."}
+            </h3>
+            <p className="text-muted-foreground">
+              {isRedirecting 
+                ? "Taking you to your personalized homepage." 
+                : "This may take a few moments. Please don't close this window."
+              }
+            </p>
+          </div>
+        </div>
+      )}
+      
       <div className="w-full max-w-2xl">
         <Card className="bg-card border-border shadow-elevation">
           <CardHeader className="pb-4">
