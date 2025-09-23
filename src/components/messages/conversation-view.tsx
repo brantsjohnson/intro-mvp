@@ -23,6 +23,7 @@ export function ConversationView() {
   const [eventEnded, setEventEnded] = useState(false)
   const [messagesDeleted, setMessagesDeleted] = useState(false)
   const [userHasScrolled, setUserHasScrolled] = useState(false)
+  const [hasLoadedMessages, setHasLoadedMessages] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
@@ -113,6 +114,7 @@ export function ConversationView() {
           const currentThread = threadsData.find(t => t.id === threadId)
           setThread(currentThread || null)
           setMessages(messagesData)
+          setHasLoadedMessages(true)
           
           // Mark messages as read
           await messageService.markThreadAsRead(threadId)
@@ -166,6 +168,7 @@ export function ConversationView() {
           }
           
           setMessages([])
+          setHasLoadedMessages(true)
         }
       } catch (error) {
         console.error("Error loading conversation:", error)
@@ -430,13 +433,13 @@ export function ConversationView() {
         }}
       >
         <div className="container mx-auto px-4 py-6">
-          {messages.length === 0 ? (
+          {messages.length === 0 && hasLoadedMessages ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">
                 No messages yet. Start the conversation!
               </p>
             </div>
-          ) : (
+          ) : messages.length > 0 ? (
             <div className="space-y-4">
               {messages.map((message) => (
                 <div
@@ -473,7 +476,7 @@ export function ConversationView() {
               
               <div ref={messagesEndRef} />
             </div>
-          )}
+          ) : null}
         </div>
       </main>
 
