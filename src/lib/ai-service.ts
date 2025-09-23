@@ -180,9 +180,11 @@ Consider these matching criteria:
 Return a JSON array of match objects. Each match should have:
 - "personA": profile ID
 - "personB": profile ID  
-- "bases": array of match reasons (e.g., ["career", "interests", "personality"])
+- "bases": array of match reasons using ONLY these valid values: ["career", "interests", "personality"]
 - "summary": one sentence explaining why they should meet
 - "panels": object with "why", "activities", "deeper" fields
+
+IMPORTANT: The "bases" field must only contain these exact values: "career", "interests", or "personality". Do not use any other terms like "networking goals", "hobbies", "expertise", etc.
 
 Example format:
 [
@@ -249,11 +251,17 @@ Generate three specific insights that will help them connect meaningfully at thi
         continue // Skip self-matches
       }
 
+      // Validate and filter bases to only include valid enum values
+      const validBases = ['career', 'interests', 'personality']
+      const filteredBases = (match.bases || []).filter((basis: string) => 
+        validBases.includes(basis.toLowerCase())
+      )
+
       validMatches.push({
         personA: match.personA,
         personB: match.personB,
         profile: profileMap.get(match.personB)!,
-        bases: match.bases || [],
+        bases: filteredBases.length > 0 ? filteredBases : ['interests'], // Default to interests if no valid bases
         summary: match.summary || 'Great networking opportunity',
         panels: match.panels || {
           why: 'You have complementary backgrounds and interests.',
