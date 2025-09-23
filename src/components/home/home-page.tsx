@@ -301,7 +301,11 @@ export function HomePage() {
   }
 
   const handleMatchClick = (match: MatchWithProfile) => {
-    router.push(`/profile/${match.profile.id}`)
+    if (currentEvent) {
+      router.push(`/profile/${match.profile.id}?source=suggested&eventId=${currentEvent.id}`)
+    } else {
+      router.push(`/profile/${match.profile.id}`)
+    }
   }
 
   const handleQRScan = () => {
