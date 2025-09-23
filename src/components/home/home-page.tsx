@@ -284,12 +284,17 @@ export function HomePage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center">
             {/* Left: User avatar with presence indicator */}
-            <PresenceAvatar
-              src={profile.avatar_url || undefined}
-              fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
-              isPresent={isPresent}
-              size="md"
-            />
+            <button
+              onClick={() => router.push("/settings")}
+              className="focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-full"
+            >
+              <PresenceAvatar
+                src={profile.avatar_url || undefined}
+                fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
+                isPresent={isPresent}
+                size="md"
+              />
+            </button>
             
             {/* Right of avatar: Intro wordmark */}
             <div className="ml-4">
