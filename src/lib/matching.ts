@@ -20,7 +20,7 @@ export class MatchingService {
   private aiService = new AIService()
 
   async generateMatches(eventId: string): Promise<MatchingResult> {
-    // Get all present members for the event
+    // Get all members for the event (presence not required for AI)
     const { data: members, error: membersError } = await this.supabase
       .from("event_members")
       .select(`
@@ -39,7 +39,6 @@ export class MatchingService {
         )
       `)
       .eq("event_id", eventId)
-      .eq("is_present", true)
 
     if (membersError) {
       throw new Error(`Failed to load event members: ${membersError.message}`)
@@ -192,7 +191,7 @@ export class MatchingService {
       return // Don't generate matches if matchmaking is disabled
     }
 
-    // Get all present members including the new user
+    // Get all members including the new user (presence not required)
     const { data: members } = await this.supabase
       .from("event_members")
       .select(`
@@ -211,7 +210,6 @@ export class MatchingService {
         )
       `)
       .eq("event_id", eventId)
-      .eq("is_present", true)
 
     if (!members || members.length < 2) {
       return

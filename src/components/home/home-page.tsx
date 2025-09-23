@@ -192,7 +192,8 @@ export function HomePage() {
     if (!user) return
     
     try {
-      const { data: matchesData, error: matchesError } = await supabase
+      // Load matches where current user is A (show profile B)
+      const aSidePromise = supabase
         .from("matches")
         .select(`
           id,
@@ -212,21 +213,57 @@ export function HomePage() {
         .eq("a", user.id)
         .limit(3)
 
-      if (matchesError) {
-        console.error("Failed to load matches:", matchesError)
+      // Load matches where current user is B (show profile A)
+      const bSidePromise = supabase
+        .from("matches")
+        .select(`
+          id,
+          summary,
+          bases,
+          panels,
+          profiles!matches_a_fkey (
+            id,
+            first_name,
+            last_name,
+            job_title,
+            company,
+            avatar_url
+          )
+        `)
+        .eq("event_id", eventId)
+        .eq("b", user.id)
+        .limit(3)
+
+      const [{ data: aData, error: aError }, { data: bData, error: bError }] = await Promise.all([aSidePromise, bSidePromise])
+
+      if (aError || bError) {
+        console.error("Failed to load matches:", aError || bError)
         return
       }
 
-      const formattedMatches = matchesData?.map((match: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-        id: match.id,
-        summary: match.summary,
-        bases: match.bases,
-        panels: match.panels,
-        profile: match.profiles,
-        is_present: false // Default to false since we're not loading presence data for matches
-      })) || []
+      const toFormatted = (rows: any[] | null) => // eslint-disable-line @typescript-eslint/no-explicit-any
+        (rows || []).map((match: any) => ({
+          id: match.id,
+          summary: match.summary,
+          bases: match.bases,
+          panels: match.panels,
+          profile: match.profiles,
+          is_present: false
+        }))
 
-      setMatches(formattedMatches)
+      // Merge and de-duplicate by id, prefer earliest
+      const merged = [...toFormatted(aData), ...toFormatted(bData)]
+      const seen = new Set<string>()
+      const deduped: MatchWithProfile[] = []
+      for (const m of merged) {
+        if (!seen.has(m.id)) {
+          seen.add(m.id)
+          deduped.push(m)
+        }
+      }
+
+      // Limit to 3 overall
+      setMatches(deduped.slice(0, 3))
     } catch (error) {
       console.error("Failed to load matches:", error)
     }
