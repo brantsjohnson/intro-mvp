@@ -64,19 +64,23 @@ export function MatchCard({
           />
           
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <h3 className="font-medium text-foreground truncate">
-                  {name}
-                </h3>
-                <p className="text-sm text-muted-foreground truncate">
-                  {jobTitle}
-                  {company && ` at ${company}`}
-                </p>
-              </div>
+            {/* Name and Arrow Row */}
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-medium text-foreground truncate pr-2">
+                {name}
+              </h3>
               <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
             </div>
             
+            {/* Job Title and Company - Allow wrapping */}
+            <div className="mb-2 pr-7">
+              <p className="text-sm text-muted-foreground break-words">
+                {jobTitle}
+                {company && ` at ${company}`}
+              </p>
+            </div>
+            
+            {/* Match Badge */}
             <div className="mb-2">
               <span className={cn(
                 "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border",
@@ -86,7 +90,8 @@ export function MatchCard({
               </span>
             </div>
             
-            <p className="text-sm text-muted-foreground line-clamp-2">
+            {/* Summary - Ensure full visibility */}
+            <p className="text-sm text-muted-foreground leading-relaxed">
               {summary}
             </p>
           </div>

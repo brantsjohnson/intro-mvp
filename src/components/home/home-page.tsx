@@ -658,14 +658,17 @@ export function HomePage() {
 
           {/* People You Should Know - Only show when event exists */}
           {currentEvent && (
-            <Card className="bg-card border-border shadow-elevation">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center space-x-2">
+            <div className="space-y-3">
+              {/* Title Section */}
+              <div className="px-1">
+                <h2 className="flex items-center space-x-2 text-lg font-semibold text-foreground">
                   <Users className="h-5 w-5" />
                   <span>People You Should Know</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 pt-0">
+                </h2>
+              </div>
+              
+              {/* Matches Container */}
+              <div className="space-y-2">
                 {matches.length > 0 ? (
                   matches.map((match) => (
                     <MatchCard
@@ -681,35 +684,39 @@ export function HomePage() {
                     />
                   ))
                 ) : currentEvent && !currentEvent.matchmaking_enabled ? (
-                  <div className="text-center py-6">
-                    <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                      <Users className="h-6 w-6 text-primary" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-foreground mb-2">
-                      Waiting for matchmaking to begin
-                    </h3>
-                    <p className="text-muted-foreground max-w-md mx-auto leading-relaxed text-sm">
-                      The event organizer will start the AI matchmaking process soon. Check back later for personalized introductions!
-                    </p>
-                    <div className="mt-4 flex items-center justify-center space-x-2 text-sm text-muted-foreground">
-                      <div className="w-2 h-2 bg-primary/60 rounded-full animate-pulse"></div>
-                      <div className="w-2 h-2 bg-primary/60 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                      <div className="w-2 h-2 bg-primary/60 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-                    </div>
-                  </div>
+                  <Card className="bg-card border-border shadow-elevation">
+                    <CardContent className="text-center py-6">
+                      <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                        <Users className="h-6 w-6 text-primary" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-foreground mb-2">
+                        Waiting for matchmaking to begin
+                      </h3>
+                      <p className="text-muted-foreground max-w-md mx-auto leading-relaxed text-sm">
+                        The event organizer will start the AI matchmaking process soon. Check back later for personalized introductions!
+                      </p>
+                      <div className="mt-4 flex items-center justify-center space-x-2 text-sm text-muted-foreground">
+                        <div className="w-2 h-2 bg-primary/60 rounded-full animate-pulse"></div>
+                        <div className="w-2 h-2 bg-primary/60 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="w-2 h-2 bg-primary/60 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ) : (
-                  <div className="text-center py-4">
-                    <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                    <h3 className="text-base font-medium text-foreground mb-2">
-                      No matches yet
-                    </h3>
-                    <p className="text-muted-foreground text-sm">
-                      Matches will appear here once the event starts and matching is run.
-                    </p>
-                  </div>
+                  <Card className="bg-card border-border shadow-elevation">
+                    <CardContent className="text-center py-4">
+                      <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                      <h3 className="text-base font-medium text-foreground mb-2">
+                        No matches yet
+                      </h3>
+                      <p className="text-muted-foreground text-sm">
+                        Matches will appear here once the event starts and matching is run.
+                      </p>
+                    </CardContent>
+                  </Card>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
 
           {/* Add Other Attendees Section - Only show when event exists */}
