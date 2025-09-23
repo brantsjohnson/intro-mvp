@@ -12,6 +12,7 @@ import { createClientComponentClient } from "@/lib/supabase"
 import { Profile, Hobby, Event } from "@/lib/types"
 import { toast } from "sonner"
 import { ArrowLeft, Edit3, Plus, ChevronDown } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
 
 export function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -19,6 +20,11 @@ export function SettingsPage() {
   const [userEvents, setUserEvents] = useState<Event[]>([])
   const [hobbies, setHobbies] = useState<Hobby[]>([])
   const [selectedHobbies, setSelectedHobbies] = useState<number[]>([])
+  const [expertiseTags, setExpertiseTags] = useState<Hobby[]>([])
+  const [selectedExpertise, setSelectedExpertise] = useState<number[]>([])
+  const [customExpertise, setCustomExpertise] = useState("")
+  const [networkingGoals, setNetworkingGoals] = useState<string[]>([])
+  const [customNetworkingGoal, setCustomNetworkingGoal] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -132,6 +138,36 @@ export function SettingsPage() {
         setSelectedHobbies(hobbyIds)
       }
 
+      // Load expertise tags
+      const { data: expertiseData, error: expertiseError } = await supabase
+        .from("expertise_tags")
+        .select("*")
+        .order("label")
+
+      if (expertiseError) {
+        console.error("Error loading expertise tags:", expertiseError)
+      } else {
+        setExpertiseTags(expertiseData || [])
+      }
+
+      // Load user's selected expertise
+      const { data: userExpertiseData, error: userExpertiseError } = await supabase
+        .from("profile_expertise")
+        .select("expertise_id")
+        .eq("user_id", user.id)
+
+      if (userExpertiseError) {
+        console.error("Error loading user expertise:", userExpertiseError)
+      } else {
+        const expertiseIds = userExpertiseData?.map(item => item.expertise_id) || []
+        setSelectedExpertise(expertiseIds)
+      }
+
+      // Load networking goals from profile
+      if (profileData.networking_goals) {
+        setNetworkingGoals(profileData.networking_goals)
+      }
+
     } catch (error) {
       console.error("Error loading user data:", error)
       toast.error("Failed to load profile data")
@@ -217,6 +253,29 @@ export function SettingsPage() {
     )
   }
 
+  const handleExpertiseToggle = (expertiseId: number, checked: boolean) => {
+    setSelectedExpertise(prev => 
+      checked
+        ? [...prev, expertiseId]
+        : prev.filter(id => id !== expertiseId)
+    )
+  }
+
+  const handleNetworkingGoalToggle = (goal: string) => {
+    setNetworkingGoals(prev => 
+      prev.includes(goal)
+        ? prev.filter(g => g !== goal)
+        : [...prev, goal]
+    )
+  }
+
+  const addCustomNetworkingGoal = () => {
+    if (customNetworkingGoal.trim() && !networkingGoals.includes(customNetworkingGoal.trim())) {
+      setNetworkingGoals(prev => [...prev, customNetworkingGoal.trim()])
+      setCustomNetworkingGoal("")
+    }
+  }
+
   const handlePresenceToggle = async () => {
     if (!currentEvent || !profile) return
 
@@ -255,7 +314,7 @@ export function SettingsPage() {
           linkedin_url: linkedinUrl,
           mbti: mbti,
           enneagram: enneagram,
-          location: location
+          networking_goals: networkingGoals
         })
         .eq("id", profile.id)
 
@@ -285,6 +344,31 @@ export function SettingsPage() {
 
         if (insertError) {
           toast.error("Failed to update hobbies")
+          return
+        }
+      }
+
+      // Update expertise
+      const { error: expertiseDeleteError } = await supabase
+        .from("profile_expertise")
+        .delete()
+        .eq("user_id", profile.id)
+
+      if (expertiseDeleteError) {
+        toast.error("Failed to update expertise")
+        return
+      }
+
+      if (selectedExpertise.length > 0) {
+        const { error: expertiseInsertError } = await supabase
+          .from("profile_expertise")
+          .insert(selectedExpertise.map(expertiseId => ({
+            user_id: profile.id,
+            expertise_id: expertiseId
+          })))
+
+        if (expertiseInsertError) {
+          toast.error("Failed to update expertise")
           return
         }
       }
@@ -391,12 +475,12 @@ export function SettingsPage() {
                 {currentEvent && (
                   <div className="flex items-center space-x-2">
                     <span className="text-sm text-muted-foreground">
-                      {isPresent ? 'Present' : 'Not Present'}
+                      {isPresent ? 'Here' : 'Away'}
                     </span>
                     <button
                       onClick={handlePresenceToggle}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                        isPresent ? 'bg-primary' : 'bg-muted'
+                        isPresent ? 'bg-gradient-to-r from-[#4B915A] to-[#0B3E16]' : 'bg-muted'
                       }`}
                     >
                       <span
@@ -413,10 +497,10 @@ export function SettingsPage() {
 
           {/* Event Switching */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-2">
               <CardTitle className="text-primary">Change event</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 pt-0">
+            <CardContent className="space-y-2 pt-0">
               {/* Current Event Dropdown */}
               <div className="relative">
                 <button
@@ -464,7 +548,7 @@ export function SettingsPage() {
 
           {/* Hobbies */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-2">
               <CardTitle className="text-primary">Hobbies</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
@@ -479,11 +563,11 @@ export function SettingsPage() {
 
           {/* About Section */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-2">
               <CardTitle className="text-primary">About</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 pt-0">
-              <div className="grid grid-cols-1 gap-4">
+            <CardContent className="space-y-2 pt-0">
+              <div className="grid grid-cols-1 gap-3">
                 <div>
                   <Label htmlFor="company">Company</Label>
                   <Input
@@ -502,18 +586,6 @@ export function SettingsPage() {
                     id="jobTitle"
                     value={jobTitle}
                     onChange={(e) => setJobTitle(e.target.value)}
-                    disabled={!isEditing}
-                    className={isEditing ? "border-primary/20" : ""}
-                    style={isEditing ? { backgroundColor: '#DDDDDD' } : {}}
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="location">Location</Label>
-                  <Input
-                    id="location"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
                     disabled={!isEditing}
                     className={isEditing ? "border-primary/20" : ""}
                     style={isEditing ? { backgroundColor: '#DDDDDD' } : {}}
@@ -562,11 +634,110 @@ export function SettingsPage() {
             </CardContent>
           </Card>
 
+          {/* Expertise Section */}
+          <Card className="bg-card border-border shadow-elevation">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-primary">Expertise</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <HobbiesGrid
+                hobbies={expertiseTags}
+                selectedHobbies={selectedExpertise}
+                onHobbyChange={handleExpertiseToggle}
+                showOnlySelected={!isEditing}
+              />
+              {isEditing && (
+                <div className="mt-4">
+                  <Label htmlFor="customExpertise">Add custom expertise</Label>
+                  <div className="flex space-x-2">
+                    <Input
+                      id="customExpertise"
+                      value={customExpertise}
+                      onChange={(e) => setCustomExpertise(e.target.value)}
+                      placeholder="e.g., Machine Learning, Sales Strategy"
+                      style={{ backgroundColor: '#DDDDDD' }}
+                    />
+                    <GradientButton
+                      onClick={() => {
+                        if (customExpertise.trim()) {
+                          // Add to expertise tags (this would need backend support)
+                          setCustomExpertise("")
+                        }
+                      }}
+                      size="sm"
+                    >
+                      Add
+                    </GradientButton>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Networking Goals Section */}
+          <Card className="bg-card border-border shadow-elevation">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-primary">Networking Goals</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {!isEditing ? (
+                <div className="space-y-2">
+                  {networkingGoals.length > 0 ? (
+                    networkingGoals.map((goal, index) => (
+                      <div key={index} className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-primary rounded-full"></div>
+                        <span className="text-sm text-foreground">{goal}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground text-sm">No networking goals set</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-2">
+                    {["Find mentors", "Build partnerships", "Learn new skills", "Find job opportunities", "Share knowledge", "Expand network"].map((goal) => (
+                      <button
+                        key={goal}
+                        onClick={() => handleNetworkingGoalToggle(goal)}
+                        className={`p-2 rounded-lg text-sm text-left transition-colors ${
+                          networkingGoals.includes(goal)
+                            ? "bg-primary text-white"
+                            : "bg-muted text-foreground hover:bg-muted/80"
+                        }`}
+                      >
+                        {goal}
+                      </button>
+                    ))}
+                  </div>
+                  <div>
+                    <Label htmlFor="customNetworkingGoal">Add custom goal</Label>
+                    <div className="flex space-x-2">
+                      <Input
+                        id="customNetworkingGoal"
+                        value={customNetworkingGoal}
+                        onChange={(e) => setCustomNetworkingGoal(e.target.value)}
+                        placeholder="e.g., Find co-founder"
+                        style={{ backgroundColor: '#DDDDDD' }}
+                      />
+                      <GradientButton
+                        onClick={addCustomNetworkingGoal}
+                        size="sm"
+                      >
+                        Add
+                      </GradientButton>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Save Button */}
           {isEditing && (
             <div className="flex justify-end">
               <GradientButton
-                onClick={handleSave}
+                onClick={handleSaveChanges}
                 disabled={isSaving}
                 className="px-8"
               >
