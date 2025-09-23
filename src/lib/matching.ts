@@ -94,6 +94,19 @@ export class MatchingService {
       expertise: expertise?.filter(e => e.user_id === member.user_id).map(e => e.expertise_tags.label) || []
     }))
 
+    console.log('🔍 Matching Service Debug:')
+    console.log('Present members:', members.length)
+    console.log('Hobbies data:', hobbies)
+    console.log('Expertise data:', expertise)
+    console.log('Networking goals data:', networkingGoals)
+    console.log('Profiles with data for AI:', profilesWithData.map(p => ({
+      id: p.id,
+      name: `${p.first_name} ${p.last_name}`,
+      hobbies: p.hobbies,
+      expertise: p.expertise,
+      networking_goals: p.networking_goals
+    })))
+
     // Use AI to generate matches
     const aiMatches = await this.aiService.generateMatches({
       eventId,
@@ -106,19 +119,17 @@ export class MatchingService {
     const usedPairs = new Set<string>()
 
     for (const aiMatch of aiMatches) {
-      // Find the corresponding profile for personA
-      const personA = profilesWithData.find(p => 
-        profilesWithData.some(other => 
-          other.id !== p.id && 
-          this.profilesMatch(p, other, aiMatch)
-        )
-      )
+      // The AI should return matches with personA and personB IDs
+      // If the AI returns a different format, we need to handle it
+      const personAId = aiMatch.personA || aiMatch.profile?.id
+      const personBId = aiMatch.personB || aiMatch.profile?.id
 
-      if (!personA) continue
+      if (!personAId || !personBId || personAId === personBId) {
+        continue
+      }
 
-      const personB = aiMatch.profile
-      const pairKey = `${personA.id}-${personB.id}`
-      const reversePairKey = `${personB.id}-${personA.id}`
+      const pairKey = `${personAId}-${personBId}`
+      const reversePairKey = `${personBId}-${personAId}`
 
       // Skip if already matched or if this pair is already being processed
       if (usedPairs.has(pairKey) || usedPairs.has(reversePairKey)) {
@@ -126,8 +137,8 @@ export class MatchingService {
       }
 
       matches.push({
-        a: personA.id,
-        b: personB.id,
+        a: personAId,
+        b: personBId,
         bases: aiMatch.bases,
         summary: aiMatch.summary,
         panels: aiMatch.panels

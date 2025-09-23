@@ -1,8 +1,8 @@
 import OpenAI from 'openai'
 
 const openai = new OpenAI({
-  apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true // Note: In production, this should be server-side only
+  apiKey: process.env.OPENAI_API_KEY,
+  dangerouslyAllowBrowser: false // Server-side only for security
 })
 
 export interface ProfileData {
@@ -21,6 +21,8 @@ export interface ProfileData {
 }
 
 export interface MatchCandidate {
+  personA?: string
+  personB?: string
   profile: ProfileData
   bases: string[]
   summary: string
@@ -233,16 +235,23 @@ Generate three specific insights that will help them connect meaningfully at thi
     const profileMap = new Map(profiles.map(p => [p.id, p]))
     const validMatches: MatchCandidate[] = []
 
+    console.log('AI returned matches:', matches)
+    console.log('Available profiles:', profiles.map(p => ({ id: p.id, name: `${p.first_name} ${p.last_name}` })))
+
     for (const match of matches) {
       if (!match.personA || !match.personB || !profileMap.has(match.personA) || !profileMap.has(match.personB)) {
+        console.log('Skipping invalid match:', match)
         continue
       }
 
       if (match.personA === match.personB) {
+        console.log('Skipping self-match:', match)
         continue // Skip self-matches
       }
 
       validMatches.push({
+        personA: match.personA,
+        personB: match.personB,
         profile: profileMap.get(match.personB)!,
         bases: match.bases || [],
         summary: match.summary || 'Great networking opportunity',
@@ -254,6 +263,7 @@ Generate three specific insights that will help them connect meaningfully at thi
       })
     }
 
+    console.log('Valid matches after processing:', validMatches)
     return validMatches
   }
 
