@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { HobbiesGrid } from "@/components/ui/hobbies-grid"
+import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
 import { User, Hobby } from "@/lib/types"
 import { toast } from "sonner"
@@ -37,6 +38,7 @@ export function OnboardingFlow() {
   const [newTag, setNewTag] = useState("")
   const [networkingGoals, setNetworkingGoals] = useState<string[]>([])
   const [customNetworkingGoal, setCustomNetworkingGoal] = useState("")
+  const [isJoiningEvent, setIsJoiningEvent] = useState(false)
   
   // Profile data
   const [firstName, setFirstName] = useState("")
@@ -211,9 +213,56 @@ export function OnboardingFlow() {
   }
 
 
-  const handleScanQR = () => {
-    // TODO: Implement QR scanning
-    toast.info("QR scanning will be implemented")
+  const handleJoinEvent = async (eventCode: string) => {
+    if (!user) {
+      toast.error("You must be logged in to join an event")
+      return
+    }
+
+    setIsJoiningEvent(true)
+    try {
+      // Find the event by code
+      const { data: eventData, error: eventError } = await supabase
+        .from("events")
+        .select("id, name")
+        .eq("code", eventCode.toUpperCase())
+        .single()
+
+      if (eventError || !eventData) {
+        toast.error("Event not found. Please check the code and try again.")
+        return
+      }
+
+      // Add user to the event
+      const { error: joinError } = await supabase
+        .from("event_members")
+        .insert({
+          event_id: eventData.id,
+          user_id: user.id,
+          is_present: true
+        })
+
+      if (joinError) {
+        if (joinError.message.includes("duplicate")) {
+          toast.error("You're already a member of this event")
+        } else {
+          toast.error("Failed to join event. Please try again.")
+        }
+        return
+      }
+
+      toast.success(`Successfully joined ${eventData.name}!`)
+      
+      // Redirect to home page
+      setTimeout(() => {
+        router.push("/home")
+      }, 1000)
+    } catch (error) {
+      console.error("Error joining event:", error)
+      toast.error("An error occurred while joining the event")
+    } finally {
+      setIsJoiningEvent(false)
+    }
   }
 
   const handleCompleteOnboarding = async () => {

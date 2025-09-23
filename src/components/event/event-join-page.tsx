@@ -161,10 +161,6 @@ export function EventJoinPage() {
     }
   }
 
-  const handleScanQR = () => {
-    // TODO: Implement QR scanning
-    toast.info("QR scanning will be implemented")
-  }
 
   // Show loading state while checking authentication
   if (isCheckingAuth) {
@@ -222,7 +218,7 @@ export function EventJoinPage() {
             <CardContent>
               <EventJoinScanner
                 onJoinEvent={handleJoinEvent}
-                onScanQR={handleScanQR}
+                onScanQR={() => {}} // QR scanning is handled internally by EventJoinScanner
                 isLoading={isLoading}
               />
             </CardContent>

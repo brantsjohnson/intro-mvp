@@ -22,10 +22,13 @@ export function EventJoinScanner({
   const [eventCode, setEventCode] = React.useState("")
   const [isScanning, setIsScanning] = React.useState(false)
   const [scanError, setScanError] = React.useState<string | null>(null)
+  const [isProcessing, setIsProcessing] = React.useState(false)
   const videoRef = React.useRef<HTMLVideoElement>(null)
   const codeReader = React.useRef<BrowserQRCodeReader | null>(null)
   const activeStreamRef = React.useRef<MediaStream | null>(null)
   const eventQRService = React.useRef(new EventQRCodeService())
+  const lastScanTime = React.useRef<number>(0)
+  const scanCooldown = 1000 // 1 second cooldown between scans
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,9 +45,15 @@ export function EventJoinScanner({
   }
 
   const startScanning = async () => {
-    // Only flip the flag here; actual initialization runs in the effect
-    setScanError(null)
-    setIsScanning(true)
+    try {
+      setScanError(null)
+      setIsScanning(true)
+      console.log('Starting QR scanner...')
+    } catch (error) {
+      console.error('Error starting QR scanner:', error)
+      setScanError('Failed to start camera. Please check permissions.')
+      setIsScanning(false)
+    }
   }
 
   const stopScanning = () => {
@@ -66,6 +75,7 @@ export function EventJoinScanner({
     
     setIsScanning(false)
     setScanError(null)
+    setIsProcessing(false)
   }
 
   React.useEffect(() => {
@@ -75,17 +85,34 @@ export function EventJoinScanner({
 
     const init = async () => {
       try {
+        console.log('Initializing QR scanner...')
+        
+        // Check if camera is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('Camera not supported on this device')
+        }
+
         // Prompt for camera permission first to avoid zxing swallowing the error
         await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
+          video: { 
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 },
+            frameRate: { ideal: 30, max: 60 }
+          },
           audio: false
         }).then(stream => {
           // Immediately stop the probe stream; zxing will request its own
           stream.getTracks().forEach(t => t.stop())
-        }).catch(() => { /* ignore - zxing will try again */ })
+          console.log('Camera permission granted')
+        }).catch((error) => { 
+          console.error('Camera permission denied:', error)
+          throw new Error('Camera access denied. Please allow camera access and try again.')
+        })
 
         if (!codeReader.current) {
           codeReader.current = new BrowserQRCodeReader()
+          console.log('QR code reader initialized')
         }
 
         const videoElement = videoRef.current
@@ -103,6 +130,14 @@ export function EventJoinScanner({
               activeStreamRef.current = streamFromVideo
             }
             if (result) {
+              const currentTime = Date.now()
+              
+              // Implement cooldown to prevent rapid duplicate scans
+              if (currentTime - lastScanTime.current < scanCooldown) {
+                return
+              }
+              lastScanTime.current = currentTime
+              
               const scannedText = result.getText()
               console.log('QR Code scanned:', scannedText)
               
@@ -111,6 +146,8 @@ export function EventJoinScanner({
               console.log('Parsed event code:', parsedEventCode)
               
               if (parsedEventCode) {
+                console.log('Stopping scanner and joining event with parsed code')
+                setIsProcessing(true)
                 stopScanning()
                 onJoinEvent(parsedEventCode)
                 return
@@ -118,8 +155,11 @@ export function EventJoinScanner({
               
               // Fallback to simple 5-character event code
               if (scannedText && scannedText.length === 5 && /^[A-Z0-9]+$/.test(scannedText)) {
+                console.log('Stopping scanner and joining event with simple code')
+                setIsProcessing(true)
                 stopScanning()
                 onJoinEvent(scannedText)
+                return
               }
             }
             if (error && !(error instanceof Error && error.name === 'NotFoundException')) {
@@ -132,7 +172,8 @@ export function EventJoinScanner({
         )
       } catch (error) {
         console.error('Failed to start QR scanning:', error)
-        setScanError('Failed to access camera. Please check permissions.')
+        const errorMessage = error instanceof Error ? error.message : 'Failed to access camera. Please check permissions.'
+        setScanError(errorMessage)
         setIsScanning(false)
       }
     }
@@ -169,6 +210,12 @@ export function EventJoinScanner({
               </div>
             </div>
             <p className="text-muted-foreground text-sm">Position the QR code within the frame</p>
+            {isProcessing && (
+              <div className="flex items-center justify-center space-x-2 text-primary">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                <p className="text-sm">Processing QR code...</p>
+              </div>
+            )}
             {scanError && (
               <p className="text-destructive text-sm">{scanError}</p>
             )}

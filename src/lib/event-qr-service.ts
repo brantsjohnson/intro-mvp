@@ -66,40 +66,44 @@ export class EventQRCodeService {
   }
 
   /**
-   * Parse QR code data from scanned content
+   * Parse QR code data from scanned content - optimized for speed
    */
   parseEventQRCodeData(content: string): string | null {
-    try {
-      // First try to parse as JSON (structured format)
-      const data = JSON.parse(content)
-      
-      if (data.eventCode && data.type === 'event_join') {
-        return data.eventCode
-      }
-      
+    // Add null/undefined check first
+    if (!content || typeof content !== 'string') {
       return null
-    } catch (error) {
-      // If JSON parsing fails, check if it's a URL with event code
+    }
+    
+    const trimmedContent = content.trim().toUpperCase()
+    
+    // Fast path: Check if it's just a simple 5-character event code first (most common case)
+    if (trimmedContent.length === 5 && /^[A-Z0-9]+$/.test(trimmedContent)) {
+      return trimmedContent
+    }
+    
+    // Check if it's a URL with event code (common case)
+    if (trimmedContent && trimmedContent.includes('code=')) {
       try {
-        const url = new URL(content.trim())
+        const url = new URL(trimmedContent)
         const eventCode = url.searchParams.get('code')
         if (eventCode && eventCode.length === 5 && /^[A-Z0-9]+$/.test(eventCode.toUpperCase())) {
           return eventCode.toUpperCase()
         }
       } catch (urlError) {
-        // Not a valid URL, continue to simple event code check
+        // Not a valid URL, continue
       }
-      
-      // If not a URL, check if it's just a simple event code
-      const trimmedContent = content.trim().toUpperCase()
-      
-      // Check if it's a valid 5-character event code
-      if (trimmedContent.length === 5 && /^[A-Z0-9]+$/.test(trimmedContent)) {
-        return trimmedContent
-      }
-      
-      console.error('Error parsing event QR code:', error)
-      return null
     }
+    
+    // Last resort: try JSON parsing (least common case)
+    try {
+      const data = JSON.parse(content)
+      if (data && data.eventCode && data.type === 'event_join') {
+        return data.eventCode
+      }
+    } catch (error) {
+      // Not JSON, that's fine
+    }
+    
+    return null
   }
 }
