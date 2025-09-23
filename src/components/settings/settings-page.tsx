@@ -481,7 +481,7 @@ export function SettingsPage() {
         <div className="max-w-2xl mx-auto space-y-2">
           {/* Profile Block */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardContent className="p-2">
+            <CardContent className="p-6">
               <div className="flex items-center space-x-3">
                 <div className="flex flex-col items-center space-y-2">
                   <PresenceAvatar
