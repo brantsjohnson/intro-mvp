@@ -12,8 +12,17 @@ export class EventQRCodeService {
    */
   async generateEventQRCode(eventCode: string, baseUrl?: string): Promise<string | null> {
     try {
-      // Use the provided baseUrl or default to localhost for development
-      const url = baseUrl || 'http://localhost:3003'
+      // Use the provided baseUrl or detect the current domain
+      let url = baseUrl
+      if (!url) {
+        // In browser environment, use current origin
+        if (typeof window !== 'undefined') {
+          url = window.location.origin
+        } else {
+          // Fallback for server-side rendering
+          url = process.env.NEXT_PUBLIC_APP_URL || 'https://intro-au217wail-brant-johnsons-projects.vercel.app'
+        }
+      }
       const eventUrl = `${url}/event/join?code=${eventCode.toUpperCase()}`
       
       // Generate QR code with the URL
