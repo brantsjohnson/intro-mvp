@@ -37,14 +37,20 @@ export async function POST(request: NextRequest) {
 
     // Generate matches using AI
     const matchingService = new MatchingService()
+    console.log('🔍 Triggering AI matching for event:', event.id)
     const result = await matchingService.generateMatches(event.id)
+    console.log('🔍 AI matching result:', result)
     
     if (result.matches.length === 0) {
       return NextResponse.json({ 
         message: `Matchmaking enabled for event ${event.name} (${event.code}), but no new matches were generated. This could be because there aren't enough present members or all possible matches already exist.`,
         eventName: event.name,
         eventCode: event.code,
-        matches: 0 
+        matches: 0,
+        debug: {
+          eventId: event.id,
+          result: result
+        }
       })
     }
 
