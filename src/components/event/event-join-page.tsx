@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { EventJoinScanner } from "@/components/ui/event-join-scanner"
@@ -17,8 +17,41 @@ interface Event {
 
 export function EventJoinPage() {
   const [isLoading, setIsLoading] = useState(false)
+  const [isAutoJoining, setIsAutoJoining] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClientComponentClient()
+
+  // Check for event code in URL parameters
+  useEffect(() => {
+    const eventCode = searchParams.get('code')
+    if (eventCode) {
+      // Auto-join the event if code is provided in URL
+      handleAutoJoinEvent(eventCode)
+    }
+  }, [searchParams])
+
+  const handleAutoJoinEvent = async (eventCode: string) => {
+    setIsAutoJoining(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        // User is not authenticated - redirect to auth with event code
+        toast.info("Please sign in to join the event")
+        router.push(`/auth?eventCode=${eventCode}`)
+        return
+      }
+
+      // User is authenticated - auto-join the event
+      await handleJoinEvent(eventCode)
+    } catch (error) {
+      console.error("Error in auto-join:", error)
+      toast.error("Failed to join event automatically")
+    } finally {
+      setIsAutoJoining(false)
+    }
+  }
 
   const handleJoinEvent = async (eventCode: string) => {
     setIsLoading(true)

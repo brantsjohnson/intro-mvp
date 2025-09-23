@@ -4,10 +4,11 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
+  const eventCode = requestUrl.searchParams.get('eventCode')
   const error = requestUrl.searchParams.get('error')
   const origin = requestUrl.origin
 
-  console.log('Auth callback received:', { code: !!code, error })
+  console.log('Auth callback received:', { code: !!code, eventCode, error })
 
   if (error) {
     console.error('OAuth error in callback:', error)
@@ -29,6 +30,11 @@ export async function GET(request: NextRequest) {
   }
 
   // URL to redirect to after sign in process completes
-  console.log('Redirecting to main page for routing logic')
-  return NextResponse.redirect(`${origin}/`)
+  if (eventCode) {
+    console.log('Redirecting to event join with code:', eventCode)
+    return NextResponse.redirect(`${origin}/event/join?code=${eventCode}`)
+  } else {
+    console.log('Redirecting to main page for routing logic')
+    return NextResponse.redirect(`${origin}/`)
+  }
 }

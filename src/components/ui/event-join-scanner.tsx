@@ -4,6 +4,7 @@ import { GradientButton } from "@/components/ui/gradient-button"
 import { Camera, ArrowRight, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { BrowserQRCodeReader } from "@zxing/browser"
+import { EventQRCodeService } from "@/lib/event-qr-service"
 
 interface EventJoinScannerProps {
   onJoinEvent: (eventCode: string) => void
@@ -24,6 +25,7 @@ export function EventJoinScanner({
   const videoRef = React.useRef<HTMLVideoElement>(null)
   const codeReader = React.useRef<BrowserQRCodeReader | null>(null)
   const activeStreamRef = React.useRef<MediaStream | null>(null)
+  const eventQRService = React.useRef(new EventQRCodeService())
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,6 +100,16 @@ export function EventJoinScanner({
             }
             if (result) {
               const scannedText = result.getText()
+              
+              // Try to parse as structured event QR code first
+              const parsedEventCode = eventQRService.current.parseEventQRCodeData(scannedText)
+              if (parsedEventCode) {
+                stopScanning()
+                onJoinEvent(parsedEventCode)
+                return
+              }
+              
+              // Fallback to simple 5-character event code
               if (scannedText && scannedText.length === 5 && /^[A-Z0-9]+$/.test(scannedText)) {
                 stopScanning()
                 onJoinEvent(scannedText)

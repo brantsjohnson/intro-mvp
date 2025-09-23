@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,17 +19,23 @@ export function AuthForm() {
   const [showPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   
+  const searchParams = useSearchParams()
+  const eventCode = searchParams.get('eventCode')
   const supabase = createClientComponentClient()
 
   const handleGoogleAuth = async () => {
     setIsLoading(true)
     try {
-      console.log('Starting Google OAuth with redirect:', `${window.location.origin}/auth/callback`)
+      const redirectUrl = eventCode 
+        ? `${window.location.origin}/auth/callback?eventCode=${eventCode}`
+        : `${window.location.origin}/auth/callback`
+      
+      console.log('Starting Google OAuth with redirect:', redirectUrl)
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`
+          redirectTo: redirectUrl
         }
       })
       
@@ -84,8 +91,12 @@ export function AuthForm() {
           toast.error(error.message)
         } else {
           toast.success("Signed in successfully")
-          // Let the main page handle routing based on onboarding status
-          window.location.href = "/"
+          // Redirect to event join if eventCode is provided, otherwise go to home
+          if (eventCode) {
+            window.location.href = `/event/join?code=${eventCode}`
+          } else {
+            window.location.href = "/"
+          }
         }
       }
     } catch {
