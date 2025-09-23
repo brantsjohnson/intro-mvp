@@ -113,7 +113,9 @@ export function EventJoinPage() {
       }
 
       if (existingMember) {
-        toast.error("You're already a member of this event")
+        toast.success("You're already a member of this event! Redirecting to event...")
+        // Redirect to home page since they're already in the event
+        router.push('/home')
         return
       }
 
