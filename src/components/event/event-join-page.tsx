@@ -60,6 +60,7 @@ export function EventJoinPage() {
     try {
       // User is authenticated - auto-join the event
       await handleJoinEvent(eventCode)
+      // handleJoinEvent will handle the redirect, so we don't need to do anything here
     } catch (error) {
       console.error("Error in auto-join:", error)
       toast.error("Failed to join event automatically")
@@ -150,8 +151,8 @@ export function EventJoinPage() {
       }
 
       toast.success("Successfully joined event!")
-      // After joining from Home, ask networking goals; but if user completes onboarding first, they can come back from Home too
-      router.push(`/onboarding?from=event-join&eventId=${typedEvent.id}`)
+      // Redirect to home page where user can access settings and complete networking goals if needed
+      router.push('/home')
     } catch (error) {
       console.error("Error joining event:", error)
       toast.error("An error occurred")
@@ -196,7 +197,7 @@ export function EventJoinPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <GradientButton
-              onClick={() => router.back()}
+              onClick={() => router.push('/onboarding')}
               variant="outline"
               size="icon"
             >

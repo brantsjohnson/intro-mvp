@@ -79,7 +79,18 @@ export class EventQRCodeService {
       
       return null
     } catch (error) {
-      // If JSON parsing fails, check if it's just a simple event code
+      // If JSON parsing fails, check if it's a URL with event code
+      try {
+        const url = new URL(content.trim())
+        const eventCode = url.searchParams.get('code')
+        if (eventCode && eventCode.length === 5 && /^[A-Z0-9]+$/.test(eventCode.toUpperCase())) {
+          return eventCode.toUpperCase()
+        }
+      } catch (urlError) {
+        // Not a valid URL, continue to simple event code check
+      }
+      
+      // If not a URL, check if it's just a simple event code
       const trimmedContent = content.trim().toUpperCase()
       
       // Check if it's a valid 5-character event code
