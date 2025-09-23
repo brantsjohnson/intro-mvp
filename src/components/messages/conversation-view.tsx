@@ -22,7 +22,9 @@ export function ConversationView() {
   const [eventName, setEventName] = useState<string>("")
   const [eventEnded, setEventEnded] = useState(false)
   const [messagesDeleted, setMessagesDeleted] = useState(false)
+  const [userHasScrolled, setUserHasScrolled] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const eventId = searchParams.get('eventId')
@@ -35,9 +37,31 @@ export function ConversationView() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
+  const isNearBottom = () => {
+    if (!messagesContainerRef.current) return true
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current
+    return scrollHeight - scrollTop - clientHeight < 100
+  }
+
+  const handleScroll = () => {
+    if (messagesContainerRef.current) {
+      setUserHasScrolled(!isNearBottom())
+    }
+  }
+
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+    // Only auto-scroll if user hasn't manually scrolled up
+    if (!userHasScrolled) {
+      scrollToBottom()
+    }
+  }, [messages, userHasScrolled])
+
+  // Reset scroll state when new messages arrive
+  useEffect(() => {
+    if (messages.length > 0 && isNearBottom()) {
+      setUserHasScrolled(false)
+    }
+  }, [messages.length])
 
   useEffect(() => {
     if (!eventId) {
@@ -184,11 +208,41 @@ export function ConversationView() {
     setNewMessage("")
     setIsSending(true)
 
+    // Optimistically add the message to the UI immediately
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setNewMessage(messageText)
+      setIsSending(false)
+      return
+    }
+
+    const optimisticMessage: ConversationMessage = {
+      id: `temp-${Date.now()}`,
+      event_id: eventId,
+      thread_id: threadId || '',
+      sender: user.id,
+      recipient: thread?.other_participant.id || userId || '',
+      body: messageText,
+      created_at: new Date().toISOString(),
+      is_read: false,
+      read_at: null,
+      sender_profile: {
+        id: user.id,
+        first_name: user.user_metadata?.first_name || 'You',
+        last_name: user.user_metadata?.last_name || '',
+        avatar_url: user.user_metadata?.avatar_url || null,
+        job_title: user.user_metadata?.job_title || null
+      },
+      is_from_current_user: true
+    }
+
+    // Add optimistic message immediately
+    setMessages(prev => [...prev, optimisticMessage])
+
     try {
       if (threadId) {
         // Send to existing thread
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user || !thread) return
+        if (!thread) return
 
         await messageService.sendMessage(
           eventId,
@@ -213,6 +267,8 @@ export function ConversationView() {
       console.error("Error sending message:", error)
       toast.error("Failed to send message")
       setNewMessage(messageText) // Restore message on error
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id))
     } finally {
       setIsSending(false)
     }
@@ -231,10 +287,50 @@ export function ConversationView() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading conversation...</p>
+      <div className="min-h-screen bg-background flex flex-col">
+        {/* Header skeleton */}
+        <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="w-9 h-9 bg-muted rounded-full animate-pulse"></div>
+              <div className="text-center">
+                <div className="h-6 w-32 bg-muted rounded animate-pulse mx-auto mb-2"></div>
+                <div className="h-4 w-24 bg-muted rounded animate-pulse mx-auto"></div>
+              </div>
+              <div className="w-9 h-9"></div>
+            </div>
+          </div>
+        </header>
+
+        {/* Messages skeleton */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="container mx-auto px-4 py-6">
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[70%] ${i % 2 === 0 ? 'order-2' : 'order-1'}`}>
+                    <div className="bg-muted rounded-2xl px-4 py-2 h-12 animate-pulse"></div>
+                    <div className="h-3 w-16 bg-muted rounded mt-1 animate-pulse"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
+
+        {/* System banner skeleton */}
+        <div className="bg-muted/50 border-t border-border px-4 py-2">
+          <div className="h-3 w-full bg-muted rounded animate-pulse"></div>
+        </div>
+
+        {/* Composer skeleton */}
+        <div className="border-t border-border bg-card/50 backdrop-blur-sm p-4">
+          <div className="container mx-auto">
+            <div className="flex items-center space-x-3">
+              <div className="flex-1 h-10 bg-muted rounded animate-pulse"></div>
+              <div className="w-10 h-10 bg-muted rounded animate-pulse"></div>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -260,9 +356,9 @@ export function ConversationView() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10 flex-shrink-0">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <GradientButton
@@ -291,7 +387,11 @@ export function ConversationView() {
       </header>
 
       {/* Messages */}
-      <main className="flex-1 overflow-y-auto">
+      <main 
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto min-h-0"
+        onScroll={handleScroll}
+      >
         <div className="container mx-auto px-4 py-6">
           {messages.length === 0 ? (
             <div className="text-center py-12">
@@ -338,7 +438,7 @@ export function ConversationView() {
       </main>
 
       {/* System Banner */}
-      <div className="bg-muted/50 border-t border-border px-4 py-2">
+      <div className="bg-muted/50 border-t border-border px-4 py-2 flex-shrink-0">
         <p className="text-xs text-muted-foreground text-center">
           {messagesDeleted 
             ? "This event's messages are no longer available."
@@ -351,7 +451,7 @@ export function ConversationView() {
 
       {/* Message Composer - Only show if event hasn't ended and messages aren't deleted */}
       {!eventEnded && !messagesDeleted && (
-        <div className="border-t border-border bg-card/50 backdrop-blur-sm p-4">
+        <div className="border-t border-border bg-card/50 backdrop-blur-sm p-4 flex-shrink-0">
           <div className="container mx-auto">
             <div className="flex items-center space-x-3">
               <Input

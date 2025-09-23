@@ -19,7 +19,8 @@ SET
         date_trunc('week', now()) + INTERVAL '1 week' + INTERVAL '4 days' + INTERVAL '23 hours 59 minutes 59 seconds'
     END
   ),
-  is_active = true
+  is_active = true,
+  matchmaking_enabled = true
 WHERE code = 'FRESH';
 
 -- Verify the update

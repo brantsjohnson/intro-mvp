@@ -122,16 +122,7 @@ export function QRScanner({ isOpen, onClose, onConnectionCreated }: QRScannerPro
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>Scan QR Code</span>
-            <GradientButton
-              onClick={handleClose}
-              variant="outline"
-              size="icon"
-            >
-              <X className="h-4 w-4" />
-            </GradientButton>
-          </DialogTitle>
+          <DialogTitle>Scan QR Code</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">

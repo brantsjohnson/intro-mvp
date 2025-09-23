@@ -137,23 +137,24 @@ export class QRCodeService {
         return false
       }
 
-      // Create the connection using the safe function
-      const { data, error } = await this.supabase.rpc('create_connection_safe', {
-        p_event_id: qrData.eventId,
-        p_user_a: scannerUserId,
-        p_user_b: qrData.userId,
-        p_source: 'qr'
-      })
+      // Create the connection directly
+      const { error } = await this.supabase
+        .from('connections')
+        .insert({
+          event_id: qrData.eventId,
+          a: scannerUserId,
+          b: qrData.userId,
+          source: 'qr'
+        })
 
       if (error) {
         console.error('Error creating connection:', error)
+        // If it's a duplicate key error, that's actually fine
+        if (error.code === '23505') {
+          toast.info('You are already connected with this person')
+          return true
+        }
         toast.error('Failed to create connection')
-        return false
-      }
-
-      if (data && !data.success) {
-        console.error('Connection creation failed:', data.error)
-        toast.error(data.error || 'Failed to create connection')
         return false
       }
 
