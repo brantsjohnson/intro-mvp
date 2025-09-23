@@ -7,14 +7,38 @@ interface AccordionSectionProps {
   children: React.ReactNode
   defaultOpen?: boolean
   className?: string
+  variant?: "default" | "gradient"
 }
 
 export function AccordionSection({ 
   title, 
   children, 
   defaultOpen = true,
-  className 
+  className,
+  variant = "default"
 }: AccordionSectionProps) {
+  if (variant === "gradient") {
+    return (
+      <Accordion 
+        type="single" 
+        collapsible 
+        defaultValue={defaultOpen ? "item-1" : undefined}
+        className={cn("w-full", className)}
+      >
+        <AccordionItem value="item-1" className="border-none">
+          <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-elevation">
+            <AccordionTrigger className="text-left hover:no-underline py-4 px-6 gradient-primary text-white">
+              <span className="text-lg font-medium">{title}</span>
+            </AccordionTrigger>
+            <AccordionContent className="pb-4 px-6 text-white bg-card">
+              {children}
+            </AccordionContent>
+          </div>
+        </AccordionItem>
+      </Accordion>
+    )
+  }
+
   return (
     <Accordion 
       type="single" 

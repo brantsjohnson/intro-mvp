@@ -213,7 +213,7 @@ export function EventJoinPage() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-4 py-4">
         <div className="max-w-md mx-auto">
           <Card className="bg-card border-border shadow-elevation">
             <CardHeader className="text-center">

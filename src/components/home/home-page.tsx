@@ -535,7 +535,7 @@ export function HomePage() {
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center">
+          <div className="flex items-center justify-between">
             {/* Left: User avatar with presence indicator */}
             <button
               onClick={() => router.push("/settings")}
@@ -549,8 +549,8 @@ export function HomePage() {
               />
             </button>
             
-            {/* Right of avatar: Intro wordmark */}
-            <div className="ml-4">
+            {/* Center: Intro wordmark */}
+            <div className="flex-1 flex justify-center">
               <h1 
                 className="text-2xl font-bold"
                 style={{ 
@@ -563,7 +563,7 @@ export function HomePage() {
             </div>
             
             {/* Right: Message icon with gradient and unread badge */}
-            <div className="ml-auto relative">
+            <div className="relative">
               <button
                 onClick={() => router.push(`/messages?eventId=${currentEvent?.id || ''}`)}
                 className="w-10 h-10 rounded-full flex items-center justify-center"
@@ -685,7 +685,7 @@ export function HomePage() {
                   ))
                 ) : currentEvent && !currentEvent.matchmaking_enabled ? (
                   <Card className="bg-card border-border shadow-elevation">
-                    <CardContent className="text-center py-6">
+                    <CardContent className="text-center py-4">
                       <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
                         <Users className="h-6 w-6 text-primary" />
                       </div>

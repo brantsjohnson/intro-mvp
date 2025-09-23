@@ -14,6 +14,7 @@ const gradientButtonVariants = cva(
         outline: "border-border bg-background/50 hover:bg-accent hover:text-accent-foreground ring-subtle",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        filled: "gradient-primary text-white shadow-modern hover:opacity-90",
       },
       size: {
         default: "h-12 px-6 py-3",

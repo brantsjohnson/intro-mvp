@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { AccordionSection } from "@/components/ui/accordion-section"
 import { HobbiesGrid } from "@/components/ui/hobbies-grid"
+import { ExpertiseGrid } from "@/components/ui/expertise-grid"
 import { PresenceAvatar } from "@/components/ui/presence-avatar"
 import { QRCard } from "@/components/ui/qr-card"
 import { QRScanner } from "@/components/ui/qr-scanner"
@@ -25,6 +26,9 @@ export function UserProfile({ userId }: UserProfileProps) {
   const [hobbies, setHobbies] = useState<Hobby[]>([])
   const [userHobbies, setUserHobbies] = useState<number[]>([])
   const [currentUserHobbies, setCurrentUserHobbies] = useState<number[]>([])
+  const [expertise, setExpertise] = useState<{id: number, label: string}[]>([])
+  const [userExpertise, setUserExpertise] = useState<number[]>([])
+  const [currentUserExpertise, setCurrentUserExpertise] = useState<number[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isPresent, setIsPresent] = useState(false)
   const [aiInsights, setAiInsights] = useState<{
@@ -73,6 +77,16 @@ export function UserProfile({ userId }: UserProfileProps) {
           setHobbies(hobbiesData)
         }
 
+        // Load expertise
+        const { data: expertiseData } = await supabase
+          .from("expertise_tags")
+          .select("*")
+          .order("label")
+
+        if (expertiseData) {
+          setExpertise(expertiseData)
+        }
+
         // Load user's hobbies
         const { data: userHobbiesData } = await supabase
           .from("profile_hobbies")
@@ -81,6 +95,16 @@ export function UserProfile({ userId }: UserProfileProps) {
 
         if (userHobbiesData) {
           setUserHobbies(userHobbiesData.map(h => h.hobby_id))
+        }
+
+        // Load user's expertise
+        const { data: userExpertiseData } = await supabase
+          .from("profile_expertise")
+          .select("tag_id")
+          .eq("user_id", userId)
+
+        if (userExpertiseData) {
+          setUserExpertise(userExpertiseData.map(e => e.tag_id))
         }
 
         // Load current user's hobbies for comparison
@@ -96,6 +120,15 @@ export function UserProfile({ userId }: UserProfileProps) {
 
           if (currentUserHobbiesData) {
             setCurrentUserHobbies(currentUserHobbiesData.map(h => h.hobby_id))
+          }
+
+          const { data: currentUserExpertiseData } = await supabase
+            .from("profile_expertise")
+            .select("tag_id")
+            .eq("user_id", user.id)
+
+          if (currentUserExpertiseData) {
+            setCurrentUserExpertise(currentUserExpertiseData.map(e => e.tag_id))
           }
 
           // Check if user is present in current event
@@ -427,6 +460,14 @@ export function UserProfile({ userId }: UserProfileProps) {
     userHobbies.includes(hobby.id) && !currentUserHobbies.includes(hobby.id)
   )
 
+  const mutualExpertise = expertise.filter(expertise => 
+    userExpertise.includes(expertise.id) && currentUserExpertise.includes(expertise.id)
+  )
+
+  const theirUniqueExpertise = expertise.filter(expertise => 
+    userExpertise.includes(expertise.id) && !currentUserExpertise.includes(expertise.id)
+  )
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -435,7 +476,7 @@ export function UserProfile({ userId }: UserProfileProps) {
           <div className="flex items-center justify-between">
             <GradientButton
               onClick={handleBack}
-              variant="outline"
+              variant="filled"
               size="icon"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -452,7 +493,7 @@ export function UserProfile({ userId }: UserProfileProps) {
 
             <GradientButton
               onClick={handleMessage}
-              variant="outline"
+              variant="filled"
               size="icon"
             >
               <MessageSquare className="h-4 w-4" />
@@ -461,7 +502,7 @@ export function UserProfile({ userId }: UserProfileProps) {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-4 py-4">
         <div className="max-w-2xl mx-auto space-y-6">
           {/* Profile Header */}
           <Card className="bg-card border-border shadow-elevation">
@@ -504,6 +545,7 @@ export function UserProfile({ userId }: UserProfileProps) {
             <AccordionSection
               title="Why You Two Should Meet"
               defaultOpen={!hasConnection}
+              variant="gradient"
             >
               {isGeneratingInsights ? (
                 <div className="flex items-center space-x-2">
@@ -520,6 +562,7 @@ export function UserProfile({ userId }: UserProfileProps) {
             <AccordionSection
               title="Activities You Might Enjoy"
               defaultOpen={!hasConnection}
+              variant="gradient"
             >
               {isGeneratingInsights ? (
                 <div className="flex items-center space-x-2">
@@ -536,6 +579,7 @@ export function UserProfile({ userId }: UserProfileProps) {
             <AccordionSection
               title="Where To Dive Deeper"
               defaultOpen={!hasConnection}
+              variant="gradient"
             >
               {isGeneratingInsights ? (
                 <div className="flex items-center space-x-2">
@@ -554,6 +598,9 @@ export function UserProfile({ userId }: UserProfileProps) {
           <Card className="bg-card border-border shadow-elevation">
             <CardHeader>
               <CardTitle className="text-lg">Hobbies</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {profile.first_name} has all listed but checked are mutual.
+              </p>
             </CardHeader>
             <CardContent>
               <HobbiesGrid
@@ -563,6 +610,28 @@ export function UserProfile({ userId }: UserProfileProps) {
                 mode="display"
                 mutualHobbies={mutualHobbies.map(h => h.id)}
                 theirUniqueHobbies={theirUniqueHobbies.map(h => h.id)}
+                showOnlySelected={true}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Expertise */}
+          <Card className="bg-card border-border shadow-elevation">
+            <CardHeader>
+              <CardTitle className="text-lg">Expertise</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {profile.first_name} has all listed but checked are mutual.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <ExpertiseGrid
+                expertise={expertise}
+                selectedExpertise={userExpertise}
+                onExpertiseChange={() => {}} // Read-only for other users
+                mode="display"
+                mutualExpertise={mutualExpertise.map(e => e.id)}
+                theirUniqueExpertise={theirUniqueExpertise.map(e => e.id)}
+                showOnlySelected={true}
               />
             </CardContent>
           </Card>
@@ -580,10 +649,6 @@ export function UserProfile({ userId }: UserProfileProps) {
               <div className="flex justify-between items-center py-2 border-b border-border">
                 <span className="text-muted-foreground">Job Title</span>
                 <span className="text-foreground">{profile.job_title}</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-border">
-                <span className="text-muted-foreground">Location</span>
-                <span className="text-foreground">Utah</span>
               </div>
               {profile.enneagram && (
                 <div className="flex justify-between items-center py-2 border-b border-border">

@@ -375,7 +375,7 @@ export function ConversationView() {
             WebkitOverflowScrolling: 'touch'
           }}
         >
-          <div className="container mx-auto px-4 py-6">
+          <div className="container mx-auto px-4 py-4">
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
                 <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
@@ -438,7 +438,7 @@ export function ConversationView() {
             WebkitOverflowScrolling: 'touch'
           }}
         >
-          <div className="container mx-auto px-4 py-6">
+          <div className="container mx-auto px-4 py-4">
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
                 <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
@@ -540,7 +540,7 @@ export function ConversationView() {
           WebkitOverflowScrolling: 'touch' // Smooth scrolling on iOS
         }}
       >
-        <div className="container mx-auto px-4 py-6">
+        <div className="container mx-auto px-4 py-4">
           {messages.length === 0 && hasLoadedMessages ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">
