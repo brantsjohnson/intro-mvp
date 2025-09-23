@@ -61,7 +61,8 @@ export function ConversationView() {
           const eventEnd = new Date(data.ends_at)
           const oneDayAfterEnd = new Date(eventEnd.getTime() + 24 * 60 * 60 * 1000)
           
-          setEventEnded(now > eventEnd)
+          // Event is considered "ended" only after the grace period (1 day after end)
+          setEventEnded(now > oneDayAfterEnd)
           setMessagesDeleted(now > oneDayAfterEnd)
         }
       } catch (e) {
@@ -175,7 +176,7 @@ export function ConversationView() {
     
     // Check if event has ended
     if (eventEnded) {
-      toast.error("This event has ended. Messages are read-only.")
+      toast.error("This event has ended. Messages are no longer available.")
       return
     }
     
@@ -343,7 +344,7 @@ export function ConversationView() {
             ? "This event's messages are no longer available."
             : eventEnded
             ? "This event has ended. Messages are read-only."
-            : "Messages are only stored for one day after the end of the event. Use messages to find a location to meet and have your conversations in person."
+            : "Messages are stored for one day after the event ends. Use messages to find a location to meet and have your conversations in person."
           }
         </p>
       </div>

@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Create or update the FRESH event
+    // Update the FRESH event with new dates
     // Set start time to today and end time to Thursday at midnight
     const now = new Date()
     const thursday = new Date(now)
@@ -28,29 +28,26 @@ export async function POST(request: NextRequest) {
     
     const { data, error } = await supabase
       .from('events')
-      .upsert({
-        code: 'FRESH',
-        name: 'FRESH Networking Event',
-        is_active: true,
+      .update({
         starts_at: now.toISOString(),
         ends_at: thursday.toISOString(),
-        matchmaking_enabled: true
-      }, {
-        onConflict: 'code'
+        is_active: true
       })
+      .eq('code', 'FRESH')
       .select()
 
     if (error) {
-      console.error('Error creating FRESH event:', error)
+      console.error('Error updating FRESH event:', error)
       return NextResponse.json(
-        { error: 'Failed to create FRESH event' },
+        { error: 'Failed to update FRESH event' },
         { status: 500 }
       )
     }
 
     return NextResponse.json({
       success: true,
-      event: data[0]
+      event: data[0],
+      message: `FRESH event updated: starts ${now.toLocaleString()}, ends ${thursday.toLocaleString()}`
     })
 
   } catch (error) {

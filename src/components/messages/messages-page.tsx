@@ -61,7 +61,10 @@ export function MessagesPage() {
           setEventName(eventData.name)
           const now = new Date()
           const eventEnd = new Date(eventData.ends_at)
-          setEventEnded(now > eventEnd)
+          const oneDayAfterEnd = new Date(eventEnd.getTime() + 24 * 60 * 60 * 1000)
+          
+          // Event is considered "ended" only after the grace period (1 day after end)
+          setEventEnded(now > oneDayAfterEnd)
         }
 
         // Load all attendees in the event
@@ -158,7 +161,7 @@ export function MessagesPage() {
     if (!eventId) return
     
     if (eventEnded) {
-      toast.error("This event has ended. Messages are read-only.")
+      toast.error("This event has ended. Messages are no longer available.")
       return
     }
     
@@ -235,7 +238,7 @@ export function MessagesPage() {
         {eventEnded && (
           <div className="mb-6 p-4 bg-muted/50 border border-border rounded-lg">
             <p className="text-sm text-muted-foreground text-center">
-              This event has ended. Messages are read-only.
+              This event has ended. Messages are no longer available.
             </p>
           </div>
         )}
