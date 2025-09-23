@@ -15,6 +15,7 @@ interface HobbiesGridProps {
   mutualHobbies?: number[]
   theirUniqueHobbies?: number[]
   className?: string
+  showOnlySelected?: boolean
 }
 
 export function HobbiesGrid({ 
@@ -24,15 +25,21 @@ export function HobbiesGrid({
   mode = "select",
   mutualHobbies = [],
   theirUniqueHobbies = [],
-  className 
+  className,
+  showOnlySelected = false
 }: HobbiesGridProps) {
   const isMutual = (hobbyId: number) => mutualHobbies.includes(hobbyId)
   const isTheirUnique = (hobbyId: number) => theirUniqueHobbies.includes(hobbyId)
   const isSelected = (hobbyId: number) => selectedHobbies.includes(hobbyId)
 
+  // Filter hobbies based on showOnlySelected prop
+  const displayHobbies = showOnlySelected 
+    ? hobbies.filter(hobby => isSelected(hobby.id))
+    : hobbies
+
   return (
     <div className={cn("grid grid-cols-2 gap-3", className)}>
-      {hobbies.map((hobby) => {
+      {displayHobbies.map((hobby) => {
         const isMutualHobby = isMutual(hobby.id)
         const isTheirUniqueHobby = isTheirUnique(hobby.id)
         const isHobbySelected = isSelected(hobby.id)

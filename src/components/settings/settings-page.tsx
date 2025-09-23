@@ -209,11 +209,11 @@ export function SettingsPage() {
     router.push("/event/join")
   }
 
-  const handleHobbyToggle = (hobbyId: number) => {
+  const handleHobbyToggle = (hobbyId: number, checked: boolean) => {
     setSelectedHobbies(prev => 
-      prev.includes(hobbyId) 
-        ? prev.filter(id => id !== hobbyId)
-        : [...prev, hobbyId]
+      checked
+        ? [...prev, hobbyId]
+        : prev.filter(id => id !== hobbyId)
     )
   }
 
@@ -265,15 +265,16 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen gradient-bg">
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <GradientButton
-              onClick={() => router.back()}
-              variant="outline"
+              onClick={() => !isEditing && router.back()}
+              variant={isEditing ? "outline" : "default"}
               size="icon"
+              disabled={isEditing}
             >
               <ArrowLeft className="h-4 w-4" />
             </GradientButton>
@@ -282,21 +283,32 @@ export function SettingsPage() {
               Profile Settings
             </h1>
 
-            <button
-              onClick={() => setIsEditing(!isEditing)}
-              className="p-2 hover:bg-muted rounded-lg transition-colors"
-            >
-              <Edit3 className="h-4 w-4 text-muted-foreground" />
-            </button>
+            <div className="flex items-center space-x-2">
+              {isEditing && (
+                <GradientButton
+                  onClick={handleSaveChanges}
+                  disabled={isSaving}
+                  size="sm"
+                >
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </GradientButton>
+              )}
+              <button
+                onClick={() => setIsEditing(!isEditing)}
+                className="p-2 hover:bg-muted rounded-lg transition-colors"
+              >
+                <Edit3 className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6">
-        <div className="max-w-2xl mx-auto space-y-6">
+      <main className="container mx-auto px-4 py-4">
+        <div className="max-w-2xl mx-auto space-y-4">
           {/* Profile Block */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardContent className="p-6">
+            <CardContent className="p-4">
               <div className="flex items-center space-x-4">
                 <PresenceAvatar
                   src={profile.avatar_url || undefined}
@@ -342,10 +354,10 @@ export function SettingsPage() {
 
           {/* Event Switching */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="text-primary">Change event</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 pt-0">
               {/* Current Event Dropdown */}
               <div className="relative">
                 <button
@@ -393,25 +405,25 @@ export function SettingsPage() {
 
           {/* Hobbies */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="text-primary">Hobbies</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               <HobbiesGrid
                 hobbies={hobbies}
                 selectedHobbies={selectedHobbies}
-                onHobbyToggle={handleHobbyToggle}
-                disabled={!isEditing}
+                onHobbyChange={handleHobbyToggle}
+                showOnlySelected={!isEditing}
               />
             </CardContent>
           </Card>
 
           {/* About Section */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="text-primary">About</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 pt-0">
               <div className="grid grid-cols-1 gap-4">
                 <div>
                   <Label htmlFor="company">Company</Label>
@@ -421,6 +433,7 @@ export function SettingsPage() {
                     onChange={(e) => setCompany(e.target.value)}
                     disabled={!isEditing}
                     className={isEditing ? "border-primary/20" : ""}
+                    style={isEditing ? { backgroundColor: '#DDDDDD' } : {}}
                   />
                 </div>
                 
@@ -432,6 +445,7 @@ export function SettingsPage() {
                     onChange={(e) => setJobTitle(e.target.value)}
                     disabled={!isEditing}
                     className={isEditing ? "border-primary/20" : ""}
+                    style={isEditing ? { backgroundColor: '#DDDDDD' } : {}}
                   />
                 </div>
                 
@@ -443,6 +457,7 @@ export function SettingsPage() {
                     onChange={(e) => setLocation(e.target.value)}
                     disabled={!isEditing}
                     className={isEditing ? "border-primary/20" : ""}
+                    style={isEditing ? { backgroundColor: '#DDDDDD' } : {}}
                   />
                 </div>
                 
@@ -454,6 +469,7 @@ export function SettingsPage() {
                     onChange={(e) => setLinkedinUrl(e.target.value)}
                     disabled={!isEditing}
                     className={isEditing ? "border-primary/20" : ""}
+                    style={isEditing ? { backgroundColor: '#DDDDDD' } : {}}
                     placeholder="https://linkedin.com/in/yourprofile"
                   />
                 </div>
@@ -466,6 +482,7 @@ export function SettingsPage() {
                     onChange={(e) => setEnneagram(e.target.value)}
                     disabled={!isEditing}
                     className={isEditing ? "border-primary/20" : ""}
+                    style={isEditing ? { backgroundColor: '#DDDDDD' } : {}}
                     placeholder="e.g., 8 - Challenger"
                   />
                 </div>
@@ -478,6 +495,7 @@ export function SettingsPage() {
                     onChange={(e) => setMbti(e.target.value)}
                     disabled={!isEditing}
                     className={isEditing ? "border-primary/20" : ""}
+                    style={isEditing ? { backgroundColor: '#DDDDDD' } : {}}
                     placeholder="e.g., ENTJ"
                   />
                 </div>

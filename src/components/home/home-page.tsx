@@ -492,13 +492,13 @@ export function HomePage() {
           {/* People You Should Know - Only show when event exists */}
           {currentEvent && (
             <Card className="bg-card border-border shadow-elevation">
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-2">
                 <CardTitle className="flex items-center space-x-2">
                   <Users className="h-5 w-5" />
                   <span>People You Should Know</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 pt-0">
+              <CardContent className="space-y-2 pt-0">
                 {matches.length > 0 ? (
                   matches.map((match) => (
                     <MatchCard
@@ -514,29 +514,29 @@ export function HomePage() {
                     />
                   ))
                 ) : currentEvent && !currentEvent.matchmaking_enabled ? (
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                      <Users className="h-8 w-8 text-primary" />
+                  <div className="text-center py-6">
+                    <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                      <Users className="h-6 w-6 text-primary" />
                     </div>
-                    <h3 className="text-xl font-semibold text-foreground mb-3">
+                    <h3 className="text-lg font-semibold text-foreground mb-2">
                       Waiting for matchmaking to begin
                     </h3>
-                    <p className="text-muted-foreground max-w-md mx-auto leading-relaxed">
+                    <p className="text-muted-foreground max-w-md mx-auto leading-relaxed text-sm">
                       The event organizer will start the AI matchmaking process soon. Check back later for personalized introductions!
                     </p>
-                    <div className="mt-6 flex items-center justify-center space-x-2 text-sm text-muted-foreground">
+                    <div className="mt-4 flex items-center justify-center space-x-2 text-sm text-muted-foreground">
                       <div className="w-2 h-2 bg-primary/60 rounded-full animate-pulse"></div>
                       <div className="w-2 h-2 bg-primary/60 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
                       <div className="w-2 h-2 bg-primary/60 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-foreground mb-2">
+                  <div className="text-center py-4">
+                    <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                    <h3 className="text-base font-medium text-foreground mb-2">
                       No matches yet
                     </h3>
-                    <p className="text-muted-foreground">
+                    <p className="text-muted-foreground text-sm">
                       Matches will appear here once the event starts and matching is run.
                     </p>
                   </div>
@@ -548,7 +548,7 @@ export function HomePage() {
           {/* Add Other Attendees Section - Only show when event exists */}
             {currentEvent && (
               <Card className="bg-card border-border shadow-elevation">
-                <CardHeader className="pb-3">
+                <CardHeader className="pb-2">
                   <CardTitle className="flex items-center space-x-2">
                     <QrCode className="h-5 w-5" />
                     <span>Add other attendees</span>

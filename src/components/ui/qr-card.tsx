@@ -60,29 +60,29 @@ export function QRCard({ onScanClick, className }: QRCardProps) {
   }, [])
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn("space-y-3", className)}>
       {isGenerating ? (
         <div className="flex justify-center">
-          <div className="w-48 h-48 bg-muted rounded-xl flex items-center justify-center">
-            <RefreshCw className="h-12 w-12 text-muted-foreground animate-spin" />
+          <div className="w-40 h-40 bg-muted rounded-xl flex items-center justify-center">
+            <RefreshCw className="h-10 w-10 text-muted-foreground animate-spin" />
           </div>
         </div>
       ) : qrCodeUrl ? (
         <div className="flex justify-center">
-          <div className="bg-white p-6 rounded-xl shadow-lg">
+          <div className="bg-white p-4 rounded-xl shadow-lg">
             <Image 
               src={qrCodeUrl} 
               alt="Your QR Code" 
-              width={192}
-              height={192}
-              className="w-48 h-48"
+              width={160}
+              height={160}
+              className="w-40 h-40"
             />
           </div>
         </div>
       ) : (
         <div className="flex justify-center">
-          <div className="w-48 h-48 bg-muted rounded-xl flex items-center justify-center">
-            <QrCode className="h-12 w-12 text-muted-foreground" />
+          <div className="w-40 h-40 bg-muted rounded-xl flex items-center justify-center">
+            <QrCode className="h-10 w-10 text-muted-foreground" />
           </div>
         </div>
       )}
