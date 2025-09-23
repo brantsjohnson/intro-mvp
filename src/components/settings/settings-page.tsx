@@ -451,46 +451,46 @@ export function SettingsPage() {
         <div className="max-w-2xl mx-auto space-y-4">
           {/* Profile Block */}
           <Card className="bg-card border-border shadow-elevation">
-            <CardContent className="p-4">
-              <div className="flex items-start space-x-4">
-                <div className="flex-1">
-                  <h2 className="text-2xl font-semibold text-foreground">
-                    {profile.first_name} {profile.last_name}
-                  </h2>
-                  <p className="text-muted-foreground">
-                    {jobTitle} {company && `| ${company}`}
-                  </p>
-                  {currentEvent && (
-                    <p className="text-primary text-sm mt-1">
-                      Attended: {currentEvent.name}
-                    </p>
-                  )}
-                  {currentEvent && (
-                    <div className="flex items-center space-x-2 mt-3">
-                      <button
-                        onClick={handlePresenceToggle}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                          isPresent ? 'bg-gradient-to-r from-[#4B915A] to-[#0B3E16]' : 'bg-muted'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            isPresent ? 'translate-x-6' : 'translate-x-1'
-                          }`}
-                        />
-                      </button>
-                      <span className="text-sm text-muted-foreground">
-                        {isPresent ? 'Here' : 'Away'}
-                      </span>
-                    </div>
-                  )}
-                </div>
+            <CardContent className="p-3">
+              <div className="flex items-center space-x-3">
                 <PresenceAvatar
                   src={profile.avatar_url || undefined}
                   fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
                   isPresent={isPresent}
-                  size="lg"
+                  size="xl"
                 />
+                <div className="flex-1">
+                  <h2 className="text-xl font-semibold text-foreground">
+                    {profile.first_name} {profile.last_name}
+                  </h2>
+                  <p className="text-muted-foreground text-sm">
+                    {jobTitle} {company && `| ${company}`}
+                  </p>
+                  {currentEvent && (
+                    <p className="text-primary text-xs mt-0.5">
+                      Attended: {currentEvent.name}
+                    </p>
+                  )}
+                </div>
+                {currentEvent && (
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={handlePresenceToggle}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                        isPresent ? 'bg-gradient-to-r from-[#4B915A] to-[#0B3E16]' : 'bg-muted'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          isPresent ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-sm text-muted-foreground">
+                      {isPresent ? 'Here' : 'Away'}
+                    </span>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
