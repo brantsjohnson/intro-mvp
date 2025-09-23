@@ -151,8 +151,8 @@ export function EventJoinPage() {
       }
 
       toast.success("Successfully joined event!")
-      // Redirect to home page where user can access settings and complete networking goals if needed
-      router.push('/home')
+      // Redirect to onboarding step 3 (networking goals) for this specific event
+      router.push(`/onboarding?from=event-join&eventId=${typedEvent.id}`)
     } catch (error) {
       console.error("Error joining event:", error)
       toast.error("An error occurred")

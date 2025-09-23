@@ -26,7 +26,7 @@ export function OnboardingFlow() {
   const searchParams = useSearchParams()
   const fromEventJoin = searchParams.get('from') === 'event-join'
   const eventId = searchParams.get('eventId')
-  const [currentStep, setCurrentStep] = useState(0) // Start from step 0 (profile setup)
+  const [currentStep, setCurrentStep] = useState(0) // Always start from index 0 of the visible steps
   const [isLoading, setIsLoading] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(false)
   const [user, setUser] = useState<User | null>(null)
@@ -693,9 +693,9 @@ export function OnboardingFlow() {
   }
 
   // Determine which steps to show based on how user arrived
-  // If coming from event join: show all 3 steps (profile, professional, networking)
+  // If coming from event join: show only step 2 (networking goals) since profile is already complete
   // If not coming from event join: show only 2 steps (profile, professional), then redirect to /event/join
-  const visibleSteps = fromEventJoin ? steps : steps.slice(0, 2)
+  const visibleSteps = fromEventJoin ? steps.slice(2) : steps.slice(0, 2)
   const currentStepData = visibleSteps[currentStep]
   const isLastStep = currentStep === visibleSteps.length - 1
 
