@@ -210,7 +210,12 @@ Return a JSON array of match objects. Each match should have:
 - "summary": one sentence explaining why they should meet
 - "panels": object with "why", "activities", "deeper" fields
 
-IMPORTANT: The "bases" field must only contain these exact values: "career", "interests", or "personality". Do not use any other terms like "networking goals", "hobbies", "expertise", etc.
+CRITICAL: The "bases" field must ONLY include the specific categories where there is actual overlap or strong connection:
+- "career": Only include if they have complementary or related career paths, similar industries, or relevant professional connections
+- "interests": Only include if they share specific hobbies, interests, or activities
+- "personality": Only include if they have compatible MBTI types, Enneagram types, or complementary personality traits
+
+Do NOT include a basis unless there is a clear, specific overlap in that category. A user can have 1, 2, or all 3 bases, but never 0.
 
 Example format:
 [

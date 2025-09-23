@@ -30,11 +30,11 @@ export function MatchCard({
   const getMatchBasisColor = (basis: string) => {
     switch (basis) {
       case 'career':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+        return 'bg-orange-500/20 text-orange-400 border-orange-500/30'
       case 'personality':
-        return 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+        return 'bg-orange-500/20 text-orange-400 border-orange-500/30'
       case 'interests':
-        return 'bg-green-500/20 text-green-400 border-green-500/30'
+        return 'bg-orange-500/20 text-orange-400 border-orange-500/30'
       default:
         return 'bg-muted text-muted-foreground border-border'
     }

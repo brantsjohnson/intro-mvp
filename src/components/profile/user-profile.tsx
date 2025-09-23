@@ -37,6 +37,7 @@ export function UserProfile({ userId }: UserProfileProps) {
   const [isOwnProfile, setIsOwnProfile] = useState(false)
   const [hasConnection, setHasConnection] = useState(false)
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [matchBases, setMatchBases] = useState<string[]>([])
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -120,6 +121,42 @@ export function UserProfile({ userId }: UserProfileProps) {
             setHasConnection(Boolean(existingConnection))
           } catch (_) {
             // ignore errors; default is no connection
+          }
+
+          // Load match data if this is a suggested connection
+          const source = searchParams.get('source')
+          if (source === 'suggested') {
+            const eventId = searchParams.get('eventId')
+            if (eventId) {
+              try {
+                // Load match where current user is A and target is B
+                const { data: matchA } = await supabase
+                  .from("matches")
+                  .select("bases")
+                  .eq("event_id", eventId)
+                  .eq("a", user.id)
+                  .eq("b", userId)
+                  .limit(1)
+                  .maybeSingle()
+
+                // Load match where current user is B and target is A
+                const { data: matchB } = await supabase
+                  .from("matches")
+                  .select("bases")
+                  .eq("event_id", eventId)
+                  .eq("a", userId)
+                  .eq("b", user.id)
+                  .limit(1)
+                  .maybeSingle()
+
+                const match = matchA || matchB
+                if (match && match.bases) {
+                  setMatchBases(match.bases)
+                }
+              } catch (error) {
+                console.error("Error loading match data:", error)
+              }
+            }
           }
         }
       } catch (error) {
@@ -443,11 +480,15 @@ export function UserProfile({ userId }: UserProfileProps) {
                   <p className="text-muted-foreground">
                     {profile.job_title} | {profile.company}
                   </p>
-                  <div className="mt-2">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-primary/10 text-primary border border-primary/20">
-                      Matches: Interests, Personality
-                    </span>
-                  </div>
+                  {matchBases.length > 0 && (
+                    <div className="mt-2">
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                        Matches: {matchBases.map(basis => 
+                          basis.charAt(0).toUpperCase() + basis.slice(1)
+                        ).join(' / ')}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
