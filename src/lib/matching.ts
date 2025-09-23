@@ -1,4 +1,4 @@
-import { createClientComponentClient } from "@/lib/supabase"
+import { createClient } from '@supabase/supabase-js'
 import { Profile } from "@/lib/types"
 import { AIService, ProfileData, MatchCandidate } from "@/lib/ai-service"
 
@@ -13,7 +13,10 @@ export interface MatchingResult {
 }
 
 export class MatchingService {
-  private supabase = createClientComponentClient()
+  private supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
   private aiService = new AIService()
 
   async generateMatches(eventId: string): Promise<MatchingResult> {
