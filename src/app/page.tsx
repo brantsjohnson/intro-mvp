@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import Image from "next/image"
 import { AuthForm } from "@/components/auth/auth-form"
 import { createClientComponentClient } from "@/lib/supabase"
 import type { User } from "@supabase/supabase-js"
+import { Changa_One } from "next/font/google"
+
+const changaOne = Changa_One({ weight: "400", subsets: ["latin"] })
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(true)
@@ -95,7 +97,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       {/* Top section with animated orange gradient */}
-      <div className="px-4 py-8 sm:py-12 lg:py-16 relative overflow-hidden">
+      <div className="px-4 pt-6 sm:pt-8 lg:pt-10 pb-2 sm:pb-3 lg:pb-4 relative overflow-hidden">
         <div 
           className="absolute inset-0 animate-gradient"
           style={{ 
@@ -105,43 +107,36 @@ export default function Home() {
           }}
         />
         <div className="relative z-10 text-center">
-          <p className="text-sm sm:text-base font-medium mb-4 sm:mb-6" style={{ color: '#242424' }}>
+          <p className="text-sm sm:text-base font-medium mb-2 sm:mb-3" style={{ color: '#242424' }}>
             The Best Way to Network
           </p>
-          <div className="flex justify-center items-center mb-6 sm:mb-8">
-            <Image 
-              src="/intro-logo.svg" 
-              alt="INTRO" 
-              width={200}
-              height={80}
-              className="h-16 w-auto sm:h-20 md:h-24 lg:h-32 xl:h-40 max-w-full object-contain"
-              onError={(e) => {
-                // Fallback to text if logo doesn't exist
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                const fallback = target.nextElementSibling as HTMLElement;
-                if (fallback) fallback.style.display = 'block';
-              }}
-            />
-            <h1 
-              className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold hidden"
-              style={{ color: '#242424' }}
-            >
-              INTRO
-            </h1>
+          <div className="flex justify-center items-center mb-0 sm:mb-1">
+            <div className="relative inline-block leading-none">
+              <span
+                aria-hidden
+                className={`${changaOne.className} block absolute left-0 top-[6px] text-[#BF341E] text-[64px] sm:text-[80px] md:text-[96px] lg:text-[120px] xl:text-[144px]`}
+              >
+                INTRO
+              </span>
+              <span
+                className={`${changaOne.className} relative block text-[#242424] text-[64px] sm:text-[80px] md:text-[96px] lg:text-[120px] xl:text-[144px]`}
+              >
+                INTRO
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Auth form section */}
-      <div className="px-4 py-8">
+      <div className="px-4 py-4">
         <div className="max-w-md mx-auto">
           <AuthForm />
         </div>
       </div>
 
       {/* Contact section */}
-      <div className="text-center px-4 py-4">
+      <div className="text-center px-4 py-2">
         <p className="text-muted-foreground text-sm">
           <span className="text-primary hover:underline cursor-pointer">Contact us</span> if you want to use INTRO at your event.
         </p>

@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, useMemo, useRef } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { AccordionSection } from "@/components/ui/accordion-section"
@@ -9,6 +9,7 @@ import { HobbiesGrid } from "@/components/ui/hobbies-grid"
 import { PresenceAvatar } from "@/components/ui/presence-avatar"
 import { QRCard } from "@/components/ui/qr-card"
 import { QRScanner } from "@/components/ui/qr-scanner"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { createClientComponentClient } from "@/lib/supabase"
 import { Profile, Hobby } from "@/lib/types"
 import { AIService, ProfileData } from "@/lib/ai-service"
@@ -34,10 +35,14 @@ export function UserProfile({ userId }: UserProfileProps) {
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false)
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false)
   const [isOwnProfile, setIsOwnProfile] = useState(false)
+  const [hasConnection, setHasConnection] = useState(false)
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClientComponentClient()
-  const aiService = new AIService()
+  const aiService = useMemo(() => new AIService(), [])
+  const hasGeneratedRef = useRef(false)
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -103,6 +108,19 @@ export function UserProfile({ userId }: UserProfileProps) {
           if (eventMember) {
             setIsPresent(eventMember.is_present)
           }
+
+          // Detect if a connection already exists between current user and target
+          try {
+            const { data: existingConnection } = await supabase
+              .from("connections")
+              .select("id")
+              .or(`and(a.eq.${user.id},b.eq.${userId}),and(a.eq.${userId},b.eq.${user.id})`)
+              .limit(1)
+              .maybeSingle()
+            setHasConnection(Boolean(existingConnection))
+          } catch (_) {
+            // ignore errors; default is no connection
+          }
         }
       } catch (error) {
         console.error("Error loading profile:", error)
@@ -115,10 +133,10 @@ export function UserProfile({ userId }: UserProfileProps) {
     loadProfile()
   }, [userId, router, supabase])
 
-  // Generate AI insights when profile and current user data are loaded
+  // Generate AI insights when profile and current user data are loaded (once)
   useEffect(() => {
     const generateInsights = async () => {
-      if (!profile || isGeneratingInsights) return
+      if (!profile || hasGeneratedRef.current || isGeneratingInsights || aiInsights) return
 
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || user.id === userId) return // Don't generate insights for self
@@ -214,18 +232,37 @@ export function UserProfile({ userId }: UserProfileProps) {
         }
 
         // Generate AI insights
-        const insights = await aiService.generateProfileInsights(currentUserData, targetUserData)
+        // Call server API to ensure server-side OPENAI_API_KEY is used
+        let insights = null as any
+        try {
+          const res = await fetch('/api/profile-insights', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profileA: currentUserData, profileB: targetUserData })
+          })
+          if (res.ok) {
+            const json = await res.json()
+            insights = json.insights
+          }
+        } catch {
+          // fall back silently
+        }
+        if (!insights) {
+          insights = await aiService.generateProfileInsights(currentUserData, targetUserData)
+        }
         setAiInsights(insights)
+        hasGeneratedRef.current = true
       } catch (error) {
         console.error("Error generating AI insights:", error)
         // Don't show error to user, just use fallback content
+        hasGeneratedRef.current = true
       } finally {
         setIsGeneratingInsights(false)
       }
     }
 
     generateInsights()
-  }, [profile, userId, supabase, aiService, isGeneratingInsights])
+  }, [profile, userId, aiService, aiInsights])
 
   const handleMessage = () => {
     // Get current event ID from URL or context
@@ -234,8 +271,76 @@ export function UserProfile({ userId }: UserProfileProps) {
   }
 
   const handleBack = () => {
-    // TODO: Implement back button guard for suggested matches
+    const source = searchParams.get('source')
+    const fromSuggested = source === 'suggested'
+    if (fromSuggested && !hasConnection) {
+      setShowFeedbackModal(true)
+      return
+    }
     router.back()
+  }
+
+  const recordNoClick = async () => {
+    try {
+      const eventId = searchParams.get('eventId')
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !eventId) return
+      // Optional table; ignore if missing
+      await supabase
+        .from('connection_feedback')
+        .upsert({
+          event_id: eventId,
+          viewer_id: user.id,
+          target_id: userId,
+          no_count: 1
+        }, { onConflict: 'event_id,viewer_id,target_id' })
+        .select()
+      await supabase.rpc('increment_feedback_no', {
+        p_event_id: eventId,
+        p_viewer_id: user.id,
+        p_target_id: userId
+      }).catch(() => {})
+    } catch (_) {
+      // swallow analytics errors
+    }
+  }
+
+  const createConnectionAndTally = async () => {
+    try {
+      const eventId = searchParams.get('eventId')
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !eventId) return
+
+      // Create connection if it doesn't exist
+      const { error: insertError } = await supabase
+        .from('connections')
+        .insert({ event_id: eventId, a: user.id, b: userId, source: 'match' })
+      if (insertError && !insertError.message.includes('duplicate')) {
+        throw insertError
+      }
+
+      // Increment per-user event stats for both users
+      const upsertStats = async (targetUserId: string) => {
+        await supabase
+          .from('user_event_stats')
+          .upsert({ event_id: eventId, user_id: targetUserId, match_connections: 1 }, { onConflict: 'event_id,user_id' })
+        await supabase.rpc('increment_match_connections', { p_event_id: eventId, p_user_id: targetUserId }).catch(() => {})
+      }
+      await Promise.all([upsertStats(user.id), upsertStats(userId)])
+
+      // Optional: mark feedback yes timestamp
+      await supabase
+        .from('connection_feedback')
+        .upsert({ event_id: eventId, viewer_id: user.id, target_id: userId, yes_at: new Date().toISOString() }, { onConflict: 'event_id,viewer_id,target_id' })
+        .select()
+        .catch(() => {})
+
+      setHasConnection(true)
+      toast.success('Connection recorded')
+    } catch (error) {
+      console.error('Error creating connection:', error)
+      toast.error('Failed to record connection')
+    }
   }
 
   const handleQRScan = () => {
@@ -351,7 +456,7 @@ export function UserProfile({ userId }: UserProfileProps) {
           <div className="space-y-4">
             <AccordionSection
               title="Why You Two Should Meet"
-              defaultOpen={true}
+              defaultOpen={!hasConnection}
             >
               {isGeneratingInsights ? (
                 <div className="flex items-center space-x-2">
@@ -367,7 +472,7 @@ export function UserProfile({ userId }: UserProfileProps) {
 
             <AccordionSection
               title="Activities You Might Enjoy"
-              defaultOpen={true}
+              defaultOpen={!hasConnection}
             >
               {isGeneratingInsights ? (
                 <div className="flex items-center space-x-2">
@@ -383,7 +488,7 @@ export function UserProfile({ userId }: UserProfileProps) {
 
             <AccordionSection
               title="Where To Dive Deeper"
-              defaultOpen={false}
+              defaultOpen={!hasConnection}
             >
               {isGeneratingInsights ? (
                 <div className="flex items-center space-x-2">
@@ -456,6 +561,41 @@ export function UserProfile({ userId }: UserProfileProps) {
         onClose={() => setIsQRScannerOpen(false)}
         onConnectionCreated={handleConnectionCreated}
       />
+
+      {/* Suggested connection feedback modal */}
+      <Dialog open={showFeedbackModal} onOpenChange={setShowFeedbackModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Have you met them yet?</DialogTitle>
+            <DialogDescription>
+              Let us know so we can improve suggestions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end space-x-2">
+            <GradientButton
+              variant="outline"
+              onClick={async () => {
+                await recordNoClick()
+                setShowFeedbackModal(false)
+                router.back()
+              }}
+              size="sm"
+            >
+              No
+            </GradientButton>
+            <GradientButton
+              onClick={async () => {
+                await createConnectionAndTally()
+                setShowFeedbackModal(false)
+                router.back()
+              }}
+              size="sm"
+            >
+              Yes
+            </GradientButton>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

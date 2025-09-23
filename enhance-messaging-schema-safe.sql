@@ -146,3 +146,34 @@ DROP TRIGGER IF EXISTS on_message_insert_update_thread ON public.messages;
 CREATE TRIGGER on_message_insert_update_thread
   AFTER INSERT ON public.messages
   FOR EACH ROW EXECUTE FUNCTION update_thread_last_message();
+
+-- Optional: analytics for suggested-connection feedback and per-user tallies
+CREATE TABLE IF NOT EXISTS public.connection_feedback (
+  event_id uuid references public.events on delete cascade,
+  viewer_id uuid references public.profiles on delete cascade,
+  target_id uuid references public.profiles on delete cascade,
+  no_count int default 0,
+  yes_at timestamptz,
+  PRIMARY KEY (event_id, viewer_id, target_id)
+);
+
+-- Increment helpers (safe to create/replace)
+CREATE OR REPLACE FUNCTION public.increment_feedback_no(p_event_id uuid, p_viewer_id uuid, p_target_id uuid)
+RETURNS void AS $$
+BEGIN
+  INSERT INTO public.connection_feedback (event_id, viewer_id, target_id, no_count)
+  VALUES (p_event_id, p_viewer_id, p_target_id, 1)
+  ON CONFLICT (event_id, viewer_id, target_id)
+  DO UPDATE SET no_count = public.connection_feedback.no_count + 1;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.increment_match_connections(p_event_id uuid, p_user_id uuid)
+RETURNS void AS $$
+BEGIN
+  INSERT INTO public.user_event_stats (event_id, user_id, match_connections)
+  VALUES (p_event_id, p_user_id, 1)
+  ON CONFLICT (event_id, user_id)
+  DO UPDATE SET match_connections = public.user_event_stats.match_connections + 1;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

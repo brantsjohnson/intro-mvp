@@ -5,6 +5,6 @@
 .cls-2 { fill: #BF341E; }
 </style>
 </defs>
+<text x="100" y="52" text-anchor="middle" font-family="Arial, sans-serif" font-size="48" font-weight="bold" class="cls-2">INTRO</text>
 <text x="100" y="50" text-anchor="middle" font-family="Arial, sans-serif" font-size="48" font-weight="bold" class="cls-1">INTRO</text>
-<text x="102" y="52" text-anchor="middle" font-family="Arial, sans-serif" font-size="48" font-weight="bold" class="cls-2">INTRO</text>
 </svg>

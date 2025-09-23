@@ -19,6 +19,7 @@ export function ConversationView() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
+  const [eventName, setEventName] = useState<string>("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -42,6 +43,21 @@ export function ConversationView() {
       router.push("/home")
       return
     }
+
+    // Load event name for header subtitle
+    const loadEvent = async () => {
+      try {
+        const { data } = await supabase
+          .from('events')
+          .select('name')
+          .eq('id', eventId)
+          .single()
+        if (data?.name) setEventName(data.name)
+      } catch (e) {
+        // ignore subtitle failures
+      }
+    }
+    loadEvent()
 
     const loadConversation = async () => {
       try {
@@ -210,7 +226,7 @@ export function ConversationView() {
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center justify-between">
             <GradientButton
               onClick={() => router.back()}
               variant="outline"
@@ -218,24 +234,18 @@ export function ConversationView() {
             >
               <ArrowLeft className="h-4 w-4" />
             </GradientButton>
-            
-            <PresenceAvatar
-              src={thread.other_participant.avatar_url}
-              fallback={`${thread.other_participant.first_name[0]}${thread.other_participant.last_name[0]}`}
-              isPresent={false}
-              size="md"
-            />
-            
-            <div className="flex-1">
-              <h1 className="font-semibold text-foreground">
+
+            <div className="text-center">
+              <h1 className="text-lg font-semibold text-foreground">
                 {thread.other_participant.first_name} {thread.other_participant.last_name}
               </h1>
-              {thread.other_participant.job_title && (
-                <p className="text-sm text-muted-foreground">
-                  {thread.other_participant.job_title}
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground">
+                {`Connected at: ${eventName || 'Event'}`}
+              </p>
             </div>
+
+            {/* spacer to balance layout */}
+            <div className="w-9 h-9" />
           </div>
         </div>
       </header>

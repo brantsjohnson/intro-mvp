@@ -591,71 +591,113 @@ export function SettingsPage() {
             <CardHeader className="pb-1">
               <CardTitle className="text-primary">About</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 pt-0">
-              <div className="grid grid-cols-1 gap-3">
-                <div>
-                  <Label htmlFor="company">Company</Label>
-                  <Input
-                    id="company"
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
-                    disabled={!isEditing}
-                    className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
-                    style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
-                  />
-              </div>
+            <CardContent className="pt-0">
+              {isEditing ? (
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <Label htmlFor="company">Company</Label>
+                    <Input
+                      id="company"
+                      value={company}
+                      onChange={(e) => setCompany(e.target.value)}
+                      disabled={!isEditing}
+                      className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
+                      style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
+                    />
+                  </div>
 
-              <div>
-                  <Label htmlFor="jobTitle">Job Title</Label>
-                <Input
-                    id="jobTitle"
-                    value={jobTitle}
-                    onChange={(e) => setJobTitle(e.target.value)}
-                    disabled={!isEditing}
-                    className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
-                    style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
-                />
-              </div>
+                  <div>
+                    <Label htmlFor="jobTitle">Job Title</Label>
+                    <Input
+                      id="jobTitle"
+                      value={jobTitle}
+                      onChange={(e) => setJobTitle(e.target.value)}
+                      disabled={!isEditing}
+                      className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
+                      style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
+                    />
+                  </div>
 
-                <div>
-                  <Label htmlFor="linkedinUrl">LinkedIn URL</Label>
-                  <Input
-                    id="linkedinUrl"
-                    value={linkedinUrl}
-                    onChange={(e) => setLinkedinUrl(e.target.value)}
-                    disabled={!isEditing}
-                    className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
-                    style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
-                    placeholder="https://linkedin.com/in/yourprofile"
-                  />
+                  <div>
+                    <Label htmlFor="location">Location</Label>
+                    <Input
+                      id="location"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      disabled={!isEditing}
+                      className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
+                      style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
+                      placeholder="City, State"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="linkedinUrl">LinkedIn URL</Label>
+                    <Input
+                      id="linkedinUrl"
+                      value={linkedinUrl}
+                      onChange={(e) => setLinkedinUrl(e.target.value)}
+                      disabled={!isEditing}
+                      className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
+                      style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
+                      placeholder="https://linkedin.com/in/yourprofile"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="enneagram">Enneagram Type</Label>
+                    <Input
+                      id="enneagram"
+                      value={enneagram}
+                      onChange={(e) => setEnneagram(e.target.value)}
+                      disabled={!isEditing}
+                      className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
+                      style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
+                      placeholder="e.g., 8 - Challenger"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="mbti">Myers-Briggs Type</Label>
+                    <Input
+                      id="mbti"
+                      value={mbti}
+                      onChange={(e) => setMbti(e.target.value)}
+                      disabled={!isEditing}
+                      className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
+                      style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
+                      placeholder="e.g., ENTJ"
+                    />
+                  </div>
                 </div>
-                
-                <div>
-                  <Label htmlFor="enneagram">Enneagram Type</Label>
-                  <Input
-                    id="enneagram"
-                    value={enneagram}
-                    onChange={(e) => setEnneagram(e.target.value)}
-                    disabled={!isEditing}
-                    className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
-                    style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
-                    placeholder="e.g., 8 - Challenger"
-                  />
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-2 border-b border-border">
+                    <span className="text-muted-foreground">Company</span>
+                    <span className="text-foreground">{company || "—"}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-border">
+                    <span className="text-muted-foreground">Job Title</span>
+                    <span className="text-foreground">{jobTitle || "—"}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-border">
+                    <span className="text-muted-foreground">Location</span>
+                    <span className="text-foreground">{location || "—"}</span>
+                  </div>
+                  {enneagram && (
+                    <div className="flex justify-between items-center py-2 border-b border-border">
+                      <span className="text-muted-foreground">Enneagram type</span>
+                      <span className="text-foreground">{enneagram}</span>
+                    </div>
+                  )}
+                  {mbti && (
+                    <div className="flex justify-between items-center py-2 border-b border-border">
+                      <span className="text-muted-foreground">Myers-Briggs type</span>
+                      <span className="text-foreground">{mbti}</span>
+                    </div>
+                  )}
                 </div>
-                
-                <div>
-                  <Label htmlFor="mbti">Myers-Briggs Type</Label>
-                  <Input
-                    id="mbti"
-                    value={mbti}
-                    onChange={(e) => setMbti(e.target.value)}
-                    disabled={!isEditing}
-                    className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
-                    style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
-                    placeholder="e.g., ENTJ"
-                  />
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 
