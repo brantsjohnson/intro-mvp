@@ -16,7 +16,8 @@ import {
   MessageSquare, 
   MapPin,
   Calendar,
-  Plus
+  Plus,
+  QrCode
 } from "lucide-react"
 
 interface MatchWithProfile {
