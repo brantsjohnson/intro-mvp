@@ -220,10 +220,13 @@ export function OnboardingFlow() {
 
     setIsLoading(true)
     try {
-      // Upload avatar if provided
+      // Upload avatar if provided, otherwise use Google avatar URL
       let avatarUrl = null
       if (avatarFile) {
         avatarUrl = await uploadAvatar(user.id)
+      } else if (user.user_metadata?.avatar_url) {
+        // Use Google avatar URL if no file was uploaded
+        avatarUrl = user.user_metadata.avatar_url
       }
 
       // Update profile
