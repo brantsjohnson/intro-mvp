@@ -185,19 +185,23 @@ export function ConversationView() {
 
     loadConversation()
 
-    // Subscribe to real-time message updates
-    if (threadId) {
-      const subscription = messageService.subscribeToMessages(eventId, (payload) => {
-        if (payload.new?.thread_id === threadId) {
-          // Only reload if we're not currently sending a message
-          if (!isSending) {
-            loadConversation() // Reload messages when new message arrives
+      // Subscribe to real-time message updates
+      if (threadId) {
+        const subscription = messageService.subscribeToMessages(eventId, (payload) => {
+          if (payload.new?.thread_id === threadId) {
+            // Only reload if we're not currently sending a message
+            if (!isSending) {
+              // Check if this is a new message from the server (not our optimistic message)
+              const isOptimisticMessage = messages.some(msg => msg.id === payload.new?.id && msg.id.startsWith('temp-'))
+              if (!isOptimisticMessage) {
+                loadConversation() // Reload messages when new message arrives
+              }
+            }
           }
-        }
-      })
+        })
 
-      return () => subscription.unsubscribe()
-    }
+        return () => subscription.unsubscribe()
+      }
   }, [eventId, threadId, userId, router, messageService, supabase])
 
   const handleSendMessage = async () => {
@@ -248,52 +252,88 @@ export function ConversationView() {
       is_from_current_user: true
     }
 
-    // Add optimistic message immediately
-    console.log("Adding optimistic message:", optimisticMessage)
-    setMessages(prev => {
-      const newMessages = [...prev, optimisticMessage]
-      console.log("Updated messages array:", newMessages)
-      return newMessages
-    })
-    
-    // Scroll to bottom immediately
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-    }, 50)
+      // Add optimistic message immediately
+      console.log("Adding optimistic message:", optimisticMessage)
+      setMessages(prev => {
+        const newMessages = [...prev, optimisticMessage]
+        console.log("Updated messages array:", newMessages)
+        return newMessages
+      })
+      
+      // Scroll to bottom immediately
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+      }, 50)
 
-    try {
-      if (threadId) {
-        // Send to existing thread
-        if (!thread) return
+      try {
+        if (threadId) {
+          // Send to existing thread
+          if (!thread) return
 
-        await messageService.sendMessage(
-          eventId,
-          thread.other_participant.id,
-          messageText
-        )
-      } else if (userId) {
-        // Start new conversation
-        await messageService.sendMessage(eventId, userId, messageText)
-        
-        // Reload to get the new thread ID
-        const threadsData = await messageService.getThreads(eventId)
-        const newThread = threadsData.find(t => 
-          t.participant_a === userId || t.participant_b === userId
-        )
-        
-        if (newThread) {
-          router.replace(`/messages/conversation?eventId=${eventId}&threadId=${newThread.id}`)
+          const sentMessage = await messageService.sendMessage(
+            eventId,
+            thread.other_participant.id,
+            messageText
+          )
+          
+          // Replace optimistic message with real message
+          if (sentMessage) {
+            const conversationMessage: ConversationMessage = {
+              ...sentMessage,
+              sender_profile: {
+                id: user.id,
+                first_name: 'You',
+                last_name: '',
+                avatar_url: null,
+                job_title: null
+              },
+              is_from_current_user: true
+            }
+            setMessages(prev => prev.map(msg => 
+              msg.id === optimisticMessage.id ? conversationMessage : msg
+            ))
+          }
+        } else if (userId) {
+          // Start new conversation
+          const sentMessage = await messageService.sendMessage(eventId, userId, messageText)
+          
+          // Replace optimistic message with real message
+          if (sentMessage) {
+            const conversationMessage: ConversationMessage = {
+              ...sentMessage,
+              sender_profile: {
+                id: user.id,
+                first_name: 'You',
+                last_name: '',
+                avatar_url: null,
+                job_title: null
+              },
+              is_from_current_user: true
+            }
+            setMessages(prev => prev.map(msg => 
+              msg.id === optimisticMessage.id ? conversationMessage : msg
+            ))
+          }
+          
+          // Reload to get the new thread ID
+          const threadsData = await messageService.getThreads(eventId)
+          const newThread = threadsData.find(t => 
+            t.participant_a === userId || t.participant_b === userId
+          )
+          
+          if (newThread) {
+            router.replace(`/messages/conversation?eventId=${eventId}&threadId=${newThread.id}`)
+          }
         }
+      } catch (error) {
+        console.error("Error sending message:", error)
+        toast.error("Failed to send message")
+        setNewMessage(messageText) // Restore message on error
+        // Remove optimistic message on error
+        setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id))
+      } finally {
+        setIsSending(false)
       }
-    } catch (error) {
-      console.error("Error sending message:", error)
-      toast.error("Failed to send message")
-      setNewMessage(messageText) // Restore message on error
-      // Remove optimistic message on error
-      setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id))
-    } finally {
-      setIsSending(false)
-    }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -309,7 +349,7 @@ export function ConversationView() {
 
   if (isLoading) {
     return (
-      <div className="h-screen bg-background flex flex-col overflow-hidden">
+      <div className="h-screen bg-gradient-to-br from-background via-background to-muted/20 flex flex-col overflow-hidden">
         {/* Header skeleton */}
         <header className="border-b border-border bg-card/50 backdrop-blur-sm flex-shrink-0 z-10">
           <div className="container mx-auto px-4 py-4">
@@ -372,7 +412,7 @@ export function ConversationView() {
   // If we don't have a thread and we're still loading, show loading state
   if (!thread && !hasCheckedForThread) {
     return (
-      <div className="h-screen bg-background flex flex-col overflow-hidden">
+      <div className="h-screen bg-gradient-to-br from-background via-background to-muted/20 flex flex-col overflow-hidden">
         {/* Header skeleton */}
         <header className="border-b border-border bg-card/50 backdrop-blur-sm flex-shrink-0 z-10">
           <div className="container mx-auto px-4 py-4">
@@ -453,14 +493,13 @@ export function ConversationView() {
   }
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
+    <div className="h-screen bg-gradient-to-br from-background via-background to-muted/20 flex flex-col overflow-hidden">
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm flex-shrink-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <GradientButton
               onClick={() => router.back()}
-              variant="outline"
               size="icon"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -516,8 +555,20 @@ export function ConversationView() {
                   className={`flex ${message.is_from_current_user ? 'justify-end' : 'justify-start'}`}
                 >
                   <div className={`max-w-[70%] ${message.is_from_current_user ? 'order-2' : 'order-1'}`}>
+                    {!message.is_from_current_user && (
+                      <div className="flex items-center space-x-2 mb-1 px-2">
+                        <p className="text-xs font-medium text-foreground">
+                          {message.sender_profile?.first_name} {message.sender_profile?.last_name}
+                        </p>
+                        {message.sender_profile?.job_title && (
+                          <p className="text-xs text-muted-foreground">
+                            • {message.sender_profile.job_title}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     <div
-                      className={`rounded-2xl px-4 py-2 ${
+                      className={`rounded-2xl px-3 py-1.5 ${
                         message.is_from_current_user
                           ? 'text-white'
                           : 'bg-white text-black border border-gray-200'
