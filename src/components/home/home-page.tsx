@@ -294,7 +294,7 @@ export function HomePage() {
           id,
           source,
           created_at,
-          profiles!connections_b_fkey (
+          profiles!b (
             id,
             first_name,
             last_name,
@@ -313,7 +313,7 @@ export function HomePage() {
           id,
           source,
           created_at,
-          profiles!connections_a_fkey (
+          profiles!a (
             id,
             first_name,
             last_name,
@@ -405,9 +405,10 @@ export function HomePage() {
   }
 
   const handleConnectionCreated = () => {
-    // Refresh matches when a new connection is created
+    // Refresh matches and connections when a new connection is created
     if (currentEvent) {
       loadMatches(currentEvent.id)
+      loadConnections(currentEvent.id)
     }
   }
 
@@ -721,30 +722,50 @@ export function HomePage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <QRCard userId={user.id} eventId={currentEvent.id} />
+                  <QRCard onScanClick={handleQRScan} />
                 </CardContent>
               </Card>
             )}
 
             {/* Your Connections - Only show when connections exist */}
-            {currentEvent && matches.length > 0 && (
+            {currentEvent && connections.length > 0 && (
               <Card className="bg-card border-border shadow-elevation">
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center space-x-2">
-                    <MessageSquare className="h-5 w-5" />
+                    <UserPlus className="h-5 w-5" />
                     <span>Your Connections</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 pt-0">
-                  <div className="text-center py-8">
-                    <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-foreground mb-2">
-                      No connections yet
-                    </h3>
-                    <p className="text-muted-foreground">
-                      Your connections will appear here once you start chatting with people.
-                    </p>
-                  </div>
+                  {connections.map((connection) => (
+                    <div
+                      key={connection.id}
+                      className="flex items-center space-x-3 p-3 rounded-lg bg-card/50 border border-border hover:bg-card/80 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/profile/${connection.profile.id}?source=connection&eventId=${currentEvent.id}`)}
+                    >
+                      <PresenceAvatar
+                        src={connection.profile.avatar_url}
+                        fallback={`${connection.profile.first_name[0]}${connection.profile.last_name[0]}`}
+                        isPresent={false}
+                        size="md"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-foreground">
+                          {connection.profile.first_name} {connection.profile.last_name}
+                        </h3>
+                        {connection.profile.job_title && (
+                          <p className="text-sm text-muted-foreground">
+                            {connection.profile.job_title}
+                            {connection.profile.company && ` at ${connection.profile.company}`}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          {connection.connection_reason}
+                        </p>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             )}
