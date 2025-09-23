@@ -307,9 +307,12 @@ export function ConversationView() {
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
               <div className="w-9 h-9 bg-muted rounded-full animate-pulse"></div>
-              <div className="text-center">
-                <div className="h-6 w-32 bg-muted rounded animate-pulse mx-auto mb-2"></div>
-                <div className="h-4 w-24 bg-muted rounded animate-pulse mx-auto"></div>
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-muted rounded-full animate-pulse"></div>
+                <div>
+                  <div className="h-6 w-32 bg-muted rounded animate-pulse mb-2"></div>
+                  <div className="h-4 w-24 bg-muted rounded animate-pulse"></div>
+                </div>
               </div>
               <div className="w-9 h-9"></div>
             </div>
@@ -323,7 +326,9 @@ export function ConversationView() {
               {[1, 2, 3].map((i) => (
                 <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[70%] ${i % 2 === 0 ? 'order-2' : 'order-1'}`}>
-                    <div className="bg-muted rounded-2xl px-4 py-2 h-12 animate-pulse"></div>
+                    <div className={`rounded-2xl px-4 py-2 h-12 animate-pulse ${
+                      i % 2 === 0 ? 'bg-orange-400' : 'bg-white border border-gray-200'
+                    }`}></div>
                     <div className="h-3 w-16 bg-muted rounded mt-1 animate-pulse"></div>
                   </div>
                 </div>
@@ -383,15 +388,23 @@ export function ConversationView() {
               <ArrowLeft className="h-4 w-4" />
             </GradientButton>
 
-            <div className="text-center">
-              <h1 className="text-lg font-semibold text-foreground">
-                {thread.other_participant.first_name} {thread.other_participant.last_name}
-              </h1>
-              {thread.other_participant.job_title && (
-                <p className="text-sm text-muted-foreground">
-                  {thread.other_participant.job_title}
-                </p>
-              )}
+            <div className="flex items-center space-x-3">
+              <PresenceAvatar
+                src={thread.other_participant.avatar_url}
+                fallback={`${thread.other_participant.first_name[0]}${thread.other_participant.last_name[0]}`}
+                isPresent={false}
+                size="md"
+              />
+              <div>
+                <h1 className="text-lg font-semibold text-foreground">
+                  {thread.other_participant.first_name} {thread.other_participant.last_name}
+                </h1>
+                {thread.other_participant.job_title && (
+                  <p className="text-sm text-muted-foreground">
+                    {thread.other_participant.job_title}
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* spacer to balance layout */}
@@ -424,9 +437,12 @@ export function ConversationView() {
                     <div
                       className={`rounded-2xl px-4 py-2 ${
                         message.is_from_current_user
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-card border border-border'
+                          ? 'text-white'
+                          : 'bg-white text-black border border-gray-200'
                       }`}
+                      style={message.is_from_current_user ? {
+                        background: 'linear-gradient(135deg, #EC874E 0%, #BF341E 100%)'
+                      } : {}}
                     >
                       <p className="text-sm">{message.body}</p>
                     </div>
