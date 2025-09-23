@@ -21,6 +21,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Event not found', details: eventError }, { status: 404 })
     }
 
+    // First, let's check raw event_members data
+    const { data: rawEventMembers, error: rawError } = await supabase
+      .from("event_members")
+      .select("*")
+      .eq("event_id", event.id)
+
     // Get all members for the event (not just present ones for debugging)
     const { data: allMembers, error: allMembersError } = await supabase
       .from("event_members")
@@ -122,6 +128,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       event,
+      rawEventMembers,
+      rawError: rawError?.message,
       summary: {
         totalMembers: allMembers.length,
         presentMembers: presentMembers.length,
@@ -144,6 +152,8 @@ export async function GET(request: NextRequest) {
         existingMatches: existingMatches || []
       },
       errors: {
+        allMembersError: allMembersError?.message,
+        presentMembersError: presentMembersError?.message,
         hobbiesError: hobbiesError?.message,
         expertiseError: expertiseError?.message,
         networkingGoalsError: networkingGoalsError?.message,
