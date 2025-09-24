@@ -1,136 +1,183 @@
-# Intro - Conference Networking App
+# Supabase CLI
 
-A mobile-first web app for conference networking with AI-powered matching, built with Next.js 14, TypeScript, TailwindCSS, and Supabase.
+[![Coverage Status](https://coveralls.io/repos/github/supabase/cli/badge.svg?branch=main)](https://coveralls.io/github/supabase/cli?branch=main) [![Bitbucket Pipelines](https://img.shields.io/bitbucket/pipelines/supabase-cli/setup-cli/master?style=flat-square&label=Bitbucket%20Canary)](https://bitbucket.org/supabase-cli/setup-cli/pipelines) [![Gitlab Pipeline Status](https://img.shields.io/gitlab/pipeline-status/sweatybridge%2Fsetup-cli?label=Gitlab%20Canary)
+](https://gitlab.com/sweatybridge/setup-cli/-/pipelines)
 
-## Features
+[Supabase](https://supabase.io) is an open source Firebase alternative. We're building the features of Firebase using enterprise-grade open source tools.
 
-- **Authentication**: Google OAuth and email/password signup
-- **Profile Setup**: Complete onboarding with photo upload, job details, and interests
-- **Event Joining**: QR code scanning or manual event code entry
-- **Smart Matching**: AI-powered recommendations based on career, personality, and interests
-- **QR Connections**: Instant connections via QR code scanning
-- **Presence System**: "I'm Here" toggle with real-time status
-- **Messaging**: Direct messaging between attendees
-- **Responsive Design**: Mobile-first with dark theme
+This repository contains all the functionality for Supabase CLI.
 
-## Tech Stack
+- [x] Running Supabase locally
+- [x] Managing database migrations
+- [x] Creating and deploying Supabase Functions
+- [x] Generating types directly from your database schema
+- [x] Making authenticated HTTP requests to [Management API](https://supabase.com/docs/reference/api/introduction)
 
-- **Frontend**: Next.js 14 (App Router), TypeScript, React Server Components
-- **Styling**: TailwindCSS, Shadcn/ui components, Lucide React icons
-- **Backend**: Supabase (Auth, Postgres DB, Storage, Realtime)
-- **AI**: OpenAI for matching algorithms
-- **Email**: Resend for transactional emails
-- **Deployment**: Vercel
+## Getting started
 
-## Setup Instructions
+### Install the CLI
 
-### 1. Environment Variables
-
-Create a `.env.local` file in the root directory with the following variables:
-
-```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
-
-# OpenAI
-OPENAI_API_KEY=your_openai_api_key_here
-
-# Admin
-ADMIN_API_KEY=your_admin_api_key_here
-
-# Email
-RESEND_API_KEY=your_resend_api_key_here
-
-# Owner
-OWNER_EMAIL=your_owner_email_here
-```
-
-### 2. Supabase Setup
-
-1. Create a new Supabase project
-2. Run the SQL schema from `supabase-schema.sql` in your Supabase SQL editor
-3. Enable Google OAuth in Authentication > Providers
-4. Set up storage buckets for avatars and event headers
-
-### 3. Install Dependencies
+Available via [NPM](https://www.npmjs.com) as dev dependency. To install:
 
 ```bash
-npm install
+npm i supabase --save-dev
 ```
 
-### 4. Run Development Server
+To install the beta release channel:
 
 ```bash
-npm run dev
+npm i supabase@beta --save-dev
 ```
 
-The app will be available at `http://localhost:3000`.
-
-## Project Structure
+When installing with yarn 4, you need to disable experimental fetch with the following nodejs config.
 
 ```
-src/
-├── app/                    # Next.js App Router pages
-│   ├── auth/              # Authentication page
-│   ├── onboarding/        # User onboarding flow
-│   ├── home/              # Main dashboard
-│   └── layout.tsx         # Root layout
-├── components/            # React components
-│   ├── auth/              # Authentication components
-│   ├── onboarding/        # Onboarding components
-│   ├── home/              # Home page components
-│   └── ui/                # Reusable UI components
-└── lib/                   # Utilities and configurations
-    ├── supabase.ts        # Supabase client
-    ├── types.ts           # TypeScript types
-    └── utils.ts           # Utility functions
+NODE_OPTIONS=--no-experimental-fetch yarn add supabase
 ```
 
-## Key Components
+> **Note**
+For Bun versions below v1.0.17, you must add `supabase` as a [trusted dependency](https://bun.sh/guides/install/trusted) before running `bun add -D supabase`.
 
-- **GradientButton**: Custom button with orange-to-red gradient
-- **PresenceAvatar**: Avatar with optional green presence dot
-- **MatchCard**: Card displaying match recommendations
-- **QRCard**: QR code display and scanning interface
-- **HobbiesGrid**: Interactive hobbies selection grid
-- **EventJoinScanner**: QR scanner and manual code input
+<details>
+  <summary><b>macOS</b></summary>
 
-## Database Schema
+  Available via [Homebrew](https://brew.sh). To install:
 
-The app uses the following main tables:
-- `profiles`: User profile information
-- `events`: Conference events
-- `event_members`: User-event relationships
-- `matches`: AI-generated match recommendations
-- `connections`: User connections (QR or match-based)
-- `messages`: Direct messages between users
+  ```sh
+  brew install supabase/tap/supabase
+  ```
 
-## Deployment
+  To install the beta release channel:
+  
+  ```sh
+  brew install supabase/tap/supabase-beta
+  brew link --overwrite supabase-beta
+  ```
+  
+  To upgrade:
 
-The app is configured for Vercel deployment with:
-- Automatic preview deployments for PRs
-- Environment variable configuration
-- Optimized build settings
+  ```sh
+  brew upgrade supabase
+  ```
+</details>
 
-## Next Steps
+<details>
+  <summary><b>Windows</b></summary>
 
-To complete the MVP, the following features need to be implemented:
-1. Profile pages with AI-generated content
-2. Messaging system with real-time updates
-3. AI matching system with OpenAI integration
-4. QR code generation and scanning
-5. Email notifications
+  Available via [Scoop](https://scoop.sh). To install:
 
-## Contributing
+  ```powershell
+  scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
+  scoop install supabase
+  ```
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+  To upgrade:
 
-## License
+  ```powershell
+  scoop update supabase
+  ```
+</details>
 
-This project is proprietary and confidential.
+<details>
+  <summary><b>Linux</b></summary>
+
+  Available via [Homebrew](https://brew.sh) and Linux packages.
+
+  #### via Homebrew
+
+  To install:
+
+  ```sh
+  brew install supabase/tap/supabase
+  ```
+
+  To upgrade:
+
+  ```sh
+  brew upgrade supabase
+  ```
+
+  #### via Linux packages
+
+  Linux packages are provided in [Releases](https://github.com/supabase/cli/releases). To install, download the `.apk`/`.deb`/`.rpm`/`.pkg.tar.zst` file depending on your package manager and run the respective commands.
+
+  ```sh
+  sudo apk add --allow-untrusted <...>.apk
+  ```
+
+  ```sh
+  sudo dpkg -i <...>.deb
+  ```
+
+  ```sh
+  sudo rpm -i <...>.rpm
+  ```
+
+  ```sh
+  sudo pacman -U <...>.pkg.tar.zst
+  ```
+</details>
+
+<details>
+  <summary><b>Other Platforms</b></summary>
+
+  You can also install the CLI via [go modules](https://go.dev/ref/mod#go-install) without the help of package managers.
+
+  ```sh
+  go install github.com/supabase/cli@latest
+  ```
+
+  Add a symlink to the binary in `$PATH` for easier access:
+
+  ```sh
+  ln -s "$(go env GOPATH)/bin/cli" /usr/bin/supabase
+  ```
+
+  This works on other non-standard Linux distros.
+</details>
+
+<details>
+  <summary><b>Community Maintained Packages</b></summary>
+
+  Available via [pkgx](https://pkgx.sh/). Package script [here](https://github.com/pkgxdev/pantry/blob/main/projects/supabase.com/cli/package.yml).
+  To install in your working directory:
+
+  ```bash
+  pkgx install supabase
+  ```
+
+  Available via [Nixpkgs](https://nixos.org/). Package script [here](https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/tools/supabase-cli/default.nix).
+</details>
+
+### Run the CLI
+
+```bash
+supabase bootstrap
+```
+
+Or using npx:
+
+```bash
+npx supabase bootstrap
+```
+
+The bootstrap command will guide you through the process of setting up a Supabase project using one of the [starter](https://github.com/supabase-community/supabase-samples/blob/main/samples.json) templates.
+
+## Docs
+
+Command & config reference can be found [here](https://supabase.com/docs/reference/cli/about).
+
+## Breaking changes
+
+We follow semantic versioning for changes that directly impact CLI commands, flags, and configurations.
+
+However, due to dependencies on other service images, we cannot guarantee that schema migrations, seed.sql, and generated types will always work for the same CLI major version. If you need such guarantees, we encourage you to pin a specific version of CLI in package.json.
+
+## Developing
+
+To run from source:
+
+```sh
+# Go >= 1.22
+go run . help
+```

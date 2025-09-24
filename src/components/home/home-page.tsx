@@ -201,9 +201,90 @@ export function HomePage() {
     }
   }
 
-  const loadMatches = async (_eventId: string) => {
-    // Matching logic disabled; leave UI intact but do not surface any cards
-    setMatches([])
+  const loadMatches = async (eventId: string) => {
+    if (!user) return
+    
+    try {
+      // Load matches where current user is A (show profile B)
+      const aSidePromise = supabase
+        .from("matches")
+        .select(`
+          id,
+          summary,
+          bases,
+          panels,
+          profiles!b (
+            id,
+            first_name,
+            last_name,
+            job_title,
+            company,
+            avatar_url
+          ),
+          all_events_members!b (
+            is_present
+          )
+        `)
+        .eq("event_id", eventId)
+        .eq("a", user.id)
+
+      // Load matches where current user is B (show profile A)
+      const bSidePromise = supabase
+        .from("matches")
+        .select(`
+          id,
+          summary,
+          bases,
+          panels,
+          profiles!a (
+            id,
+            first_name,
+            last_name,
+            job_title,
+            company,
+            avatar_url
+          ),
+          all_events_members!a (
+            is_present
+          )
+        `)
+        .eq("event_id", eventId)
+        .eq("b", user.id)
+
+      const [{ data: aData, error: aError }, { data: bData, error: bError }] = await Promise.all([aSidePromise, bSidePromise])
+
+      if (aError || bError) {
+        console.error("Failed to load matches:", aError || bError)
+        return
+      }
+
+      const toFormatted = (rows: any[] | null) => // eslint-disable-line @typescript-eslint/no-explicit-any
+        (rows || []).map((match: any) => ({
+          id: match.id,
+          summary: match.summary,
+          bases: match.bases,
+          panels: match.panels,
+          profile: match.profiles,
+          is_present: match.all_events_members?.is_present || false
+        }))
+
+      // Merge and de-duplicate by id, prefer earliest
+      const merged = [...toFormatted(aData), ...toFormatted(bData)]
+      const seen = new Set<string>()
+      const deduped: MatchWithProfile[] = []
+      for (const m of merged) {
+        if (!seen.has(m.id)) {
+          seen.add(m.id)
+          deduped.push(m)
+        }
+      }
+
+      // Sort by creation date, newest first, limit to top 3
+      deduped.sort((a, b) => new Date(b.id).getTime() - new Date(a.id).getTime())
+      setMatches(deduped.slice(0, 3))
+    } catch (error) {
+      console.error("Failed to load matches:", error)
+    }
   }
 
   const loadConnections = async (eventId: string) => {

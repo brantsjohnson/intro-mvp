@@ -42,6 +42,11 @@ export function UserProfile({ userId }: UserProfileProps) {
   const [hasConnection, setHasConnection] = useState(false)
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [matchBases, setMatchBases] = useState<string[]>([])
+  const [matchPanels, setMatchPanels] = useState<{
+    why_meet: string
+    shared_activities: string[]
+    dive_deeper: string
+  } | null>(null)
   const [currentEvent, setCurrentEvent] = useState<{id: string, name: string} | null>(null)
   
   const router = useRouter()
@@ -182,7 +187,7 @@ export function UserProfile({ userId }: UserProfileProps) {
                 // Load match where current user is A and target is B
                 const { data: matchA } = await supabase
                   .from("matches")
-                  .select("bases")
+                  .select("bases, panels")
                   .eq("event_id", eventId)
                   .eq("a", user.id)
                   .eq("b", userId)
@@ -192,7 +197,7 @@ export function UserProfile({ userId }: UserProfileProps) {
                 // Load match where current user is B and target is A
                 const { data: matchB } = await supabase
                   .from("matches")
-                  .select("bases")
+                  .select("bases, panels")
                   .eq("event_id", eventId)
                   .eq("a", userId)
                   .eq("b", user.id)
@@ -200,8 +205,17 @@ export function UserProfile({ userId }: UserProfileProps) {
                   .maybeSingle()
 
                 const match = matchA || matchB
-                if (match && match.bases) {
-                  setMatchBases(match.bases)
+                if (match) {
+                  if (match.bases) {
+                    setMatchBases(match.bases)
+                  }
+                  if (match.panels) {
+                    setMatchPanels(match.panels as {
+                      why_meet: string
+                      shared_activities: string[]
+                      dive_deeper: string
+                    })
+                  }
                 }
               } catch (error) {
                 console.error("Error loading match data:", error)
@@ -416,7 +430,16 @@ export function UserProfile({ userId }: UserProfileProps) {
                   <p className="text-muted-foreground">
                     {profile.job_title} | {profile.company}
                   </p>
-                  {/* Match basis pill hidden while matching is disabled */}
+                  {/* Match basis pill - only show for suggested connections */}
+                  {searchParams.get('source') === 'suggested' && matchBases.length > 0 && (
+                    <div className="mt-2">
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border bg-orange-500/20 text-orange-400 border-orange-500/30">
+                        Matches: {matchBases.map(basis => 
+                          basis.charAt(0).toUpperCase() + basis.slice(1)
+                        ).join(' / ')}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -427,7 +450,47 @@ export function UserProfile({ userId }: UserProfileProps) {
             <QRCard onScanClick={handleQRScan} />
           )}
 
-          {/* Insight accordions removed while AI is disabled */}
+          {/* Match Insights - Only show for suggested connections */}
+          {searchParams.get('source') === 'suggested' && (
+            <div className="space-y-4">
+              <Card className="bg-card border-border shadow-elevation">
+                <CardHeader className="pb-1">
+                  <CardTitle className="text-primary">Why you two should meet</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <p className="text-foreground leading-relaxed">
+                    {matchPanels?.why_meet || "Loading match insights..."}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-card border-border shadow-elevation">
+                <CardHeader className="pb-1">
+                  <CardTitle className="text-primary">Activities you might enjoy</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-2">
+                    {matchPanels?.shared_activities?.map((activity, index) => (
+                      <p key={index} className="text-foreground leading-relaxed">
+                        {activity}
+                      </p>
+                    )) || <p className="text-foreground">Loading activities...</p>}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-card border-border shadow-elevation">
+                <CardHeader className="pb-1">
+                  <CardTitle className="text-primary">Where to dive deeper</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <p className="text-foreground leading-relaxed">
+                    {matchPanels?.dive_deeper || "Loading conversation starter..."}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* Hobbies */}
           <Card className="bg-card border-border shadow-elevation">
