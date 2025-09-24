@@ -219,115 +219,142 @@ async function processUser(userId: string, eventId: string): Promise<void> {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   )
 
-  // 1) Get user data
-  const { data: userData, error: userError } = await supabase
-    .from('all_events_members')
-    .select(`
-      user_id,
-      first_name,
-      last_name,
-      job_title,
-      company,
-      what_do_you_do,
-      mbti,
-      enneagram,
-      avatar_url,
-      networking_goals,
-      hobbies,
-      expertise_tags,
-      is_present
-    `)
-    .eq('user_id', userId)
-    .eq('event_id', eventId)
-    .single()
+  try {
+    // 1) Get user data
+    const { data: userData, error: userError } = await supabase
+      .from('all_events_members')
+      .select(`
+        user_id,
+        first_name,
+        last_name,
+        job_title,
+        company,
+        what_do_you_do,
+        mbti,
+        enneagram,
+        avatar_url,
+        networking_goals,
+        hobbies,
+        expertise_tags,
+        is_present
+      `)
+      .eq('user_id', userId)
+      .eq('event_id', eventId)
+      .single()
 
-  if (userError || !userData) {
-    throw new Error(`Failed to fetch user data: ${userError?.message}`)
-  }
+    if (userError) {
+      console.error(`Error fetching user ${userId}:`, userError)
+      throw new Error(`Failed to fetch user data: ${userError.message}`)
+    }
 
-  const me: Candidate = {
-    ...userData,
-    full_name: userData.first_name && userData.last_name ? `${userData.first_name} ${userData.last_name}` : userData.first_name || 'Unknown',
-    job_description: userData.what_do_you_do || userData.job_title || 'Professional'
-  }
+    if (!userData) {
+      console.error(`No user data found for user ${userId} in event ${eventId}`)
+      throw new Error(`No user data found for user ${userId}`)
+    }
 
-  // 2) Get all other users in the event
-  const { data: candidatesData, error: candidatesError } = await supabase
-    .from('all_events_members')
-    .select(`
-      user_id,
-      first_name,
-      last_name,
-      job_title,
-      company,
-      what_do_you_do,
-      mbti,
-      enneagram,
-      avatar_url,
-      networking_goals,
-      hobbies,
-      expertise_tags,
-      is_present
-    `)
-    .eq('event_id', eventId)
-    .neq('user_id', userId)
+    const me: Candidate = {
+      ...userData,
+      full_name: userData.first_name && userData.last_name ? `${userData.first_name} ${userData.last_name}` : userData.first_name || 'Unknown',
+      job_description: userData.what_do_you_do || userData.job_title || 'Professional',
+      networking_goals: userData.networking_goals || [],
+      hobbies: userData.hobbies || [],
+      expertise_tags: userData.expertise_tags || []
+    }
 
-  if (candidatesError) {
-    throw new Error(`Failed to fetch candidates: ${candidatesError.message}`)
-  }
+    // 2) Get all other users in the event
+    const { data: candidatesData, error: candidatesError } = await supabase
+      .from('all_events_members')
+      .select(`
+        user_id,
+        first_name,
+        last_name,
+        job_title,
+        company,
+        what_do_you_do,
+        mbti,
+        enneagram,
+        avatar_url,
+        networking_goals,
+        hobbies,
+        expertise_tags,
+        is_present
+      `)
+      .eq('event_id', eventId)
+      .neq('user_id', userId)
 
-  const candidates: Candidate[] = (candidatesData || []).map(candidate => ({
-    ...candidate,
-    full_name: candidate.first_name && candidate.last_name ? `${candidate.first_name} ${candidate.last_name}` : candidate.first_name || 'Unknown',
-    job_description: candidate.what_do_you_do || candidate.job_title || 'Professional'
-  }))
+    if (candidatesError) {
+      console.error(`Error fetching candidates for user ${userId}:`, candidatesError)
+      throw new Error(`Failed to fetch candidates: ${candidatesError.message}`)
+    }
 
-  // 3) Score candidates
-  const scoredMatches = scoreCandidatesForUser(me, candidates)
+    const candidates: Candidate[] = (candidatesData || []).map(candidate => ({
+      ...candidate,
+      full_name: candidate.first_name && candidate.last_name ? `${candidate.first_name} ${candidate.last_name}` : candidate.first_name || 'Unknown',
+      job_description: candidate.what_do_you_do || candidate.job_title || 'Professional',
+      networking_goals: candidate.networking_goals || [],
+      hobbies: candidate.hobbies || [],
+      expertise_tags: candidate.expertise_tags || []
+    }))
 
-  // 4) Generate AI panels for top matches
-  const withPanels = await Promise.all(
-    scoredMatches.map(async (match) => {
-      const candidate = candidates.find(c => c.user_id === match.match_user_id)
-      if (!candidate) return match
+    // 3) Score candidates
+    const scoredMatches = scoreCandidatesForUser(me, candidates)
+    console.log(`Found ${scoredMatches.length} scored matches for user ${userId}`)
 
-      const panels = await generatePanels(me, candidate, match.bases)
-      return { ...match, panels }
+    // 4) Generate AI panels for top matches
+    const withPanels = await Promise.all(
+      scoredMatches.map(async (match) => {
+        const candidate = candidates.find(c => c.user_id === match.match_user_id)
+        if (!candidate) return match
+
+        const panels = await generatePanels(me, candidate, match.bases)
+        return { ...match, panels }
+      })
+    )
+
+    // 5) Delete existing matches for this user
+    const { error: deleteError } = await supabase.from("matches")
+      .delete()
+      .eq("event_id", eventId)
+      .or(`a.eq.${userId},b.eq.${userId}`)
+
+    if (deleteError) {
+      console.error(`Error deleting existing matches for user ${userId}:`, deleteError)
+      throw deleteError
+    }
+
+    // 6) Insert new matches
+    const matchInserts = withPanels.map((match, index) => {
+      const pair = userId < match.match_user_id ? 
+        { a: userId, b: match.match_user_id } : 
+        { a: match.match_user_id, b: userId }
+      
+      return {
+        event_id: eventId,
+        a: pair.a,
+        b: pair.b,
+        bases: match.bases,
+        summary: match.panels.summary,
+        why_meet: match.panels.why_meet,
+        shared_activities: JSON.stringify(match.panels.shared_activities),
+        dive_deeper: match.panels.dive_deeper,
+        is_system: true,
+      }
     })
-  )
 
-  // 5) Delete existing matches for this user
-  await supabase.from("matches")
-    .delete()
-    .eq("event_id", eventId)
-    .or(`a.eq.${userId},b.eq.${userId}`)
-
-  // 6) Insert new matches
-  const matchInserts = withPanels.map((match, index) => {
-    const pair = userId < match.match_user_id ? 
-      { a: userId, b: match.match_user_id } : 
-      { a: match.match_user_id, b: userId }
-    
-    return {
-      event_id: eventId,
-      a: pair.a,
-      b: pair.b,
-      bases: match.bases,
-      summary: match.panels.summary,
-      why_meet: match.panels.why_meet,
-      shared_activities: JSON.stringify(match.panels.shared_activities),
-      dive_deeper: match.panels.dive_deeper,
-      is_system: true,
+    if (matchInserts.length > 0) {
+      const { error: insertError } = await supabase.from("matches").insert(matchInserts)
+      if (insertError) {
+        console.error(`Failed to insert matches for user ${userId}:`, insertError)
+        throw insertError
+      }
+      console.log(`Successfully created ${matchInserts.length} matches for user ${userId}`)
+    } else {
+      console.log(`No matches to insert for user ${userId}`)
     }
-  })
 
-  if (matchInserts.length > 0) {
-    const { error: insertError } = await supabase.from("matches").insert(matchInserts)
-    if (insertError) {
-      console.error(`Failed to insert matches for user ${userId}:`, insertError)
-      throw insertError
-    }
-    console.log(`Successfully created ${matchInserts.length} matches for user ${userId}`)
+  } catch (error) {
+    console.error(`Error processing user ${userId}:`, error)
+    throw error
   }
 }
 
