@@ -70,16 +70,19 @@ export class AIService {
             role: "system",
             content: `You are a plain‑spoken conversation coach. Your job is to tee up great first chats between two people.
 
+North Star rule (top priority):
+- Always check career goals + networking objectives first. If one person’s goal can be answered by the other’s experience, expertise, or role, that is the strongest match. Make this the first thing you say in the Why section. After that, layer in expertise similarities, shared interests, and personality compatibilities.
+
 Key principles:
-1. Start from stated goals (mentors, collaborators, hiring, learning). Use them to connect A to B.
-2. Mix in career/skills, MBTI, Enneagram, and hobbies/interests to find overlap or a useful contrast.
-3. Point out one thing they might not notice right away.
+1. Start from stated goals/objectives (mentorship, clients, partnerships, hiring, learning, investing). Use them to connect A to B.
+2. Then weave in career/skills context, MBTI/Enneagram style, and hobbies/interests for rapport or contrast.
+3. Point out one useful, non‑obvious opportunity or contrast.
 4. Tone: friendly and natural. Sound like a helpful colleague, not a brochure.
-5. Be concrete and short.
+5. Be concrete and concise.
 6. Forbidden words/phrases: networking, collaborate/collaboration, synergy, leverage, valuable connections, engage/engagement, industry insights.
 7. Respect existing matches — only suggest new ones if clearly better.
 
-Return your response as a JSON array of match objects.`
+Output format: Return a JSON array of match objects.`
           },
           {
             role: "user",
@@ -125,9 +128,11 @@ Return your response as a JSON array of match objects.`
             role: "system",
             content: `You are a plain‑spoken conversation coach. Help two attendees have a great first chat.
 
+North Star rule (top priority): Always check career goals + networking objectives first; if one person’s goal can be answered by the other’s experience, expertise, or role, that is the strongest match. Lead with this in Why.
+
 Write insights that are:
-- Anchored in goals FIRST (mentorship, collaborators, hiring, learning, investors, etc.)
-- Synthesized across career/skills, MBTI, Enneagram, hobbies/interests
+- Anchored in goals FIRST (mentorship, clients, partnerships, hiring, learning, investors)
+- Synthesized across career/skills, MBTI/Enneagram, hobbies/interests
 - Pointing out hidden opportunities or complementary gaps they might miss
 - Friendly, human tone (no corporate or academic vibe)
 
@@ -189,25 +194,28 @@ ${existingMatches.map(match => `${match.a} <-> ${match.b} (${match.bases.join(',
 ` : 'No existing matches.'
 
     return `
-Please analyze these attendees and create human, helpful matches (1–3 strong per person). Start from goals; then weave in career/skills, MBTI, Enneagram, and hobbies/interests. Point out one hidden opportunity or useful contrast for each pairing. Keep tone warm, clear, and buzzword‑free.
+Please analyze these attendees and create human, helpful matches (1–3 strong per person).
+
+CRITICAL PRIORITY: Start from career goals & networking objectives. If A wants X and B has experience/role/network for X, that is the strongest possible match. Make the Why section open with: "You want X; they’ve done X." or "You both came for Y."
+
+Then layer in: career/skills context, personality (MBTI/Enneagram) style bridges, and hobbies/interests for rapport. Point out one hidden opportunity or useful contrast for each pairing. Keep tone warm, clear, and buzzword‑free.
 
 ${profilesText}
 
 ${existingMatchesText}
 
-Consider these matching criteria:
-1. Career complementarity (different but related roles, cross-industry insights)
-2. Shared interests and hobbies
-3. Personality compatibility (MBTI/Enneagram)
-4. Networking goals alignment
+Consider these matching criteria in this order:
+1. Networking goals/objectives alignment (top priority)
+2. Expertise & career context (complementary or parallel roles)
+3. Interests & hobbies overlaps
+4. Personality compatibility (MBTI/Enneagram)
 5. Geographic proximity (if relevant)
-6. Expertise overlap or complementarity
 
 Return a JSON array of match objects. Each match should have:
 - "personA": profile ID
 - "personB": profile ID  
 - "bases": array of match reasons using ONLY these valid values: ["career", "interests", "personality"]
-- "summary": one sentence explaining why they should meet
+- "summary": one sentence explaining why they should meet, opening with goal alignment when present (e.g., "You want X; they’ve done X.")
 - "panels": object with "why", "activities", "deeper" fields
 
 CRITICAL: The "bases" field must ONLY include the specific categories where there is actual overlap or strong connection:
@@ -216,6 +224,8 @@ CRITICAL: The "bases" field must ONLY include the specific categories where ther
 - "personality": Only include if they have compatible MBTI types, Enneagram types, or complementary personality traits
 
 Do NOT include a basis unless there is a clear, specific overlap in that category. A user can have 1, 2, or all 3 bases, but never 0.
+
+Guidance: Treat goals/objectives alignment as part of the "career" basis.
 
 Example format:
 [
@@ -284,21 +294,22 @@ Keep the output concise and concrete as per the required JSON format.
         continue // Skip self-matches
       }
 
-      // Validate and filter bases to only include valid enum values
+      // Validate and filter bases to only include valid enum values and order with career first
       const validBases = ['career', 'interests', 'personality']
-      const filteredBases = (match.bases || []).filter((basis: string) => 
-        validBases.includes(basis.toLowerCase())
-      )
+      const filteredBases = (match.bases || [])
+        .map((b: string) => b.toLowerCase())
+        .filter((basis: string) => validBases.includes(basis))
+        .sort((a: string, b: string) => ['career','interests','personality'].indexOf(a) - ['career','interests','personality'].indexOf(b))
 
       validMatches.push({
         personA: match.personA,
         personB: match.personB,
         profile: profileMap.get(match.personB)!,
-        bases: filteredBases.length > 0 ? filteredBases : ['interests'], // Default to interests if no valid bases
-        summary: match.summary || 'Great networking opportunity',
+        bases: filteredBases.length > 0 ? filteredBases : ['career'],
+        summary: match.summary || 'Start with goals, then layer in career context and shared interests.',
         panels: match.panels || {
-          why: 'You have complementary backgrounds and interests.',
-          activities: 'Discuss your shared interests and professional experiences.',
+          why: 'Begin with goals: if one wants something the other has done, compare notes.',
+          activities: 'Do a quick 10‑minute swap of one tactic or resource each.',
           deeper: 'What drives you most in your current role?'
         }
       })
@@ -320,34 +331,52 @@ Keep the output concise and concrete as per the required JSON format.
         const bases: string[] = []
         let score = 0
 
-        // Check for shared hobbies
+        // 1) Goals/objectives alignment (top priority)
+        const goalsA = (profileA.networking_goals || []).map(g => g.toLowerCase())
+        const goalsB = (profileB.networking_goals || []).map(g => g.toLowerCase())
+        const sharedGoals = goalsA.filter(g => goalsB.includes(g))
+        if (sharedGoals.length > 0) {
+          if (!bases.includes('career')) bases.push('career')
+          score += 0.5
+        }
+
+        // 2) Expertise & career context
+        const hasCareerSignal = (profileA.company && profileB.company && profileA.company !== profileB.company) ||
+          (profileA.job_title && profileB.job_title && profileA.job_title !== profileB.job_title)
+        if (hasCareerSignal) {
+          if (!bases.includes('career')) bases.push('career')
+          score += 0.2
+        }
+
+        // 3) Interests & hobbies
         const commonHobbies = profileA.hobbies.filter(h => profileB.hobbies.includes(h))
         if (commonHobbies.length > 0) {
           bases.push('interests')
-          score += 0.3
+          score += 0.2
         }
 
-        // Check for career complementarity
-        if (profileA.company !== profileB.company) {
-          bases.push('career')
-          score += 0.4
-        }
-
-        // Check for personality compatibility
+        // 4) Personality
         if (profileA.mbti && profileB.mbti) {
           bases.push('personality')
-          score += 0.3
+          score += 0.1
         }
 
-        if (score > 0.5 && bases.length > 0) {
+        if (score >= 0.5 && bases.length > 0) {
+          const goalLead = sharedGoals[0]
           matches.push({
             profile: profileB,
-            bases,
-            summary: `Great networking opportunity based on ${bases.join(' and ')} compatibility.`,
+            bases: Array.from(new Set(bases)).sort((a, b) => ['career','interests','personality'].indexOf(a) - ['career','interests','personality'].indexOf(b)),
+            summary: goalLead
+              ? `You both listed ${goalLead} — start there; then compare roles and any shared interests.`
+              : `Start with goals; then compare roles, and use ${commonHobbies[0] || 'a shared topic'} as an icebreaker.`,
             panels: {
-              why: `${profileA.first_name} and ${profileB.first_name} have complementary backgrounds that could lead to valuable professional connections.`,
-              activities: 'Discuss your shared interests and professional experiences.',
-              deeper: 'What drives you most in your current role?'
+              why: goalLead
+                ? `${profileA.first_name} and ${profileB.first_name} both came for ${goalLead}. That’s your opener.`
+                : `Begin with what each of you wants from this event; look for a direct fit in the other’s experience or role.`,
+              activities: commonHobbies.length > 0
+                ? `Take a 10‑minute walk‑and‑talk and trade one tactic each; end by swapping a ${commonHobbies[0]} tip.`
+                : `Do a quick 10‑minute swap: one resource or tactic each; compare how you prep for big days.`,
+              deeper: 'What belief about your work did you update this year?'
             }
           })
         }
@@ -371,14 +400,20 @@ Keep the output concise and concrete as per the required JSON format.
     const firstShared = (arr: string[]) => arr.slice(0, 2).join(', ')
     const aName = profileA.first_name
     const bName = profileB.first_name
+    const aFirstGoal = profileA.networking_goals[0]
+    const bFirstGoal = profileB.networking_goals[0]
 
-    const why = hasOverlap
-      ? `${aName} and ${bName} both care about ${firstShared(sharedGoals.length ? sharedGoals : sharedExpertise.length ? sharedExpertise : sharedHobbies)} — a strong reason to meet now.`
-      : `${aName} (${profileA.job_title || 'their role'}) and ${bName} (${profileB.job_title || 'their role'}) work in complementary areas; a quick exchange could surface useful tactics.`
+    const why = sharedGoals.length > 0
+      ? `You both came for ${firstShared(sharedGoals)} — start there.`
+      : (aFirstGoal
+        ? `${aName} wants ${aFirstGoal}; ${bName} has relevant experience at ${profileB.company || (profileB.job_title || 'their role')}.`
+        : (bFirstGoal
+          ? `${bName} wants ${bFirstGoal}; ${aName} has relevant experience at ${profileA.company || (profileA.job_title || 'their role')}.`
+          : `${aName} and ${bName} work in complementary areas — a quick exchange could surface useful tactics.`))
 
     const activities = hasOverlap
-      ? `Start by comparing approaches to ${firstShared(sharedExpertise.length ? sharedExpertise : sharedGoals)}; then trade tips around ${firstShared(sharedHobbies.length ? sharedHobbies : sharedExpertise)}.`
-      : `Do a five‑minute show‑and‑tell: ${aName} on one tactic from ${profileA.company || 'your team'}, ${bName} on a recent win at ${profileB.company || 'your team'}; swap one resource each.`
+      ? `Take a 10‑minute walk‑and‑talk; trade one tactic each related to ${firstShared(sharedGoals.length ? sharedGoals : sharedExpertise.length ? sharedExpertise : sharedHobbies)}.`
+      : `Do a quick 10‑minute swap: ${aName} shares one tactic from ${profileA.company || 'your team'}; ${bName} shares a recent win from ${profileB.company || 'your team'}; swap one resource each.`
 
     const deeper = hasOverlap
       ? `What’s a recent moment where ${firstShared(sharedGoals.length ? sharedGoals : sharedExpertise)} made a real difference for you?`
