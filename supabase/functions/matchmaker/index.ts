@@ -60,14 +60,14 @@ function scoreCandidate(me: Candidate, candidate: Candidate, weights: Weights = 
   const bases: string[] = []
   let totalScore = 0
 
-  // Goals overlap (30% weight)
+  // Goals overlap (30% weight) - map to 'career' since networking goals are career-focused
   if (me.networking_goals && candidate.networking_goals) {
     const goalOverlap = me.networking_goals.filter(goal => 
       candidate.networking_goals.includes(goal)
     ).length
     const goalScore = (goalOverlap / Math.max(me.networking_goals.length, candidate.networking_goals.length)) * weights.goals
     totalScore += goalScore
-    if (goalScore > 0) bases.push('goals')
+    if (goalScore > 0) bases.push('career')
   }
 
   // Career overlap (25% weight)
@@ -122,7 +122,8 @@ function scoreCandidatesForUser(me: Candidate, candidates: Candidate[], weights:
       const { score, bases } = scoreCandidate(me, candidate, weights)
       // Give a base score of 1 for any user with any data to ensure matches are created
       const baseScore = score > 0 ? score : 1
-      const baseBases = bases.length > 0 ? bases : ['general']
+      // Use 'personality' as fallback instead of 'general' since it's a valid enum value
+      const baseBases = bases.length > 0 ? bases : ['personality']
       return {
         match_user_id: candidate.user_id,
         score: baseScore,
@@ -180,9 +181,17 @@ Generate a JSON response with these exact keys:
 
     const text = response.choices[0]?.message?.content || ""
     
+    // Clean up the response - remove markdown code blocks if present
+    let cleanedText = text.trim()
+    if (cleanedText.startsWith('```json')) {
+      cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '')
+    } else if (cleanedText.startsWith('```')) {
+      cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '')
+    }
+    
     // Try to parse JSON response
     try {
-      const parsed = JSON.parse(text)
+      const parsed = JSON.parse(cleanedText)
       
       // Validate and clean the response
       return {
