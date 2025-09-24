@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { areMbtiCompatible, explainMbtiCompatibility, MBTI_COMPATIBILITY } from '@/lib/mbti-compatibility'
 
 function getOpenAI(): OpenAI | null {
   // Never initialize OpenAI on the client and only if key exists
@@ -168,7 +169,10 @@ Rules:
     }
   }
 
-  private buildMatchingPrompt(profiles: ProfileData[], existingMatches: any[]): string {
+  private buildMatchingPrompt(
+    profiles: ProfileData[],
+    existingMatches: MatchingRequest["existingMatches"]
+  ): string {
     const profilesText = profiles.map(profile => `
 Profile ID: ${profile.id}
 Name: ${profile.first_name} ${profile.last_name}
@@ -188,6 +192,11 @@ Existing matches (don't duplicate these):
 ${existingMatches.map(match => `${match.a} <-> ${match.b} (${match.bases.join(', ')})`).join('\n')}
 ` : 'No existing matches.'
 
+    // Provide a concise MBTI compatibility guideline to steer the AI
+    const mbtiGuide = Object.entries(MBTI_COMPATIBILITY)
+      .map(([k, v]) => `${k}: ${v.join(', ')}`)
+      .join('\n')
+
     return `
 Please analyze these attendees and create human, helpful matches (1–3 strong per person). Start from goals; then weave in career/skills, MBTI, Enneagram, and hobbies/interests. Point out one hidden opportunity or useful contrast for each pairing. Keep tone warm, clear, and buzzword‑free.
 
@@ -198,7 +207,8 @@ ${existingMatchesText}
 Consider these matching criteria:
 1. Career complementarity (different but related roles, cross-industry insights)
 2. Shared interests and hobbies
-3. Personality compatibility (MBTI/Enneagram)
+3. Personality compatibility (MBTI/Enneagram). For MBTI, use this compatibility guide (non-exclusive; only mark "personality" if compatible):
+${mbtiGuide}
 4. Networking goals alignment
 5. Geographic proximity (if relevant)
 6. Expertise overlap or complementarity
@@ -266,10 +276,23 @@ Keep the output concise and concrete as per the required JSON format.
 `
   }
 
-  private validateAndFormatMatches(matches: any[], profiles: ProfileData[]): MatchCandidate[] {
+  private validateAndFormatMatches(
+    matchesRaw: unknown,
+    profiles: ProfileData[]
+  ): MatchCandidate[] {
+    type RawPanels = { why?: string; activities?: string; deeper?: string }
+    type RawAIMatch = {
+      personA?: string
+      personB?: string
+      profile?: { id?: string } & Partial<ProfileData>
+      bases?: string[]
+      summary?: string
+      panels?: RawPanels
+    }
     const profileMap = new Map(profiles.map(p => [p.id, p]))
     const validMatches: MatchCandidate[] = []
 
+    const matches = Array.isArray(matchesRaw) ? (matchesRaw as RawAIMatch[]) : []
     console.log('AI returned matches:', matches)
     console.log('Available profiles:', profiles.map(p => ({ id: p.id, name: `${p.first_name} ${p.last_name}` })))
 
@@ -286,17 +309,27 @@ Keep the output concise and concrete as per the required JSON format.
 
       // Validate and filter bases to only include valid enum values
       const validBases = ['career', 'interests', 'personality']
-      const filteredBases = (match.bases || []).filter((basis: string) => 
+      let filteredBases = (match.bases || []).filter((basis: string) => 
         validBases.includes(basis.toLowerCase())
       )
+
+      // If personality is included, enforce MBTI compatibility when both types are present
+      const profileA = profileMap.get(match.personA)!
+      const profileB = profileMap.get(match.personB)!
+      if (filteredBases.includes('personality')) {
+        const hasBothMbti = !!profileA.mbti && !!profileB.mbti
+        if (hasBothMbti && !areMbtiCompatible(profileA.mbti, profileB.mbti)) {
+          filteredBases = filteredBases.filter((b: string) => b !== 'personality')
+        }
+      }
 
       validMatches.push({
         personA: match.personA,
         personB: match.personB,
-        profile: profileMap.get(match.personB)!,
+        profile: profileB,
         bases: filteredBases.length > 0 ? filteredBases : ['interests'], // Default to interests if no valid bases
         summary: match.summary || 'Great networking opportunity',
-        panels: match.panels || {
+        panels: match.panels && match.panels.why && match.panels.activities && match.panels.deeper ? match.panels as { why: string; activities: string; deeper: string } : {
           why: 'You have complementary backgrounds and interests.',
           activities: 'Discuss your shared interests and professional experiences.',
           deeper: 'What drives you most in your current role?'
@@ -333,19 +366,20 @@ Keep the output concise and concrete as per the required JSON format.
           score += 0.4
         }
 
-        // Check for personality compatibility
-        if (profileA.mbti && profileB.mbti) {
+        // Check for personality compatibility (MBTI)
+        if (areMbtiCompatible(profileA.mbti, profileB.mbti)) {
           bases.push('personality')
           score += 0.3
         }
 
         if (score > 0.5 && bases.length > 0) {
+          const personalityReason = explainMbtiCompatibility(profileA.mbti, profileB.mbti)
           matches.push({
             profile: profileB,
             bases,
-            summary: `Great networking opportunity based on ${bases.join(' and ')} compatibility.`,
+            summary: `Great opportunity based on ${bases.join(' and ')}${personalityReason ? '; personality pairs well' : ''}.`,
             panels: {
-              why: `${profileA.first_name} and ${profileB.first_name} have complementary backgrounds that could lead to valuable professional connections.`,
+              why: `${profileA.first_name} and ${profileB.first_name} have complementary backgrounds${personalityReason ? ` — ${personalityReason}` : ''}.`,
               activities: 'Discuss your shared interests and professional experiences.',
               deeper: 'What drives you most in your current role?'
             }
