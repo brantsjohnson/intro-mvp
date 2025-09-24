@@ -8,6 +8,7 @@ A mobile-first web app for conference networking with AI-powered matching, built
 - **Profile Setup**: Complete onboarding with photo upload, job details, and interests
 - **Event Joining**: QR code scanning or manual event code entry
 - **Smart Matching**: AI-powered recommendations based on career, personality, and interests
+  - Rule-guided scoring for Career and Interests, with personality as seasoning
 - **QR Connections**: Instant connections via QR code scanning
 - **Presence System**: "I'm Here" toggle with real-time status
 - **Messaging**: Direct messaging between attendees
@@ -85,6 +86,8 @@ src/
 └── lib/                   # Utilities and configurations
     ├── supabase.ts        # Supabase client
     ├── types.ts           # TypeScript types
+    ├── matching-rules.ts  # Rule weights and hobby/function mappings (Career + Interests)
+    ├── matching-engine.ts # Deterministic scoring engine and insight generation
     └── utils.ts           # Utility functions
 ```
 
@@ -114,14 +117,21 @@ The app is configured for Vercel deployment with:
 - Environment variable configuration
 - Optimized build settings
 
-## Next Steps
+## Matching Guide (Implemented)
 
-To complete the MVP, the following features need to be implemented:
-1. Profile pages with AI-generated content
-2. Messaging system with real-time updates
-3. AI matching system with OpenAI integration
-4. QR code generation and scanning
-5. Email notifications
+- Career Matching
+  - Complementary skills (goal→expertise), adjacent functions (Marketing↔Sales, Product↔Engineering, Finance↔Operations), cross‑industry peers
+  - Shared experiences (same stage; parallel journeys)
+  - Potential collaborations (agency↔CMO; SaaS builder↔target customer)
+  - Useful contrasts (technical↔creative; big vs small)
+- Interests Matching
+  - Shared hobbies (concerts, pets, outdoors, sports, cooking, gaming)
+  - Aligned categories (Food & Drink↔Travel; Outdoors & Travel↔Wellness & Health; Comedy↔Films)
+  - Personality‑adjacent hobbies (vinyl=detail‑oriented; improv=quick‑thinking; marathon=perseverance)
+
+Deterministic fallback uses `matching-engine.ts` guided by `matching-rules.ts`. AI prompts were updated to reflect these rules.
+
+Demo endpoint: GET `/api/demo-matching` returns matches for Nina and Marcus.
 
 ## Contributing
 
