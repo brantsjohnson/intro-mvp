@@ -572,7 +572,7 @@ export function UserProfile({ userId }: UserProfileProps) {
                 </div>
               ) : (
                 <p className="text-muted-foreground">
-                  {aiInsights?.why || "Based on your shared interests and complementary backgrounds, you both would benefit from discussing career growth strategies and networking opportunities."}
+                  {aiInsights?.why || "Start with goals: if one of you wants something the other has done, compare notes and trade one quick tactic; then layer in shared interests."}
                 </p>
               )}
             </AccordionSection>
@@ -589,7 +589,7 @@ export function UserProfile({ userId }: UserProfileProps) {
                 </div>
               ) : (
                 <p className="text-muted-foreground">
-                  {aiInsights?.activities || "Consider attending the networking mixer together, or grab coffee during the morning break to discuss your shared interests."}
+                  {aiInsights?.activities || "Do a 10‑minute walk‑and‑talk: swap one resource each, then pick one small idea to try this week."}
                 </p>
               )}
             </AccordionSection>
@@ -606,7 +606,7 @@ export function UserProfile({ userId }: UserProfileProps) {
                 </div>
               ) : (
                 <p className="text-muted-foreground">
-                  {aiInsights?.deeper || "What drives you most in your current role? This open-ended question can lead to meaningful conversations about career aspirations and values."}
+                  {aiInsights?.deeper || "What belief about your work did you update this year?"}
                 </p>
               )}
             </AccordionSection>

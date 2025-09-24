@@ -132,5 +132,19 @@ To complete the MVP, the following features need to be implemented:
 5. Submit a pull request
 
 ## License
+## AI Matching Priorities
+
+Our North Star rule for matchmaking and profile insights:
+
+- Career goals and networking objectives are the top filter. If one user’s goal can be answered by the other’s experience, expertise, or role, that is the strongest match. We lead the "Why You Two Should Meet" section with this alignment.
+- After goals, we layer in:
+  - Expertise & career context (complementary/parallel roles)
+  - Interests & hobbies (icebreakers and activity ideas)
+  - Personality (MBTI/Enneagram) as style guidance, not the lead
+
+Implementation details:
+
+- Prompts instruct the AI to open with goal alignment and to treat goal/objective alignment under the `career` basis in `matches.bases`.
+- Fallback logic also prioritizes shared goals when present.
 
 This project is proprietary and confidential.
