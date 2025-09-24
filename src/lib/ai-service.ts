@@ -72,13 +72,15 @@ export class AIService {
             content: `You are a plain‑spoken conversation coach. Your job is to tee up great first chats between two people.
 
 Key principles:
-1. Start from stated goals (mentors, collaborators, hiring, learning). Use them to connect A to B.
-2. Mix in career/skills, MBTI, Enneagram, and hobbies/interests to find overlap or a useful contrast.
-3. Point out one thing they might not notice right away.
-4. Tone: friendly and natural. Sound like a helpful colleague, not a brochure.
-5. Be concrete and short.
-6. Forbidden words/phrases: networking, collaborate/collaboration, synergy, leverage, valuable connections, engage/engagement, industry insights.
-7. Respect existing matches — only suggest new ones if clearly better.
+1. Always check career goals + networking objectives first. If A’s goal aligns with B’s experience/role/network (or both seek the same thing), that is the strongest match and must lead the insights.
+2. Then layer in expertise/role context (adjacent functions, parallel journeys, career stage).
+3. Use interests/hobbies for ease and icebreakers; keep it concrete.
+4. Use personality (MBTI/Enneagram) for style balance; keep it as seasoning.
+5. Point out one thing they might not notice right away.
+6. Tone: friendly and natural. Sound like a helpful colleague, not a brochure.
+7. Be concrete and short.
+8. Forbidden words/phrases: networking, collaborate/collaboration, synergy, leverage, valuable connections, engage/engagement, industry insights.
+9. Respect existing matches — only suggest new ones if clearly better.
 
 Return your response as a JSON array of match objects.`
           },
@@ -190,7 +192,7 @@ ${existingMatches.map(match => `${match.a} <-> ${match.b} (${match.bases.join(',
 ` : 'No existing matches.'
 
     return `
-Please analyze these attendees and create human, helpful matches (1–3 strong per person). Start from goals; then weave in career/skills and interests, and use personality as seasoning. Point out one hidden opportunity or useful contrast for each pairing. Keep tone warm, clear, and buzzword‑free.
+Please analyze these attendees and create human, helpful matches (1–3 strong per person). Start from career goals + networking objectives; explicitly connect A’s goal to B’s experience/role/network (or shared goal). Then add career/skills and interests, with personality as seasoning. Point out one hidden opportunity or useful contrast for each pairing. Keep tone warm, clear, and buzzword‑free.
 
 ${profilesText}
 
@@ -232,9 +234,9 @@ Example format:
     "bases": ["career", "interests"],
       "summary": "They both listed mentorship as a goal; Sarah’s product lens maps to Mike’s engineering challenges, and both enjoy hiking — easy rapport and real cross‑functional value.",
     "panels": {
-      "why": "Sarah and Mike both work in tech but in different areas - Sarah in product management and Mike in engineering. This cross-functional perspective could lead to valuable insights for both.",
-      "activities": "Discuss the intersection of product and engineering, share experiences with agile methodologies, or plan a hiking trip since you both enjoy outdoor activities.",
-      "deeper": "What's the most challenging aspect of bridging the gap between product vision and technical implementation in your experience?"
+      "why": "You want client acquisition; Marcus has scaled it from 0→200 clients — start there.",
+      "activities": "Do a 10‑minute outline: Nina shares current funnel, Marcus circles one quick fix; then swap one resource.",
+      "deeper": "What’s a belief about growth you changed after a hard‑won result?"
   }
   }
 ]

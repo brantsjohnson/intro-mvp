@@ -58,6 +58,24 @@ function potentialCollab(a: ProfileData, b: ProfileData): boolean {
   return (isAgencyA && isCMOorMarketingLead) || (isAgencyB && isCMOorMarketingLead) || (buildsSaaS && (isAgencyA || isAgencyB))
 }
 
+function bothSeekingSameDomain(a: ProfileData, b: ProfileData): boolean {
+  const gA = tokenize(toLowerArray(a.networking_goals))
+  const gB = tokenize(toLowerArray(b.networking_goals))
+  if (gA.length === 0 || gB.length === 0) return false
+  const setB = new Set(gB)
+  return gA.some(x => setB.has(x))
+}
+
+function buyerVendorBridge(a: ProfileData, b: ProfileData): boolean {
+  const textA = [a.job_title, a.what_do_you_do].filter(Boolean).join(" ").toLowerCase()
+  const textB = [b.job_title, b.what_do_you_do].filter(Boolean).join(" ").toLowerCase()
+  const isBuyerA = /(cmo|vp marketing|head of marketing|procurement|buyer|decision[- ]?maker)/.test(textA)
+  const isBuyerB = /(cmo|vp marketing|head of marketing|procurement|buyer|decision[- ]?maker)/.test(textB)
+  const seeksClientsA = tokenize(toLowerArray(a.networking_goals)).some(t => /(client|customers|pipeline|acquisition)/.test(t))
+  const seeksClientsB = tokenize(toLowerArray(b.networking_goals)).some(t => /(client|customers|pipeline|acquisition)/.test(t))
+  return (seeksClientsA && isBuyerB) || (seeksClientsB && isBuyerA)
+}
+
 function usefulContrastScore(aFunc: string, bFunc: string): number {
   if (aFunc === bFunc) return 0
   // Technical vs creative heuristic
@@ -100,7 +118,10 @@ export function scorePair(a: ProfileData, b: ProfileData, weights: MatchingRuleW
 
   // Career components
   let career = 0
+  // NORTH STAR: goals/objectives first
   if (hasGoalToExpertiseBridge(a, b)) career += weights.career.goalToExpertise
+  if (bothSeekingSameDomain(a, b)) career += weights.career.bothSeekingSame
+  if (buyerVendorBridge(a, b)) career += weights.career.buyerVendor
   if (sameOrAdjacentFunctions(aFunc, bFunc)) career += weights.career.adjacentFunctions
   if (aStage !== "unknown" && aStage === bStage) career += weights.career.sharedCareerStage
   if (potentialCollab(a, b)) career += weights.career.potentialCollaborations
@@ -133,7 +154,11 @@ export function scorePair(a: ProfileData, b: ProfileData, weights: MatchingRuleW
   const whyParts: string[] = []
   if (bases.includes("career")) {
     if (hasGoalToExpertiseBridge(a, b)) {
-      whyParts.push(`${aName}’s goal pairs with ${bName}’s experience`)
+      whyParts.push(`You want what ${bName} has done — start there`)
+    } else if (buyerVendorBridge(a, b)) {
+      whyParts.push(`${aName} wants clients; ${bName} is a buyer — quick win`)
+    } else if (bothSeekingSameDomain(a, b)) {
+      whyParts.push(`You both came looking for the same thing — trade what works`)
     } else {
       whyParts.push(`${aName} (${aFunc}) and ${bName} (${bFunc}) see the same problem from different seats`)
     }

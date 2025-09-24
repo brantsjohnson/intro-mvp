@@ -15,6 +15,8 @@ export interface MatchingRuleWeights {
     complementarySkills: number
     adjacentFunctions: number
     goalToExpertise: number
+    bothSeekingSame: number
+    buyerVendor: number
     sharedCareerStage: number
     parallelJourneys: number
     potentialCollaborations: number
@@ -37,9 +39,11 @@ export interface MatchingRuleWeights {
 
 export const DEFAULT_RULE_WEIGHTS: MatchingRuleWeights = {
   career: {
-    complementarySkills: 0.25,
+    complementarySkills: 0.2,
     adjacentFunctions: 0.15,
-    goalToExpertise: 0.25,
+    goalToExpertise: 0.4,
+    bothSeekingSame: 0.25,
+    buyerVendor: 0.35,
     sharedCareerStage: 0.1,
     parallelJourneys: 0.1,
     potentialCollaborations: 0.1,
@@ -56,7 +60,7 @@ export const DEFAULT_RULE_WEIGHTS: MatchingRuleWeights = {
   thresholds: {
     careerMin: 0.25,
     interestsMin: 0.2,
-    pairTotalMin: 0.4
+    pairTotalMin: 0.35
   }
 }
 
