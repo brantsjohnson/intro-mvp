@@ -22,6 +22,7 @@ export interface Profile {
   mbti: string | null
   enneagram: string | null
   networking_goals: string[] | null
+  hobby_details: Record<number, string> | null
   consent: boolean
 }
 
@@ -39,6 +40,19 @@ export interface Event {
 export interface Hobby {
   id: number
   label: string
+}
+
+export interface CustomHobby {
+  id: string
+  user_id: string
+  label: string
+  created_at: string
+}
+
+export interface ProfileCustomHobby {
+  user_id: string
+  custom_hobby_id: string
+  details: string | null
 }
 
 export interface Match {

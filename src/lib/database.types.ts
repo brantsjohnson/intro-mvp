@@ -26,6 +26,8 @@ export interface Database {
           enneagram: string | null
           networking_goals: string[] | null
           consent: boolean
+          career_goals: string | null
+          who_they_want_to_meet: string | null
         }
         Insert: {
           id: string
@@ -43,6 +45,8 @@ export interface Database {
           enneagram?: string | null
           networking_goals?: string[] | null
           consent?: boolean
+          career_goals?: string | null
+          who_they_want_to_meet?: string | null
         }
         Update: {
           id?: string
@@ -60,6 +64,8 @@ export interface Database {
           enneagram?: string | null
           networking_goals?: string[] | null
           consent?: boolean
+          career_goals?: string | null
+          who_they_want_to_meet?: string | null
         }
       }
       events: {

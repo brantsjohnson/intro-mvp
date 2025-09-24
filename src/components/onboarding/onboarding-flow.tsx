@@ -8,12 +8,17 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { HobbiesGrid } from "@/components/ui/hobbies-grid"
+import { HobbiesGridNew } from "@/components/ui/hobbies-grid-new"
+import { ImageCropModal } from "@/components/ui/image-crop-modal"
+import { PersonalitySelect } from "@/components/ui/personality-select"
+import { ExpertiseSuggestions } from "@/components/ui/expertise-suggestions"
+import { NetworkingGoalsNew } from "@/components/ui/networking-goals-new"
 import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
 import { User, Hobby } from "@/lib/types"
+import { useAutoSave } from "@/lib/use-autosave"
 import { toast } from "sonner"
-import { Camera, ArrowRight } from "lucide-react"
+import { Camera, ArrowRight, Upload, Settings } from "lucide-react"
 
 
 interface OnboardingStep {
@@ -35,8 +40,8 @@ export function OnboardingFlow() {
   const [selectedHobbies, setSelectedHobbies] = useState<number[]>([])
   const [expertiseTags, setExpertiseTags] = useState<string[]>([])
   const [customExpertiseTags, setCustomExpertiseTags] = useState<string[]>([])
-  const [newTag, setNewTag] = useState("")
   const [networkingGoals, setNetworkingGoals] = useState<string[]>([])
+  const [networkingGoalDetails, setNetworkingGoalDetails] = useState<Record<string, string>>({})
   const [customNetworkingGoal, setCustomNetworkingGoal] = useState("")
   const [isJoiningEvent, setIsJoiningEvent] = useState(false)
   
@@ -45,42 +50,44 @@ export function OnboardingFlow() {
   const [lastName, setLastName] = useState("")
   const [jobTitle, setJobTitle] = useState("")
   const [company, setCompany] = useState("")
-  const [whatDoYouDo, setWhatDoYouDo] = useState("")
-  const [linkedinUrl, setLinkedinUrl] = useState("")
+  const [careerGoals, setCareerGoals] = useState("")
   const [mbti, setMbti] = useState("")
   const [enneagram, setEnneagram] = useState("")
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [showCropModal, setShowCropModal] = useState(false)
+  const [tempImageUrl, setTempImageUrl] = useState<string | null>(null)
+  const [hobbyDetails, setHobbyDetails] = useState<Record<number, string>>({})
+  const [customHobbies, setCustomHobbies] = useState<Array<{ id: string; label: string; details?: string }>>([])
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   
   const router = useRouter()
   const supabase = createClientComponentClient()
 
-  // Generate AI-based expertise suggestions based on job title
-  const generateExpertiseSuggestions = (jobTitle: string): string[] => {
-    const title = jobTitle.toLowerCase()
-    
-    if (title.includes('engineer') || title.includes('developer') || title.includes('programmer')) {
-      return ['Software Development', 'System Architecture', 'Code Review', 'Technical Leadership', 'API Design', 'Database Management']
-    } else if (title.includes('designer') || title.includes('ux') || title.includes('ui')) {
-      return ['User Experience Design', 'Visual Design', 'Prototyping', 'Design Systems', 'User Research', 'Interface Design']
-    } else if (title.includes('manager') || title.includes('director') || title.includes('lead')) {
-      return ['Team Leadership', 'Project Management', 'Strategic Planning', 'Process Improvement', 'Stakeholder Management', 'Budget Planning']
-    } else if (title.includes('marketing') || title.includes('growth') || title.includes('brand')) {
-      return ['Digital Marketing', 'Content Strategy', 'Brand Management', 'Campaign Planning', 'Analytics', 'Social Media']
-    } else if (title.includes('sales') || title.includes('business development')) {
-      return ['Client Relations', 'Sales Strategy', 'Lead Generation', 'Negotiation', 'Market Analysis', 'Revenue Growth']
-    } else if (title.includes('product') || title.includes('pm')) {
-      return ['Product Strategy', 'Feature Planning', 'User Stories', 'Market Research', 'Roadmap Development', 'Cross-functional Collaboration']
-    } else if (title.includes('data') || title.includes('analyst') || title.includes('scientist')) {
-      return ['Data Analysis', 'Statistical Modeling', 'Machine Learning', 'Data Visualization', 'Predictive Analytics', 'Database Querying']
-    } else if (title.includes('finance') || title.includes('accounting') || title.includes('cfo')) {
-      return ['Financial Analysis', 'Budget Management', 'Risk Assessment', 'Investment Strategy', 'Financial Reporting', 'Cost Optimization']
-    } else if (title.includes('hr') || title.includes('human resources') || title.includes('people')) {
-      return ['Talent Acquisition', 'Employee Relations', 'Performance Management', 'Training & Development', 'Organizational Culture', 'Compensation Planning']
-    } else {
-      return ['Problem Solving', 'Communication', 'Project Coordination', 'Process Optimization', 'Client Service', 'Strategic Thinking']
-    }
-  }
+  // Auto-save functionality
+  useAutoSave({
+    userId: user?.id || null,
+    user: user,
+    data: {
+      firstName,
+      lastName,
+      mbti,
+      enneagram,
+      selectedHobbies,
+      hobbyDetails,
+      customHobbies,
+      jobTitle,
+      company,
+      careerGoals,
+      expertiseTags,
+      customExpertiseTags,
+      networkingGoals,
+      networkingGoalDetails,
+      customNetworkingGoal
+    },
+    enabled: !!user && (firstName || lastName) // Only auto-save if user exists and has basic info
+  })
+
 
   useEffect(() => {
     const getUser = async () => {
@@ -166,13 +173,74 @@ export function OnboardingFlow() {
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image must be smaller than 5MB")
+        return
+      }
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error("Please select an image file")
+        return
+      }
+      
       setAvatarFile(file)
       const reader = new FileReader()
       reader.onload = (e) => {
-        setAvatarPreview(e.target?.result as string)
+        const result = e.target?.result as string
+        setTempImageUrl(result)
+        setShowCropModal(true)
       }
       reader.readAsDataURL(file)
     }
+  }
+
+  const handleTakePhoto = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+      const video = document.createElement('video')
+      video.srcObject = stream
+      video.play()
+      
+      // Create a canvas to capture the photo
+      const canvas = document.createElement('canvas')
+      const context = canvas.getContext('2d')
+      
+      video.addEventListener('loadedmetadata', () => {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        context?.drawImage(video, 0, 0)
+        
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const file = new File([blob], 'photo.jpg', { type: 'image/jpeg' })
+            setAvatarFile(file)
+            const url = URL.createObjectURL(blob)
+            setTempImageUrl(url)
+            setShowCropModal(true)
+          }
+          
+          // Stop the camera
+          stream.getTracks().forEach(track => track.stop())
+        }, 'image/jpeg', 0.9)
+      })
+    } catch (error) {
+      console.error('Camera error:', error)
+      toast.error("Camera access denied. Please use upload instead.")
+    }
+  }
+
+  const handleCropSave = (croppedImageUrl: string) => {
+    setAvatarPreview(croppedImageUrl)
+    setShowCropModal(false)
+    setTempImageUrl(null)
+  }
+
+  const handleCropCancel = () => {
+    setShowCropModal(false)
+    setTempImageUrl(null)
+    setAvatarFile(null)
   }
 
   const uploadAvatar = async (userId: string) => {
@@ -197,20 +265,54 @@ export function OnboardingFlow() {
     return data.publicUrl
   }
 
-  const addExpertiseTag = () => {
-    if (newTag.trim() && !customExpertiseTags.includes(newTag.trim()) && !expertiseTags.includes(newTag.trim())) {
-      setCustomExpertiseTags([...customExpertiseTags, newTag.trim()])
-      setNewTag("")
+
+  const handleCustomHobbyAdd = (label: string) => {
+    const newHobby = {
+      id: crypto.randomUUID(),
+      label,
+      details: ''
+    }
+    setCustomHobbies([...customHobbies, newHobby])
+  }
+
+  const handleCustomHobbyRemove = (id: string) => {
+    setCustomHobbies(customHobbies.filter(hobby => hobby.id !== id))
+  }
+
+  const handleCustomHobbyDetailsChange = (id: string, details: string) => {
+    setCustomHobbies(customHobbies.map(hobby => 
+      hobby.id === id ? { ...hobby, details } : hobby
+    ))
+  }
+
+  const handleHobbyDetailsChange = (hobbyId: number, details: string) => {
+    setHobbyDetails(prev => ({
+      ...prev,
+      [hobbyId]: details
+    }))
+  }
+
+  const handleNetworkingGoalChange = (goalId: string, checked: boolean) => {
+    if (checked) {
+      setNetworkingGoals([...networkingGoals, goalId])
+    } else {
+      setNetworkingGoals(networkingGoals.filter(id => id !== goalId))
+      // Clear details when goal is unchecked
+      setNetworkingGoalDetails(prev => {
+        const newDetails = { ...prev }
+        delete newDetails[goalId]
+        return newDetails
+      })
     }
   }
 
-  const removeExpertiseTag = (tag: string) => {
-    setExpertiseTags(expertiseTags.filter(t => t !== tag))
+  const handleNetworkingGoalDetailChange = (goalId: string, detail: string) => {
+    setNetworkingGoalDetails(prev => ({
+      ...prev,
+      [goalId]: detail
+    }))
   }
 
-  const removeCustomExpertiseTag = (tag: string) => {
-    setCustomExpertiseTags(customExpertiseTags.filter(t => t !== tag))
-  }
 
 
   const handleJoinEvent = async (eventCode: string) => {
@@ -265,8 +367,42 @@ export function OnboardingFlow() {
     }
   }
 
+  const validateForm = () => {
+    const errors: Record<string, string> = {}
+    
+    if (!firstName.trim()) {
+      errors.firstName = "Please add your first name"
+    }
+    if (!lastName.trim()) {
+      errors.lastName = "Please add your last name"
+    }
+    
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const validateProfessionalForm = () => {
+    const errors: Record<string, string> = {}
+    
+    if (!jobTitle.trim()) {
+      errors.jobTitle = "Please enter your job title"
+    }
+    if (!company.trim()) {
+      errors.company = "Please enter your company"
+    }
+    
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
   const handleCompleteOnboarding = async () => {
     if (!user) return
+
+    // Validate required fields
+    if (!validateForm()) {
+      toast.error("Please complete the required fields")
+      return
+    }
 
     setIsLoading(true)
     try {
@@ -290,8 +426,7 @@ export function OnboardingFlow() {
           avatar_url: avatarUrl,
           job_title: jobTitle,
           company: company,
-          what_do_you_do: whatDoYouDo,
-          linkedin_url: linkedinUrl,
+          what_do_you_do: careerGoals,
           mbti: mbti,
           enneagram: enneagram,
           networking_goals: customNetworkingGoal.trim() 
@@ -320,6 +455,40 @@ export function OnboardingFlow() {
         if (hobbiesError) {
           toast.error("Failed to save hobbies")
           return
+        }
+      }
+
+      // Add custom hobbies
+      if (customHobbies.length > 0) {
+        for (const customHobby of customHobbies) {
+          // Insert custom hobby
+          const { data: hobbyData, error: hobbyError } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+            .from("custom_hobbies")
+            .insert({
+              id: customHobby.id,
+              user_id: user.id,
+              label: customHobby.label
+            })
+            .select()
+            .single()
+
+          if (hobbyError) {
+            console.error("Custom hobby error:", hobbyError)
+            continue
+          }
+
+          // Link to profile
+          const { error: linkError } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+            .from("profile_custom_hobbies")
+            .insert({
+              user_id: user.id,
+              custom_hobby_id: hobbyData.id,
+              details: customHobby.details
+            })
+
+          if (linkError) {
+            console.error("Custom hobby link error:", linkError)
+          }
         }
       }
 
@@ -419,25 +588,37 @@ export function OnboardingFlow() {
                 {avatarPreview ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={avatarPreview} alt="Avatar preview" className="w-full h-full object-cover" />
+                ) : firstName && lastName ? (
+                  <div className="w-full h-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-lg">
+                    {firstName[0]}{lastName[0]}
+                  </div>
                 ) : (
                   <Camera className="h-8 w-8 text-muted-foreground" />
                 )}
               </div>
-              <div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="user"
-                  onChange={handleAvatarUpload}
-                  className="hidden"
-                  id="avatar-upload"
-                />
-                <Label htmlFor="avatar-upload" className="cursor-pointer">
-                  <GradientButton variant="outline" size="sm" asChild>
-                    <span>Take Photo</span>
+              <div className="space-y-2">
+                <div className="flex space-x-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    className="hidden"
+                    id="avatar-upload"
+                  />
+                  <Label htmlFor="avatar-upload" className="cursor-pointer">
+                    <GradientButton variant="outline" size="sm" asChild>
+                      <span className="flex items-center">
+                        <Upload className="h-4 w-4 mr-1" />
+                        {avatarPreview ? 'Change Photo' : 'Upload Photo'}
+                      </span>
+                    </GradientButton>
+                  </Label>
+                  <GradientButton variant="outline" size="sm" onClick={handleTakePhoto}>
+                    <Camera className="h-4 w-4 mr-1" />
+                    Take Photo
                   </GradientButton>
-                </Label>
-                <p className="text-xs text-muted-foreground mt-1">
+                </div>
+                <p className="text-xs text-muted-foreground">
                   Your photo will be visible to other attendees
                 </p>
               </div>
@@ -453,11 +634,23 @@ export function OnboardingFlow() {
               <Input
                 id="firstName"
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                onChange={(e) => {
+                  setFirstName(e.target.value)
+                  if (validationErrors.firstName) {
+                    setValidationErrors(prev => {
+                      const newErrors = { ...prev }
+                      delete newErrors.firstName
+                      return newErrors
+                    })
+                  }
+                }}
                 placeholder="e.g. John"
-                className="mt-1 rounded-xl"
+                className={`mt-1 rounded-xl ${validationErrors.firstName ? 'border-destructive' : ''}`}
                 required
               />
+              {validationErrors.firstName && (
+                <p className="text-xs text-destructive mt-1">{validationErrors.firstName}</p>
+              )}
             </div>
             <div>
               <Label htmlFor="lastName" className="text-sm font-medium text-foreground">
@@ -466,41 +659,38 @@ export function OnboardingFlow() {
               <Input
                 id="lastName"
                 value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                onChange={(e) => {
+                  setLastName(e.target.value)
+                  if (validationErrors.lastName) {
+                    setValidationErrors(prev => {
+                      const newErrors = { ...prev }
+                      delete newErrors.lastName
+                      return newErrors
+                    })
+                  }
+                }}
                 placeholder="e.g. Doe"
-                className="mt-1 rounded-xl"
+                className={`mt-1 rounded-xl ${validationErrors.lastName ? 'border-destructive' : ''}`}
                 required
               />
+              {validationErrors.lastName && (
+                <p className="text-xs text-destructive mt-1">{validationErrors.lastName}</p>
+              )}
             </div>
           </div>
 
           {/* Personality Types */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="mbti" className="text-sm font-medium text-foreground">
-                Myers-Briggs Type (Optional)
-              </Label>
-              <Input
-                id="mbti"
-                value={mbti}
-                onChange={(e) => setMbti(e.target.value.toUpperCase())}
-                placeholder="e.g. ENFP"
-                maxLength={4}
-                className="mt-1 rounded-xl"
-              />
-            </div>
-            <div>
-              <Label htmlFor="enneagram" className="text-sm font-medium text-foreground">
-                Enneagram Type (Optional)
-              </Label>
-              <Input
-                id="enneagram"
-                value={enneagram}
-                onChange={(e) => setEnneagram(e.target.value)}
-                placeholder="e.g. 8 or 8w7"
-                className="mt-1 rounded-xl"
-              />
-            </div>
+            <PersonalitySelect
+              value={mbti}
+              onChange={setMbti}
+              type="mbti"
+            />
+            <PersonalitySelect
+              value={enneagram}
+              onChange={setEnneagram}
+              type="enneagram"
+            />
           </div>
 
           {/* Hobbies & Interests */}
@@ -508,17 +698,28 @@ export function OnboardingFlow() {
             <Label className="text-sm font-medium text-foreground mb-3 block">
               Hobbies & Interests
             </Label>
-            <HobbiesGrid
+            <HobbiesGridNew
               hobbies={hobbies}
               selectedHobbies={selectedHobbies}
+              customHobbies={customHobbies}
+              hobbyDetails={hobbyDetails}
               onHobbyChange={(hobbyId, checked) => {
                 if (checked) {
                   setSelectedHobbies([...selectedHobbies, hobbyId])
                 } else {
                   setSelectedHobbies(selectedHobbies.filter(id => id !== hobbyId))
+                  // Remove details when hobby is unchecked
+                  setHobbyDetails(prev => {
+                    const newDetails = { ...prev }
+                    delete newDetails[hobbyId]
+                    return newDetails
+                  })
                 }
               }}
-              mode="select"
+              onHobbyDetailsChange={handleHobbyDetailsChange}
+              onCustomHobbyAdd={handleCustomHobbyAdd}
+              onCustomHobbyRemove={handleCustomHobbyRemove}
+              onCustomHobbyDetailsChange={handleCustomHobbyDetailsChange}
             />
           </div>
         </div>
@@ -539,11 +740,23 @@ export function OnboardingFlow() {
               <Input
                 id="jobTitle"
                 value={jobTitle}
-                onChange={(e) => setJobTitle(e.target.value)}
+                onChange={(e) => {
+                  setJobTitle(e.target.value)
+                  if (validationErrors.jobTitle) {
+                    setValidationErrors(prev => {
+                      const newErrors = { ...prev }
+                      delete newErrors.jobTitle
+                      return newErrors
+                    })
+                  }
+                }}
                 placeholder="e.g. Software Engineer"
-                className="mt-1 rounded-xl"
+                className={`mt-1 rounded-xl ${validationErrors.jobTitle ? 'border-destructive' : ''}`}
                 required
               />
+              {validationErrors.jobTitle && (
+                <p className="text-xs text-destructive mt-1">{validationErrors.jobTitle}</p>
+              )}
             </div>
             <div>
               <Label htmlFor="company" className="text-sm font-medium text-foreground">
@@ -552,181 +765,75 @@ export function OnboardingFlow() {
               <Input
                 id="company"
                 value={company}
-                onChange={(e) => setCompany(e.target.value)}
+                onChange={(e) => {
+                  setCompany(e.target.value)
+                  if (validationErrors.company) {
+                    setValidationErrors(prev => {
+                      const newErrors = { ...prev }
+                      delete newErrors.company
+                      return newErrors
+                    })
+                  }
+                }}
                 placeholder="e.g. Tech Corp"
-                className="mt-1 rounded-xl"
+                className={`mt-1 rounded-xl ${validationErrors.company ? 'border-destructive' : ''}`}
                 required
               />
+              {validationErrors.company && (
+                <p className="text-xs text-destructive mt-1">{validationErrors.company}</p>
+              )}
             </div>
           </div>
 
-          {/* What do you do */}
+          {/* Career Goals */}
           <div>
-            <Label htmlFor="whatDoYouDo" className="text-sm font-medium text-foreground">
-              What do you do? (Optional)
+            <Label htmlFor="careerGoals" className="text-sm font-medium text-foreground">
+              What are your career goals? (Optional)
             </Label>
             <Textarea
-              id="whatDoYouDo"
-              value={whatDoYouDo}
-              onChange={(e) => setWhatDoYouDo(e.target.value)}
-              placeholder="Briefly describe your role and responsibilities..."
+              id="careerGoals"
+              value={careerGoals}
+              onChange={(e) => setCareerGoals(e.target.value)}
+              placeholder="e.g., Move into product leadership, learn fundraising, expand into international markets."
               className="mt-1 rounded-xl"
               rows={3}
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              This helps us connect you with people who share your professional interests or can help you grow.
+            </p>
           </div>
 
           {/* Areas of Expertise with AI suggestions */}
-          <div>
-            <Label className="text-sm font-medium text-foreground mb-3 block">
-              Areas of Expertise
-            </Label>
-            
-            {/* Custom input field first */}
-            <div className="mb-4">
-              <div className="flex space-x-2">
-                <Input
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                  placeholder="Add your own expertise area"
-                  className="rounded-xl"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      addExpertiseTag()
-                    }
-                  }}
-                />
-                <GradientButton onClick={addExpertiseTag} size="sm">
-                  Add
-                </GradientButton>
-              </div>
-            </div>
-
-            {/* Suggested tags below custom input */}
-            {jobTitle && (
-              <div className="mb-4">
-                <p className="text-sm text-muted-foreground mb-2">Suggested based on your job title:</p>
-                <div className="flex flex-wrap gap-2">
-                  {generateExpertiseSuggestions(jobTitle).map((suggestion) => {
-                    const isSelected = expertiseTags.includes(suggestion)
-                    return (
-                      <button
-                        key={suggestion}
-                        onClick={() => {
-                          if (isSelected) {
-                            removeExpertiseTag(suggestion)
-                          } else {
-                            setExpertiseTags([...expertiseTags, suggestion])
-                          }
-                        }}
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-sm border transition-colors ${
-                          isSelected
-                            ? 'bg-primary/10 text-primary border-primary/20'
-                            : 'bg-muted/50 text-foreground border-border hover:bg-primary/10 hover:border-primary/20'
-                        }`}
-                      >
-                        {isSelected ? '✓' : '+'} {suggestion}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Custom tags displayed below suggested tags */}
-            {customExpertiseTags.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {customExpertiseTags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary/10 text-primary border border-primary/20"
-                  >
-                    {tag}
-                    <button
-                      onClick={() => removeCustomExpertiseTag(tag)}
-                      className="ml-2 hover:text-destructive"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* LinkedIn URL */}
-          <div>
-            <Label htmlFor="linkedinUrl" className="text-sm font-medium text-foreground">
-              LinkedIn URL
-            </Label>
-            <Input
-              id="linkedinUrl"
-              type="url"
-              value={linkedinUrl}
-              onChange={(e) => setLinkedinUrl(e.target.value)}
-              placeholder="https://linkedin.com/in/yourname"
-              className="mt-1 rounded-xl"
-            />
-          </div>
+          <ExpertiseSuggestions
+            jobTitle={jobTitle}
+            company={company}
+            careerGoals={careerGoals}
+            selectedExpertise={expertiseTags}
+            customExpertise={customExpertiseTags}
+            onExpertiseChange={setExpertiseTags}
+            onCustomExpertiseChange={setCustomExpertiseTags}
+          />
         </div>
       )
     },
     {
       id: "networking-goals",
       title: "Networking Goals",
-      description: "What are you looking to network about?",
+      description: "What are you hoping to get out of this event?",
       component: (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              "Advice & Guidance",
-              "Business Development",
-              "Career Advancement",
-              "Collaboration Opportunities",
-              "Friends & Connections",
-              "Industry Insights",
-              "Mentorship",
-              "Peer Relationships",
-              "Professional Growth",
-              "Skill Enhancement"
-            ].map((goal) => (
-              <div key={goal} className="flex items-center space-x-3 rounded-xl p-3 transition-colors">
-                <Checkbox
-                  id={`networking-${goal}`}
-                  checked={networkingGoals.includes(goal)}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setNetworkingGoals([...networkingGoals, goal])
-                    } else {
-                      setNetworkingGoals(networkingGoals.filter(g => g !== goal))
-                    }
-                  }}
-                  className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                />
-                <label
-                  htmlFor={`networking-${goal}`}
-                  className="text-sm font-medium cursor-pointer flex-1"
-                >
-                  {goal}
-                </label>
-              </div>
-            ))}
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Your goals help us connect you with the right people.
+          </p>
           
-          {/* Custom networking goal input */}
-          <div>
-            <Label htmlFor="customNetworkingGoal" className="text-sm font-medium text-foreground">
-              Other (tell us what type of people you hope to meet)
-            </Label>
-            <Textarea
-              id="customNetworkingGoal"
-              value={customNetworkingGoal}
-              onChange={(e) => setCustomNetworkingGoal(e.target.value)}
-              placeholder="e.g., I'm looking to meet startup founders in the fintech space..."
-              className="mt-1 rounded-xl"
-              rows={3}
-            />
-          </div>
+          <NetworkingGoalsNew
+            selectedGoals={networkingGoals}
+            goalDetails={networkingGoalDetails}
+            customGoal={customNetworkingGoal}
+            onGoalChange={handleNetworkingGoalChange}
+            onGoalDetailChange={handleNetworkingGoalDetailChange}
+            onCustomGoalChange={setCustomNetworkingGoal}
+          />
         </div>
       )
     }
@@ -819,13 +926,26 @@ export function OnboardingFlow() {
                 {isLastStep ? (
                   <GradientButton
                     onClick={handleCompleteOnboarding}
-                    disabled={isLoading || (fromEventJoin ? false : (!firstName || !lastName || !jobTitle || !company))}
+                    disabled={isLoading || (fromEventJoin ? (networkingGoals.length === 0 && !customNetworkingGoal.trim()) : (!firstName || !lastName || !jobTitle || !company))}
                   >
                     {isLoading ? "Completing..." : (fromEventJoin ? "Find Matches" : "Join Event")}
                   </GradientButton>
                 ) : (
                   <GradientButton
-                    onClick={() => setCurrentStep(currentStep + 1)}
+                    onClick={() => {
+                      if (currentStep === 0) {
+                        if (!validateForm()) {
+                          toast.error("Please complete the required fields")
+                          return
+                        }
+                      } else if (currentStep === 1) {
+                        if (!validateProfessionalForm()) {
+                          toast.error("Please complete the required fields")
+                          return
+                        }
+                      }
+                      setCurrentStep(currentStep + 1)
+                    }}
                     disabled={
                       (currentStep === 0 && (!firstName || !lastName)) ||
                       (currentStep === 1 && (!jobTitle || !company))
@@ -860,6 +980,14 @@ export function OnboardingFlow() {
           )}
         </Card>
       </div>
+      
+      {/* Image Crop Modal */}
+      <ImageCropModal
+        isOpen={showCropModal}
+        onClose={handleCropCancel}
+        onSave={handleCropSave}
+        imageUrl={tempImageUrl || ''}
+      />
     </div>
   )
 }

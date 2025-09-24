@@ -82,7 +82,7 @@ export class EventQRCodeService {
     }
     
     // Check if it's a URL with event code (common case)
-    if (trimmedContent && trimmedContent.includes('code=')) {
+    if (trimmedContent && typeof trimmedContent === 'string' && trimmedContent.includes('code=')) {
       try {
         const url = new URL(trimmedContent)
         const eventCode = url.searchParams.get('code')

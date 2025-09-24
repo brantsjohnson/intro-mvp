@@ -49,6 +49,9 @@ export function EventJoinScanner({
       setScanError(null)
       setIsScanning(true)
       console.log('Starting QR scanner...')
+      
+      // The actual scanning logic is handled in the useEffect hook
+      // This function just sets the state to trigger the scanning
     } catch (error) {
       console.error('Error starting QR scanner:', error)
       setScanError('Failed to start camera. Please check permissions.')
@@ -164,7 +167,7 @@ export function EventJoinScanner({
             }
             if (error && !(error instanceof Error && error.name === 'NotFoundException')) {
               // Only log meaningful errors, not the constant "not found" errors
-              if (error instanceof Error && !error.message.includes('No MultiFormat Readers')) {
+              if (error instanceof Error && error.message && !error.message.includes('No MultiFormat Readers')) {
                 console.warn('QR scan error:', error.message)
               }
             }
