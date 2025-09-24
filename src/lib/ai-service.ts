@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { scoreAllPairs } from "@/lib/matching-engine"
 
 function getOpenAI(): OpenAI | null {
   // Never initialize OpenAI on the client and only if key exists
@@ -189,19 +190,25 @@ ${existingMatches.map(match => `${match.a} <-> ${match.b} (${match.bases.join(',
 ` : 'No existing matches.'
 
     return `
-Please analyze these attendees and create human, helpful matches (1–3 strong per person). Start from goals; then weave in career/skills, MBTI, Enneagram, and hobbies/interests. Point out one hidden opportunity or useful contrast for each pairing. Keep tone warm, clear, and buzzword‑free.
+Please analyze these attendees and create human, helpful matches (1–3 strong per person). Start from goals; then weave in career/skills and interests, and use personality as seasoning. Point out one hidden opportunity or useful contrast for each pairing. Keep tone warm, clear, and buzzword‑free.
 
 ${profilesText}
 
 ${existingMatchesText}
 
-Consider these matching criteria:
-1. Career complementarity (different but related roles, cross-industry insights)
-2. Shared interests and hobbies
-3. Personality compatibility (MBTI/Enneagram)
-4. Networking goals alignment
-5. Geographic proximity (if relevant)
-6. Expertise overlap or complementarity
+Use this AI Matching Reference Guide:
+
+Career Matching — prioritize usefulness, complementarity, and shared journeys:
+1) Complementary skills: goal → expertise matches; adjacent functions (Marketing↔Sales, Product↔Engineering, Finance↔Operations); cross‑industry peers in same function.
+2) Shared experiences: same career stage; parallel journeys (e.g., startup→enterprise, worked abroad, scaled teams).
+3) Potential collaborations: direct (agency↔CMO; SaaS builder↔target customer) and indirect (same audience; same conferences).
+4) Useful contrasts: big vs small company perspectives; technical↔creative; industry crossovers.
+
+Interests Matching — ease and human bonding:
+1) Shared hobbies: name exact overlaps (concerts, pets, outdoors, sports, cooking, gaming).
+2) Aligned categories: Food & Drink↔Travel; Outdoors & Travel↔Wellness & Health; Comedy↔Films.
+3) Personality‑adjacent hobbies: vinyl=detail‑oriented; improv=quick‑thinking; marathon=perseverance.
+4) Fun icebreakers: swap playlists, share hiking spots, favorite recipes, debate best sitcom.
 
 Return a JSON array of match objects. Each match should have:
 - "personA": profile ID
@@ -228,7 +235,7 @@ Example format:
       "why": "Sarah and Mike both work in tech but in different areas - Sarah in product management and Mike in engineering. This cross-functional perspective could lead to valuable insights for both.",
       "activities": "Discuss the intersection of product and engineering, share experiences with agile methodologies, or plan a hiking trip since you both enjoy outdoor activities.",
       "deeper": "What's the most challenging aspect of bridging the gap between product vision and technical implementation in your experience?"
-    }
+  }
   }
 ]
 `
@@ -309,52 +316,15 @@ Keep the output concise and concrete as per the required JSON format.
   }
 
   private fallbackMatching(profiles: ProfileData[]): MatchCandidate[] {
-    // Simple fallback matching based on basic criteria
-    const matches: MatchCandidate[] = []
-    
-    for (let i = 0; i < profiles.length; i++) {
-      for (let j = i + 1; j < profiles.length; j++) {
-        const profileA = profiles[i]
-        const profileB = profiles[j]
-        
-        const bases: string[] = []
-        let score = 0
-
-        // Check for shared hobbies
-        const commonHobbies = profileA.hobbies.filter(h => profileB.hobbies.includes(h))
-        if (commonHobbies.length > 0) {
-          bases.push('interests')
-          score += 0.3
-        }
-
-        // Check for career complementarity
-        if (profileA.company !== profileB.company) {
-          bases.push('career')
-          score += 0.4
-        }
-
-        // Check for personality compatibility
-        if (profileA.mbti && profileB.mbti) {
-          bases.push('personality')
-          score += 0.3
-        }
-
-        if (score > 0.5 && bases.length > 0) {
-          matches.push({
-            profile: profileB,
-            bases,
-            summary: `Great networking opportunity based on ${bases.join(' and ')} compatibility.`,
-            panels: {
-              why: `${profileA.first_name} and ${profileB.first_name} have complementary backgrounds that could lead to valuable professional connections.`,
-              activities: 'Discuss your shared interests and professional experiences.',
-              deeper: 'What drives you most in your current role?'
-            }
-          })
-        }
-      }
-    }
-
-    return matches
+    const scored = scoreAllPairs(profiles)
+    return scored.map(m => ({
+      personA: m.personA,
+      personB: m.personB,
+      profile: profiles.find(p => p.id === m.personB)!,
+      bases: m.bases,
+      summary: m.summary,
+      panels: m.panels
+    }))
   }
 
   private fallbackProfileInsights(profileA: ProfileData, profileB: ProfileData): {
