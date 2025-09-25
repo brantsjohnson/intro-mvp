@@ -62,9 +62,13 @@ export interface Match {
   b: string
   bases: string[]
   summary: string
-  panels: Record<string, unknown>
+  why_meet: string
+  shared_activities: string
+  dive_deeper: string
   created_at: string
   is_system: boolean
+  is_met: boolean
+  met_at: string | null
 }
 
 export interface Connection {

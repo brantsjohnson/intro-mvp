@@ -207,9 +207,13 @@ export interface Database {
           b: string
           bases: string[]
           summary: string
-          panels: Json
+          why_meet: string
+          shared_activities: string
+          dive_deeper: string
           created_at: string
           is_system: boolean
+          is_met: boolean
+          met_at: string | null
         }
         Insert: {
           id?: string
@@ -218,9 +222,13 @@ export interface Database {
           b: string
           bases: string[]
           summary: string
-          panels: Json
+          why_meet: string
+          shared_activities: string
+          dive_deeper: string
           created_at?: string
           is_system?: boolean
+          is_met?: boolean
+          met_at?: string | null
         }
         Update: {
           id?: string
@@ -229,9 +237,13 @@ export interface Database {
           b?: string
           bases?: string[]
           summary?: string
-          panels?: Json
+          why_meet?: string
+          shared_activities?: string
+          dive_deeper?: string
           created_at?: string
           is_system?: boolean
+          is_met?: boolean
+          met_at?: string | null
         }
       }
       connections: {
