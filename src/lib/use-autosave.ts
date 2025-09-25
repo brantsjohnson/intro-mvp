@@ -98,7 +98,7 @@ export function useAutoSave({ userId, user, data, enabled = true, debounceMs = 1
         ]
 
         // Save profile data
-        const { error: profileError } = await (supabase as any)
+        const { error: profileError } = await supabase
           .from("profiles")
           .upsert({
             id: userId,
