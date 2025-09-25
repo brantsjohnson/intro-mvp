@@ -33,22 +33,7 @@ export async function POST(request: NextRequest) {
 
     const eventId = eventData.id
 
-    // Enqueue all users in the event
-    const { data: enqueuedCount, error: enqueueError } = await supabase
-      .rpc('enqueue_event_matchmaking', { 
-        p_event_id: eventId, 
-        p_priority: priority 
-      })
-
-    if (enqueueError) {
-      console.error('Enqueue error:', enqueueError)
-      return NextResponse.json({ 
-        error: 'Failed to enqueue users', 
-        details: enqueueError.message 
-      }, { status: 500 })
-    }
-
-    // Trigger the matchmaker function immediately
+    // Trigger the matchmaker function directly
     const matchmakerUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/matchmaker`
     const matchmakerResponse = await fetch(matchmakerUrl, {
       method: 'POST',
@@ -56,14 +41,10 @@ export async function POST(request: NextRequest) {
         'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ event_id: eventId })
+      body: JSON.stringify({ event_code: eventCode })
     })
 
     const matchmakerResult = await matchmakerResponse.json()
-
-    // Get queue stats
-    const { data: queueStats, error: statsError } = await supabase
-      .rpc('get_matchmaking_queue_stats', { p_event_id: eventId })
 
     return NextResponse.json({
       success: true,
@@ -72,10 +53,8 @@ export async function POST(request: NextRequest) {
         name: eventData.name,
         code: eventCode
       },
-      enqueued: enqueuedCount,
       matchmaker_triggered: matchmakerResponse.ok,
-      matchmaker_result: matchmakerResult,
-      queue_stats: queueStats?.[0] || null
+      matchmaker_result: matchmakerResult
     })
 
   } catch (error: any) {
@@ -87,7 +66,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET endpoint to check queue status
+// GET endpoint to check event status
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -99,36 +78,45 @@ export async function GET(request: NextRequest) {
     )
 
     if (eventCode) {
-      // Get stats for specific event
-      const { data: eventData } = await supabase
+      // Get event details and match count
+      const { data: eventData, error: eventError } = await supabase
         .from('events')
-        .select('id')
+        .select('id, name, matchmaking_enabled')
         .eq('code', eventCode.toUpperCase())
         .single()
 
-      if (!eventData) {
+      if (eventError || !eventData) {
         return NextResponse.json({ error: 'Event not found' }, { status: 404 })
       }
 
-      const { data: queueStats, error: statsError } = await supabase
-        .rpc('get_matchmaking_queue_stats', { p_event_id: eventData.id })
+      // Get match count for this event
+      const { count: matchCount, error: countError } = await supabase
+        .from('matches')
+        .select('*', { count: 'exact', head: true })
+        .eq('event_id', eventData.id)
 
       return NextResponse.json({
         event_code: eventCode,
-        stats: queueStats?.[0] || null
+        event: eventData,
+        match_count: matchCount || 0
       })
     } else {
-      // Get stats for all events
-      const { data: allStats, error: statsError } = await supabase
-        .rpc('get_matchmaking_queue_stats')
+      // Get all events with match counts
+      const { data: events, error: eventsError } = await supabase
+        .from('events')
+        .select('id, name, code, matchmaking_enabled')
+
+      if (eventsError) {
+        return NextResponse.json({ error: 'Failed to fetch events' }, { status: 500 })
+      }
 
       return NextResponse.json({
-        all_events: allStats || []
+        events: events || []
       })
     }
 
   } catch (error: any) {
-    console.error('Get queue stats error:', error)
+    console.error('Get event stats error:', error)
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error?.message 
