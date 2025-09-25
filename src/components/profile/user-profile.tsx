@@ -187,7 +187,7 @@ export function UserProfile({ userId }: UserProfileProps) {
                 // Load match where current user is A and target is B
                 const { data: matchA } = await supabase
                   .from("matches")
-                  .select("bases, panels")
+                  .select("bases, why_meet, shared_activities, dive_deeper")
                   .eq("event_id", eventId)
                   .eq("a", user.id)
                   .eq("b", userId)
@@ -197,7 +197,7 @@ export function UserProfile({ userId }: UserProfileProps) {
                 // Load match where current user is B and target is A
                 const { data: matchB } = await supabase
                   .from("matches")
-                  .select("bases, panels")
+                  .select("bases, why_meet, shared_activities, dive_deeper")
                   .eq("event_id", eventId)
                   .eq("a", userId)
                   .eq("b", user.id)
@@ -209,11 +209,22 @@ export function UserProfile({ userId }: UserProfileProps) {
                   if (match.bases) {
                     setMatchBases(match.bases)
                   }
-                  if (match.panels) {
-                    setMatchPanels(match.panels as {
-                      why_meet: string
-                      shared_activities: string[]
-                      dive_deeper: string
+                  if (match.why_meet || match.shared_activities || match.dive_deeper) {
+                    // Parse shared_activities if it's a JSON string
+                    let activities: string[] = []
+                    if (match.shared_activities) {
+                      try {
+                        activities = JSON.parse(match.shared_activities)
+                      } catch {
+                        // If parsing fails, treat as a single string
+                        activities = [match.shared_activities]
+                      }
+                    }
+                    
+                    setMatchPanels({
+                      why_meet: match.why_meet || '',
+                      shared_activities: activities,
+                      dive_deeper: match.dive_deeper || ''
                     })
                   }
                 }

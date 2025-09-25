@@ -27,7 +27,9 @@ interface MatchWithProfile {
   id: string
   summary: string
   bases: string[]
-  panels: Record<string, unknown>
+  why_meet: string
+  shared_activities: string
+  dive_deeper: string
   profile: Profile
   is_present: boolean
 }
@@ -212,7 +214,9 @@ export function HomePage() {
           id,
           summary,
           bases,
-          panels,
+          why_meet,
+          shared_activities,
+          dive_deeper,
           profiles!b (
             id,
             first_name,
@@ -235,7 +239,9 @@ export function HomePage() {
           id,
           summary,
           bases,
-          panels,
+          why_meet,
+          shared_activities,
+          dive_deeper,
           profiles!a (
             id,
             first_name,
@@ -263,7 +269,9 @@ export function HomePage() {
           id: match.id,
           summary: match.summary,
           bases: match.bases,
-          panels: match.panels,
+          why_meet: match.why_meet,
+          shared_activities: match.shared_activities,
+          dive_deeper: match.dive_deeper,
           profile: match.profiles,
           is_present: match.all_events_members?.is_present || false
         }))
