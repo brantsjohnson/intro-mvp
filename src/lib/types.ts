@@ -22,7 +22,8 @@ export interface Profile {
   mbti: string | null
   enneagram: string | null
   networking_goals: string[] | null
-  hobby_details: Record<number, string> | null
+  hobbies: string[] | null
+  expertise_tags: string[] | null
   consent: boolean
 }
 

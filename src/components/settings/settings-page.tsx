@@ -325,17 +325,29 @@ export function SettingsPage() {
     try {
       setIsSaving(true)
 
-      // Update profile
-        // Convert selected networking goals back to strings
-        const networkingGoalsStrings = selectedNetworkingGoals
-          .map(id => networkingGoalsList.find(item => item.id === id)?.label)
-          .filter(label => label !== undefined) as string[]
-        const combinedGoals = Array.from(new Set([...
-          networkingGoalsStrings,
-          ...networkingGoals
-        ]))
+      // Build hobbies array from selected hobbies
+      const hobbiesArray = selectedHobbies.map(hobbyId => {
+        const hobby = hobbies.find(h => h.id === hobbyId)
+        return hobby ? hobby.label : ""
+      }).filter(Boolean)
 
-        const { error: profileError } = await supabase
+      // Build expertise array from selected expertise
+      const expertiseArray = selectedExpertise.map(tagId => {
+        const tag = expertise.find(t => t.id === tagId)
+        return tag ? tag.label : ""
+      }).filter(Boolean)
+
+      // Convert selected networking goals back to strings
+      const networkingGoalsStrings = selectedNetworkingGoals
+        .map(id => networkingGoalsList.find(item => item.id === id)?.label)
+        .filter(label => label !== undefined) as string[]
+      const combinedGoals = Array.from(new Set([...
+        networkingGoalsStrings,
+        ...networkingGoals
+      ]))
+
+      // Update profile
+      const { error: profileError } = await supabase
         .from("profiles")
         .update({
           job_title: jobTitle,
@@ -344,7 +356,9 @@ export function SettingsPage() {
           mbti: mbti,
           enneagram: enneagram,
           what_do_you_do: whatDoYouDo,
-          networking_goals: combinedGoals
+          networking_goals: combinedGoals,
+          hobbies: hobbiesArray,
+          expertise_tags: expertiseArray
         })
         .eq("id", profile.id)
 
@@ -353,55 +367,8 @@ export function SettingsPage() {
         return
       }
 
-      // Update hobbies
-      const { error: hobbiesError } = await supabase
-        .from("profile_hobbies")
-        .delete()
-        .eq("user_id", profile.id)
-
-      if (hobbiesError) {
-        toast.error("Failed to update hobbies")
-        return
-      }
-
-      if (selectedHobbies.length > 0) {
-        const { error: insertError } = await supabase
-          .from("profile_hobbies")
-          .insert(selectedHobbies.map(hobbyId => ({
-            user_id: profile.id,
-            hobby_id: hobbyId
-          })))
-
-        if (insertError) {
-          toast.error("Failed to update hobbies")
-          return
-        }
-      }
-
-      // Update expertise
-      const { error: expertiseDeleteError } = await supabase
-        .from("profile_expertise")
-        .delete()
-        .eq("user_id", profile.id)
-
-      if (expertiseDeleteError) {
-        toast.error("Failed to update expertise")
-        return
-      }
-
-      if (selectedExpertise.length > 0) {
-        const { error: expertiseInsertError } = await supabase
-          .from("profile_expertise")
-          .insert(selectedExpertise.map(tagId => ({
-            user_id: profile.id,
-            tag_id: tagId
-          })))
-
-        if (expertiseInsertError) {
-          toast.error("Failed to update expertise")
-          return
-        }
-      }
+      // All hobby and expertise data is now stored in the profiles table
+      // No need for separate table operations
 
       toast.success("Profile updated successfully")
       setIsEditing(false)

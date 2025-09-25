@@ -25,6 +25,8 @@ export interface Database {
           mbti: string | null
           enneagram: string | null
           networking_goals: string[] | null
+          hobbies: string[] | null
+          expertise_tags: string[] | null
           consent: boolean
           career_goals: string | null
           who_they_want_to_meet: string | null
@@ -44,6 +46,8 @@ export interface Database {
           mbti?: string | null
           enneagram?: string | null
           networking_goals?: string[] | null
+          hobbies?: string[] | null
+          expertise_tags?: string[] | null
           consent?: boolean
           career_goals?: string | null
           who_they_want_to_meet?: string | null
@@ -63,6 +67,8 @@ export interface Database {
           mbti?: string | null
           enneagram?: string | null
           networking_goals?: string[] | null
+          hobbies?: string[] | null
+          expertise_tags?: string[] | null
           consent?: boolean
           career_goals?: string | null
           who_they_want_to_meet?: string | null

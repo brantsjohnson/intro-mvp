@@ -415,6 +415,37 @@ export function OnboardingFlow() {
         avatarUrl = user.user_metadata.avatar_url
       }
 
+      // Build hobbies array from all hobby data
+      const hobbiesArray: string[] = []
+      
+      // Add selected hobbies with details
+      selectedHobbies.forEach(hobbyId => {
+        const hobby = hobbies.find(h => h.id === hobbyId)
+        if (hobby) {
+          const details = hobbyDetails[hobbyId]
+          if (details && details.trim()) {
+            hobbiesArray.push(`${hobby.label}: ${details.trim()}`)
+          } else {
+            hobbiesArray.push(hobby.label)
+          }
+        }
+      })
+      
+      // Add custom hobbies with details
+      customHobbies.forEach(customHobby => {
+        if (customHobby.details && customHobby.details.trim()) {
+          hobbiesArray.push(`${customHobby.label}: ${customHobby.details.trim()}`)
+        } else {
+          hobbiesArray.push(customHobby.label)
+        }
+      })
+
+      // Build expertise array
+      const expertiseArray = [
+        ...(expertiseTags || []),
+        ...(customExpertiseTags || [])
+      ]
+
       // Update profile
       const { error: profileError } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
         .from("profiles")
@@ -432,6 +463,8 @@ export function OnboardingFlow() {
           networking_goals: customNetworkingGoal.trim() 
             ? [...networkingGoals, customNetworkingGoal.trim()]
             : networkingGoals,
+          hobbies: hobbiesArray,
+          expertise_tags: expertiseArray,
           consent: true
         })
 
@@ -441,92 +474,8 @@ export function OnboardingFlow() {
         return
       }
 
-      // Add hobbies
-      if (selectedHobbies.length > 0) {
-        const hobbyInserts = selectedHobbies.map(hobbyId => ({
-          user_id: user.id,
-          hobby_id: hobbyId
-        }))
-
-        const { error: hobbiesError } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-          .from("profile_hobbies")
-          .insert(hobbyInserts)
-
-        if (hobbiesError) {
-          toast.error("Failed to save hobbies")
-          return
-        }
-      }
-
-      // Add custom hobbies
-      if (customHobbies.length > 0) {
-        for (const customHobby of customHobbies) {
-          // Insert custom hobby
-          const { data: hobbyData, error: hobbyError } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-            .from("custom_hobbies")
-            .insert({
-              id: customHobby.id,
-              user_id: user.id,
-              label: customHobby.label
-            })
-            .select()
-            .single()
-
-          if (hobbyError) {
-            console.error("Custom hobby error:", hobbyError)
-            continue
-          }
-
-          // Link to profile
-          const { error: linkError } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-            .from("profile_custom_hobbies")
-            .insert({
-              user_id: user.id,
-              custom_hobby_id: hobbyData.id,
-              details: customHobby.details
-            })
-
-          if (linkError) {
-            console.error("Custom hobby link error:", linkError)
-          }
-        }
-      }
-
-      // Add expertise tags (both suggested and custom)
-      const allExpertiseTags = [...expertiseTags, ...customExpertiseTags]
-      if (allExpertiseTags.length > 0) {
-        // First, get or create expertise tags
-        const tagInserts = await Promise.all(
-          allExpertiseTags.map(async (tag) => {
-            const { data: existingTag } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-              .from("expertise_tags")
-              .select("id")
-              .eq("label", tag)
-              .single()
-
-            if (existingTag) {
-              return { user_id: user.id, tag_id: existingTag.id }
-            } else {
-              const { data: newTag } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-                .from("expertise_tags")
-                .insert({ label: tag })
-                .select("id")
-                .single()
-
-              return { user_id: user.id, tag_id: newTag?.id }
-            }
-          })
-        )
-
-        const { error: expertiseError } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-          .from("profile_expertise")
-          .insert(tagInserts)
-
-        if (expertiseError) {
-          toast.error("Failed to save expertise")
-          return
-        }
-      }
+      // All hobby and expertise data is now stored in the profiles table
+      // No need for separate table operations
 
       // Save event-specific networking goals if coming from event join
       if (fromEventJoin && eventId) {
