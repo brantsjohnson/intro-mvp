@@ -74,19 +74,20 @@ export class EventQRCodeService {
       return null
     }
     
-    const trimmedContent = content.trim().toUpperCase()
+    const trimmedContent = content.trim()
     
     // Fast path: Check if it's just a simple 5-character event code first (most common case)
-    if (trimmedContent.length === 5 && /^[A-Z0-9]+$/.test(trimmedContent)) {
-      return trimmedContent
+    const upperTrimmed = trimmedContent.toUpperCase()
+    if (upperTrimmed.length === 5 && /^[A-Z0-9]+$/.test(upperTrimmed)) {
+      return upperTrimmed
     }
     
-    // Check if it's a URL with event code (common case)
-    if (trimmedContent && typeof trimmedContent === 'string' && trimmedContent.includes('code=')) {
+    // Check if it's a URL with event code (common case) - DON'T convert to uppercase for URL parsing
+    if (trimmedContent && typeof trimmedContent === 'string' && trimmedContent.toLowerCase().includes('code=')) {
       try {
         const url = new URL(trimmedContent)
         const eventCode = url.searchParams.get('code')
-        if (eventCode && eventCode.length === 5 && /^[A-Z0-9]+$/.test(eventCode.toUpperCase())) {
+        if (eventCode && eventCode.length === 5 && /^[A-Z0-9]+$/i.test(eventCode)) {
           return eventCode.toUpperCase()
         }
       } catch (urlError) {

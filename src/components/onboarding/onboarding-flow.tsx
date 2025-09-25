@@ -446,11 +446,20 @@ export function OnboardingFlow() {
         ...(customExpertiseTags || [])
       ]
 
-      // Update profile
-      const { error: profileError } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      // Debug: Log the data being saved
+      console.log('Saving profile data:', {
+        hobbiesArray,
+        expertiseArray,
+        selectedHobbies,
+        customHobbies,
+        expertiseTags,
+        customExpertiseTags
+      })
+
+      // Update profile - use explicit update instead of upsert to ensure all fields are updated
+      const { error: profileError } = await supabase
         .from("profiles")
-        .upsert({
-          id: user.id,
+        .update({
           first_name: firstName,
           last_name: lastName,
           email: user.email || "",
@@ -467,8 +476,38 @@ export function OnboardingFlow() {
           expertise_tags: expertiseArray,
           consent: true
         })
+        .eq("id", user.id)
 
-      if (profileError) {
+      // If update fails (profile doesn't exist), create it
+      if (profileError && profileError.code === 'PGRST116') {
+        console.log('Profile not found, creating new profile...')
+        const { error: insertError } = await supabase
+          .from("profiles")
+          .insert({
+            id: user.id,
+            first_name: firstName,
+            last_name: lastName,
+            email: user.email || "",
+            avatar_url: avatarUrl,
+            job_title: jobTitle,
+            company: company,
+            what_do_you_do: careerGoals,
+            mbti: mbti,
+            enneagram: enneagram,
+            networking_goals: customNetworkingGoal.trim() 
+              ? [...networkingGoals, customNetworkingGoal.trim()]
+              : networkingGoals,
+            hobbies: hobbiesArray,
+            expertise_tags: expertiseArray,
+            consent: true
+          })
+        
+        if (insertError) {
+          console.error("Profile insert error:", insertError)
+          toast.error("Failed to create profile. Please try again.")
+          return
+        }
+      } else if (profileError) {
         console.error("Profile update error:", profileError)
         toast.error("Failed to update profile. Please try again.")
         return
