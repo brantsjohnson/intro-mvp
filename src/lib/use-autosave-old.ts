@@ -109,7 +109,7 @@ export function useAutoSave({ userId, user, data, enabled = true, debounceMs = 1
             enneagram: data.enneagram || null,
             job_title: data.jobTitle || null,
             company: data.company || null,
-            what_do_you_do: data.careerGoals || null,
+            career_goals: data.careerGoals || null,
             networking_goals: data.customNetworkingGoal?.trim() 
               ? [...(data.networkingGoals || []), data.customNetworkingGoal.trim()]
               : data.networkingGoals || [],

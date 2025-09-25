@@ -466,7 +466,7 @@ export function OnboardingFlow() {
           avatar_url: avatarUrl,
           job_title: jobTitle,
           company: company,
-          what_do_you_do: careerGoals,
+          career_goals: careerGoals,
           mbti: mbti,
           enneagram: enneagram,
           networking_goals: customNetworkingGoal.trim() 
@@ -491,7 +491,7 @@ export function OnboardingFlow() {
             avatar_url: avatarUrl,
             job_title: jobTitle,
             company: company,
-            what_do_you_do: careerGoals,
+            career_goals: careerGoals,
             mbti: mbti,
             enneagram: enneagram,
             networking_goals: customNetworkingGoal.trim() 
