@@ -1,3 +1,7 @@
+// TODO: Rebuild when Supabase is restored
+// This file contains placeholder types for the database schema
+// The actual database was wiped and needs to be rebuilt
+
 export type Json =
   | string
   | number
@@ -6,420 +10,43 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+// PLACEHOLDER: Database interface - needs to be rebuilt when Supabase is restored
 export interface Database {
   public: {
     Tables: {
-      profiles: {
-        Row: {
-          id: string
-          created_at: string
-          first_name: string
-          last_name: string
-          email: string
-          avatar_url: string | null
-          job_title: string | null
-          company: string | null
-          what_do_you_do: string | null
-          location: string | null
-          linkedin_url: string | null
-          mbti: string | null
-          enneagram: string | null
-          networking_goals: string[] | null
-          hobbies: string[] | null
-          expertise_tags: string[] | null
-          consent: boolean
-          career_goals: string | null
-          who_they_want_to_meet: string | null
-        }
-        Insert: {
-          id: string
-          created_at?: string
-          first_name: string
-          last_name: string
-          email: string
-          avatar_url?: string | null
-          job_title?: string | null
-          company?: string | null
-          what_do_you_do?: string | null
-          location?: string | null
-          linkedin_url?: string | null
-          mbti?: string | null
-          enneagram?: string | null
-          networking_goals?: string[] | null
-          hobbies?: string[] | null
-          expertise_tags?: string[] | null
-          consent?: boolean
-          career_goals?: string | null
-          who_they_want_to_meet?: string | null
-        }
-        Update: {
-          id?: string
-          created_at?: string
-          first_name?: string
-          last_name?: string
-          email?: string
-          avatar_url?: string | null
-          job_title?: string | null
-          company?: string | null
-          what_do_you_do?: string | null
-          location?: string | null
-          linkedin_url?: string | null
-          mbti?: string | null
-          enneagram?: string | null
-          networking_goals?: string[] | null
-          hobbies?: string[] | null
-          expertise_tags?: string[] | null
-          consent?: boolean
-          career_goals?: string | null
-          who_they_want_to_meet?: string | null
-        }
-      }
-      events: {
-        Row: {
-          id: string
-          code: string
-          name: string
-          starts_at: string | null
-          ends_at: string | null
-          header_image_url: string | null
-          is_active: boolean
-          matchmaking_enabled: boolean
-        }
-        Insert: {
-          id?: string
-          code: string
-          name: string
-          starts_at?: string | null
-          ends_at?: string | null
-          header_image_url?: string | null
-          is_active?: boolean
-          matchmaking_enabled?: boolean
-        }
-        Update: {
-          id?: string
-          code?: string
-          name?: string
-          starts_at?: string | null
-          ends_at?: string | null
-          header_image_url?: string | null
-          is_active?: boolean
-          matchmaking_enabled?: boolean
-        }
-      }
-      event_members: {
-        Row: {
-          event_id: string
-          user_id: string
-          joined_at: string
-          is_present: boolean
-        }
-        Insert: {
-          event_id: string
-          user_id: string
-          joined_at?: string
-          is_present?: boolean
-        }
-        Update: {
-          event_id?: string
-          user_id?: string
-          joined_at?: string
-          is_present?: boolean
-        }
-      }
-      hobbies: {
-        Row: {
-          id: number
-          label: string
-        }
-        Insert: {
-          id?: number
-          label: string
-        }
-        Update: {
-          id?: number
-          label?: string
-        }
-      }
-      profile_hobbies: {
-        Row: {
-          user_id: string
-          hobby_id: number
-        }
-        Insert: {
-          user_id: string
-          hobby_id: number
-        }
-        Update: {
-          user_id?: string
-          hobby_id?: number
-        }
-      }
-      expertise_tags: {
-        Row: {
-          id: number
-          label: string
-        }
-        Insert: {
-          id?: number
-          label: string
-        }
-        Update: {
-          id?: number
-          label?: string
-        }
-      }
-      profile_expertise: {
-        Row: {
-          user_id: string
-          tag_id: number
-        }
-        Insert: {
-          user_id: string
-          tag_id: number
-        }
-        Update: {
-          user_id?: string
-          tag_id?: number
-        }
-      }
-      event_networking_goals: {
-        Row: {
-          event_id: string
-          user_id: string
-          networking_goals: string[]
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          event_id: string
-          user_id: string
-          networking_goals: string[]
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          event_id?: string
-          user_id?: string
-          networking_goals?: string[]
-          created_at?: string
-          updated_at?: string
-        }
-      }
-      matches: {
-        Row: {
-          id: string
-          event_id: string
-          a: string
-          b: string
-          bases: string[]
-          summary: string
-          why_meet: string
-          shared_activities: string
-          dive_deeper: string
-          created_at: string
-          is_system: boolean
-          is_met: boolean
-          met_at: string | null
-        }
-        Insert: {
-          id?: string
-          event_id: string
-          a: string
-          b: string
-          bases: string[]
-          summary: string
-          why_meet: string
-          shared_activities: string
-          dive_deeper: string
-          created_at?: string
-          is_system?: boolean
-          is_met?: boolean
-          met_at?: string | null
-        }
-        Update: {
-          id?: string
-          event_id?: string
-          a?: string
-          b?: string
-          bases?: string[]
-          summary?: string
-          why_meet?: string
-          shared_activities?: string
-          dive_deeper?: string
-          created_at?: string
-          is_system?: boolean
-          is_met?: boolean
-          met_at?: string | null
-        }
-      }
-      connections: {
-        Row: {
-          id: string
-          event_id: string
-          a: string
-          b: string
-          source: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          event_id: string
-          a: string
-          b: string
-          source: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          event_id?: string
-          a?: string
-          b?: string
-          source?: string
-          created_at?: string
-        }
-      }
-      messages: {
-        Row: {
-          id: string
-          event_id: string
-          thread_id: string
-          sender: string | null
-          recipient: string | null
-          body: string
-          created_at: string
-          is_read: boolean
-          read_at: string | null
-        }
-        Insert: {
-          id?: string
-          event_id: string
-          thread_id: string
-          sender?: string | null
-          recipient?: string | null
-          body: string
-          created_at?: string
-          is_read?: boolean
-          read_at?: string | null
-        }
-        Update: {
-          id?: string
-          event_id?: string
-          thread_id?: string
-          sender?: string | null
-          recipient?: string | null
-          body?: string
-          created_at?: string
-          is_read?: boolean
-          read_at?: string | null
-        }
-      }
-      message_threads: {
-        Row: {
-          id: string
-          event_id: string
-          participant_a: string
-          participant_b: string
-          created_at: string
-          updated_at: string
-          last_message_at: string | null
-        }
-        Insert: {
-          id?: string
-          event_id: string
-          participant_a: string
-          participant_b: string
-          created_at?: string
-          updated_at?: string
-          last_message_at?: string | null
-        }
-        Update: {
-          id?: string
-          event_id?: string
-          participant_a?: string
-          participant_b?: string
-          created_at?: string
-          updated_at?: string
-          last_message_at?: string | null
-        }
-      }
-      notifications: {
-        Row: {
-          id: string
-          user_id: string
-          type: string | null
-          payload: Json | null
-          sent_at: string | null
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          type?: string | null
-          payload?: Json | null
-          sent_at?: string | null
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          type?: string | null
-          payload?: Json | null
-          sent_at?: string | null
-        }
-      }
-      ai_jobs: {
-        Row: {
-          id: string
-          event_id: string
-          status: string
-          created_by: string | null
-          created_at: string
-          completed_at: string | null
-        }
-        Insert: {
-          id?: string
-          event_id: string
-          status?: string
-          created_by?: string | null
-          created_at?: string
-          completed_at?: string | null
-        }
-        Update: {
-          id?: string
-          event_id?: string
-          status?: string
-          created_by?: string | null
-          created_at?: string
-          completed_at?: string | null
-        }
-      }
-      user_event_stats: {
-        Row: {
-          event_id: string
-          user_id: string
-          qr_connections: number
-          match_connections: number
-        }
-        Insert: {
-          event_id: string
-          user_id: string
-          qr_connections?: number
-          match_connections?: number
-        }
-        Update: {
-          event_id?: string
-          user_id?: string
-          qr_connections?: number
-          match_connections?: number
-        }
-      }
+      // TODO: Rebuild these tables in Supabase:
+      // - profiles (with career_goals field instead of what_do_you_do)
+      // - events  
+      // - event_members
+      // - hobbies
+      // - profile_hobbies
+      // - expertise_tags
+      // - profile_expertise
+      // - event_networking_goals
+      // - matches
+      // - connections
+      // - messages
+      // - message_threads
+      // - notifications
+      // - ai_jobs
+      // - user_event_stats
+      [_ in never]: never
     }
     Views: {
+      // TODO: Rebuild these views in Supabase:
+      // - all_events_members
       [_ in never]: never
     }
     Functions: {
+      // TODO: Rebuild these functions in Supabase:
+      // - matchmaking triggers
+      // - RLS policies
       [_ in never]: never
     }
     Enums: {
-      match_basis: "career" | "personality" | "interests"
+      // TODO: Rebuild these enums in Supabase:
+      // - match_basis: "career" | "personality" | "interests"
+      [_ in never]: never
     }
     CompositeTypes: {
       [_ in never]: never
