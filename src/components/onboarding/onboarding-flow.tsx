@@ -50,6 +50,7 @@ export function OnboardingFlow() {
   const [lastName, setLastName] = useState("")
   const [jobTitle, setJobTitle] = useState("")
   const [company, setCompany] = useState("")
+  const [whatDoYouDo, setWhatDoYouDo] = useState("")
   const [careerGoals, setCareerGoals] = useState("")
   const [mbti, setMbti] = useState("")
   const [enneagram, setEnneagram] = useState("")
@@ -78,6 +79,7 @@ export function OnboardingFlow() {
       customHobbies,
       jobTitle,
       company,
+      whatDoYouDo,
       careerGoals,
       expertiseTags,
       customExpertiseTags,
@@ -446,10 +448,26 @@ export function OnboardingFlow() {
         ...(customExpertiseTags || [])
       ]
 
+      // Build networking goals array with details
+      const networkingGoalsArray: string[] = []
+      networkingGoals.forEach(goalId => {
+        const goalLabel = goalId.split('-').map(word => 
+          word.charAt(0).toUpperCase() + word.slice(1)
+        ).join(' ')
+        const details = networkingGoalDetails[goalId]
+        if (details && details.trim()) {
+          networkingGoalsArray.push(`${goalLabel}: ${details.trim()}`)
+        } else {
+          networkingGoalsArray.push(goalLabel)
+        }
+      })
+
       // Debug: Log the data being saved
       console.log('Saving profile data:', {
         hobbiesArray,
         expertiseArray,
+        networkingGoalsArray,
+        customNetworkingGoal,
         selectedHobbies,
         customHobbies,
         expertiseTags,
@@ -467,14 +485,14 @@ export function OnboardingFlow() {
           avatar_url: avatarUrl,
           job_title: jobTitle,
           company: company,
-          career_goals: careerGoals,
-          mbti: mbti,
-          enneagram: enneagram,
-          networking_goals: customNetworkingGoal.trim() 
-            ? [...networkingGoals, customNetworkingGoal.trim()]
-            : networkingGoals,
+          what_do_you_do: whatDoYouDo || null,
+          career_goals: careerGoals || null,
+          mbti: mbti || null,
+          enneagram: enneagram || null,
+          networking_goals: networkingGoalsArray,
           hobbies: hobbiesArray,
           expertise_tags: expertiseArray,
+          who_they_want_to_meet: customNetworkingGoal.trim() || null,
           consent: true
         }, {
           onConflict: 'id'
@@ -491,17 +509,13 @@ export function OnboardingFlow() {
 
       // Save event-specific networking goals if coming from event join
       if (fromEventJoin && eventId) {
-        const allNetworkingGoals = customNetworkingGoal.trim() 
-          ? [...networkingGoals, customNetworkingGoal.trim()]
-          : networkingGoals
-
-        if (allNetworkingGoals.length > 0) {
+        if (networkingGoalsArray.length > 0) {
           const { error: eventNetworkingError } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
             .from("event_networking_goals")
             .upsert({
               event_id: eventId,
               user_id: user.id,
-              networking_goals: allNetworkingGoals
+              networking_goals: networkingGoalsArray
             })
 
           if (eventNetworkingError) {
@@ -744,6 +758,24 @@ export function OnboardingFlow() {
                 <p className="text-xs text-destructive mt-1">{validationErrors.company}</p>
               )}
             </div>
+          </div>
+
+          {/* What Do You Do */}
+          <div>
+            <Label htmlFor="whatDoYouDo" className="text-sm font-medium text-foreground">
+              What do you do? (Optional)
+            </Label>
+            <Textarea
+              id="whatDoYouDo"
+              value={whatDoYouDo}
+              onChange={(e) => setWhatDoYouDo(e.target.value)}
+              placeholder="e.g., I build AI-powered tools for small businesses, help startups with fundraising, design user experiences for healthcare apps..."
+              className="mt-1 rounded-xl"
+              rows={2}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Describe what you do in your own words - this helps create better matches.
+            </p>
           </div>
 
           {/* Career Goals */}
