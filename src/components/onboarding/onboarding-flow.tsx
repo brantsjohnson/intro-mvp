@@ -87,7 +87,7 @@ export function OnboardingFlow() {
       networkingGoalDetails,
       customNetworkingGoal
     },
-    enabled: !!user && (firstName || lastName) // Only auto-save if user exists and has basic info
+    enabled: !!user && !!(firstName || lastName) // Only auto-save if user exists and has basic info
   })
 
 

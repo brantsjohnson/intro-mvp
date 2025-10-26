@@ -14,6 +14,7 @@ interface AutoSaveData {
   customHobbies?: Array<{ id: string; label: string; details?: string }>
   jobTitle?: string
   company?: string
+  whatDoYouDo?: string
   careerGoals?: string
   expertiseTags?: string[]
   customExpertiseTags?: string[]

@@ -171,7 +171,8 @@ export function mergeWithBumpRule(
   if (inc[0]?.score > (cur[k-1]?.score ?? -Infinity)) {
     // Build combined set, dedupe by match_user_id, keep highest scores, take top k
     const map = new Map<string, number>()
-    [...cur, ...inc].forEach(m => {
+    const combined = [...cur, ...inc]
+    combined.forEach(m => {
       const key = String(m.match_user_id)
       map.set(key, Math.max(map.get(key) ?? -Infinity, m.score))
     })
