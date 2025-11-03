@@ -229,10 +229,21 @@ export function NewOnboardingFlow() {
     }
   }
 
-  const handleCropSave = (croppedImageUrl: string) => {
-    setAvatarPreview(croppedImageUrl)
-    setShowCropModal(false)
-    setTempImageUrl(null)
+  const handleCropSave = async (croppedImageUrl: string) => {
+    try {
+      // Convert blob URL to File so it can be uploaded
+      const response = await fetch(croppedImageUrl)
+      const blob = await response.blob()
+      const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' })
+      
+      setAvatarFile(file)
+      setAvatarPreview(croppedImageUrl)
+      setShowCropModal(false)
+      setTempImageUrl(null)
+    } catch (error) {
+      console.error('Error processing cropped image:', error)
+      toast.error('Failed to process image. Please try again.')
+    }
   }
 
   const handleCropCancel = () => {
@@ -244,23 +255,34 @@ export function NewOnboardingFlow() {
   const uploadAvatar = async (userId: string) => {
     if (!avatarFile) return null
 
-    const fileExt = avatarFile.name.split('.').pop()
+    const fileExt = avatarFile.name.split('.').pop() || 'jpg'
     const fileName = `${userId}.${fileExt}`
     const filePath = `${userId}/${fileName}`
 
-    const { error: uploadError } = await (supabase as any).storage
-      .from('avatars')
-      .upload(filePath, avatarFile)
+    try {
+      // Upload with upsert to overwrite existing avatars
+      const { error: uploadError } = await (supabase as any).storage
+        .from('avatars')
+        .upload(filePath, avatarFile, {
+          contentType: 'image/jpeg',
+          upsert: true
+        })
 
-    if (uploadError) {
-      throw uploadError
+      if (uploadError) {
+        console.error('Upload error:', uploadError)
+        throw uploadError
+      }
+
+      // Get public URL
+      const { data } = (supabase as any).storage
+        .from('avatars')
+        .getPublicUrl(filePath)
+
+      return data.publicUrl
+    } catch (error) {
+      console.error('Error uploading avatar:', error)
+      throw error
     }
-
-    const { data } = (supabase as any).storage
-      .from('avatars')
-      .getPublicUrl(filePath)
-
-    return data.publicUrl
   }
 
   const handleCustomHobbyAdd = (label: string) => {
