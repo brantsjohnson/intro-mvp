@@ -858,6 +858,22 @@ export function HomePage() {
                   </div>
                   <ArrowRight className="h-4 w-4 text-muted-foreground" />
                 </button>
+
+                <button
+                  onClick={() => router.push('/admin/create-event')}
+                  className="w-full flex items-center justify-between p-4 rounded-lg border border-border hover:bg-card/50 transition-colors"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                      <Plus className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="font-medium text-foreground">Create Event</h3>
+                      <p className="text-sm text-muted-foreground">Create a new event with a unique code</p>
+                    </div>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </button>
               </CardContent>
             </Card>
           </div>

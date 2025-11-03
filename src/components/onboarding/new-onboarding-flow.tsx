@@ -260,26 +260,51 @@ export function NewOnboardingFlow() {
     const filePath = `${userId}/${fileName}`
 
     try {
+      // Check if bucket exists and is accessible
+      const { data: buckets, error: bucketsError } = await (supabase as any).storage.listBuckets()
+      
+      if (bucketsError) {
+        console.error('Storage bucket check error:', bucketsError)
+        throw new Error(`Storage access error: ${bucketsError.message}`)
+      }
+
+      const avatarsBucket = buckets?.find((b: any) => b.name === 'avatars')
+      if (!avatarsBucket) {
+        throw new Error('avatars storage bucket does not exist. Please create it in Supabase Storage.')
+      }
+
       // Upload with upsert to overwrite existing avatars
       const { error: uploadError } = await (supabase as any).storage
         .from('avatars')
         .upload(filePath, avatarFile, {
           contentType: 'image/jpeg',
-          upsert: true
+          upsert: true,
+          cacheControl: '3600'
         })
 
       if (uploadError) {
-        console.error('Upload error:', uploadError)
-        throw uploadError
+        console.error('Upload error details:', uploadError)
+        // Provide more helpful error messages
+        if (uploadError.message?.includes('new row violates row-level security')) {
+          throw new Error('Storage permission error: Please check RLS policies for avatars bucket')
+        }
+        if (uploadError.message?.includes('Bucket not found')) {
+          throw new Error('avatars bucket not found. Please create it in Supabase Storage.')
+        }
+        throw new Error(`Upload failed: ${uploadError.message}`)
       }
 
       // Get public URL
-      const { data } = (supabase as any).storage
+      const { data: urlData } = (supabase as any).storage
         .from('avatars')
         .getPublicUrl(filePath)
 
-      return data.publicUrl
-    } catch (error) {
+      if (!urlData?.publicUrl) {
+        throw new Error('Failed to get public URL for uploaded image')
+      }
+
+      return urlData.publicUrl
+    } catch (error: any) {
       console.error('Error uploading avatar:', error)
       throw error
     }
@@ -435,8 +460,19 @@ export function NewOnboardingFlow() {
     try {
       let avatarUrl = null
       if (avatarFile) {
-        avatarUrl = await uploadAvatar(user.id)
+        try {
+          avatarUrl = await uploadAvatar(user.id)
+          if (avatarUrl) {
+            console.log('Photo uploaded successfully to Supabase Storage:', avatarUrl)
+          }
+        } catch (uploadError: any) {
+          console.error('Failed to upload photo:', uploadError)
+          const errorMessage = uploadError?.message || 'Unknown error'
+          toast.error(`Photo upload failed: ${errorMessage}. Check console for details.`)
+          // Continue with profile save even if photo upload fails
+        }
       } else if (user.user_metadata?.avatar_url) {
+        // Use Google OAuth photo if available and no manual upload
         avatarUrl = user.user_metadata.avatar_url
       }
 
