@@ -8,11 +8,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { HobbiesGridNew } from "@/components/ui/hobbies-grid-new"
 import { ImageCropModal } from "@/components/ui/image-crop-modal"
 import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
-import { User, Hobby } from "@/lib/types"
+import { User } from "@/lib/types"
 import { toast } from "sonner"
 import { Camera, ArrowRight, Upload, Select as SelectIcon, ArrowLeft } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -69,12 +68,6 @@ export function NewOnboardingFlow() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [showCropModal, setShowCropModal] = useState(false)
   const [tempImageUrl, setTempImageUrl] = useState<string | null>(null)
-  
-  // Hobbies data
-  const [hobbies, setHobbies] = useState<Hobby[]>([])
-  const [selectedHobbies, setSelectedHobbies] = useState<number[]>([])
-  const [hobbyDetails, setHobbyDetails] = useState<Record<number, string>>({})
-  const [customHobbies, setCustomHobbies] = useState<Array<{ id: string; label: string; details?: string }>>([])
   
   // Event-specific data
   const [whyAttending, setWhyAttending] = useState("")
@@ -155,22 +148,6 @@ export function NewOnboardingFlow() {
     
     checkProfileStatus()
   }, [router, supabase, fromEventJoin])
-
-  useEffect(() => {
-    const fetchHobbies = async () => {
-      const { data, error } = await (supabase as any)
-        .from("hobbies")
-        .select("*")
-        .order("label")
-      
-      if (error) {
-        toast.error("Failed to load hobbies")
-      } else {
-        setHobbies(data || [])
-      }
-    }
-    fetchHobbies()
-  }, [supabase])
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -308,26 +285,6 @@ export function NewOnboardingFlow() {
       console.error('Error uploading avatar:', error)
       throw error
     }
-  }
-
-  const handleCustomHobbyAdd = (label: string) => {
-    const newHobby = {
-      id: crypto.randomUUID(),
-      label,
-      details: ''
-    }
-    setCustomHobbies([...customHobbies, newHobby])
-  }
-
-  const handleCustomHobbyRemove = (id: string) => {
-    setCustomHobbies(customHobbies.filter(hobby => hobby.id !== id))
-  }
-
-  const handleHobbyDetailsChange = (hobbyId: number, details: string) => {
-    setHobbyDetails(prev => ({
-      ...prev,
-      [hobbyId]: details
-    }))
   }
 
   const handleConnectionTypeChange = (typeId: string, checked: boolean) => {
@@ -476,26 +433,6 @@ export function NewOnboardingFlow() {
         avatarUrl = user.user_metadata.avatar_url
       }
 
-      const hobbiesArray: string[] = []
-      selectedHobbies.forEach(hobbyId => {
-        const hobby = hobbies.find(h => h.id === hobbyId)
-        if (hobby) {
-          const details = hobbyDetails[hobbyId]
-          if (details && details.trim()) {
-            hobbiesArray.push(`${hobby.label}: ${details.trim()}`)
-          } else {
-            hobbiesArray.push(hobby.label)
-          }
-        }
-      })
-      customHobbies.forEach(customHobby => {
-        if (customHobby.details && customHobby.details.trim()) {
-          hobbiesArray.push(`${customHobby.label}: ${customHobby.details.trim()}`)
-        } else {
-          hobbiesArray.push(customHobby.label)
-        }
-      })
-
       const expertiseArray = [areasOfExpertise]
 
       const { error: profileError } = await supabase
@@ -508,8 +445,7 @@ export function NewOnboardingFlow() {
           photo_url: avatarUrl,
           career_title: jobTitle,
           company_name: company,
-          expertise_summary: expertiseArray.join(", "),
-          hobbies: hobbiesArray
+          expertise_summary: expertiseArray.join(", ")
         }, {
           onConflict: 'user_id'
         })
@@ -808,41 +744,6 @@ export function NewOnboardingFlow() {
               <p className="text-xs text-destructive mt-1">{validationErrors.areasOfExpertise}</p>
             )}
           </div>
-        </div>
-      )
-    },
-    {
-      id: "hobbies",
-      title: "Hobbies & Interests",
-      description: "What are you passionate about?",
-      component: (
-        <div className="space-y-6">
-          <HobbiesGridNew
-            hobbies={hobbies}
-            selectedHobbies={selectedHobbies}
-            customHobbies={customHobbies}
-            hobbyDetails={hobbyDetails}
-            onHobbyChange={(hobbyId, checked) => {
-              if (checked) {
-                setSelectedHobbies([...selectedHobbies, hobbyId])
-              } else {
-                setSelectedHobbies(selectedHobbies.filter(id => id !== hobbyId))
-                setHobbyDetails(prev => {
-                  const newDetails = { ...prev }
-                  delete newDetails[hobbyId]
-                  return newDetails
-                })
-              }
-            }}
-            onHobbyDetailsChange={handleHobbyDetailsChange}
-            onCustomHobbyAdd={handleCustomHobbyAdd}
-            onCustomHobbyRemove={handleCustomHobbyRemove}
-            onCustomHobbyDetailsChange={(id, details) => {
-              setCustomHobbies(customHobbies.map(hobby => 
-                hobby.id === id ? { ...hobby, details } : hobby
-              ))
-            }}
-          />
         </div>
       )
     }

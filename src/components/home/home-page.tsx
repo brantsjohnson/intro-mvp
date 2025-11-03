@@ -132,7 +132,7 @@ export function HomePage() {
       // Load user row and map to legacy Profile shape used by UI
       const { data: userRow, error: userError } = await supabase
         .from("users")
-        .select("user_id, first_name, last_name, email, photo_url, career_title, company_name, hobbies")
+        .select("user_id, first_name, last_name, email, photo_url, career_title, company_name")
         .eq("user_id", user.id)
         .single()
 
@@ -155,7 +155,6 @@ export function HomePage() {
         mbti: null,
         enneagram: null,
         networking_goals: null,
-        hobbies: (userRow.hobbies as string[] | null) || null,
         expertise_tags: null,
         consent: true,
       }
