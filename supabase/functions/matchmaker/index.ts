@@ -24,8 +24,6 @@ type Candidate = {
   job_title: string | null
   company: string | null
   what_do_you_do: string | null
-  mbti: string | null
-  enneagram: string | null
   avatar_url: string | null
   networking_goals: string[] | null
   hobbies: string[] | null
@@ -50,10 +48,10 @@ type MatchPanels = {
 }
 
 const DEFAULT_WEIGHTS: Weights = {
-  goals: 0.3,
-  career: 0.25,
-  personality: 0.25,
-  interests: 0.2
+  goals: 0.35,
+  career: 0.35,
+  personality: 0.0, // No longer used - removed personality types
+  interests: 0.3
 }
 
 // Scoring functions (duplicated from score.ts)
@@ -86,14 +84,9 @@ function scoreCandidate(me: Candidate, candidate: Candidate, weights: Weights = 
     }
   }
 
-  // Personality compatibility (25% weight)
-  if (me.mbti && candidate.mbti) {
-    const personalityScore = calculatePersonalityScore(me.mbti, candidate.mbti) * weights.personality
-    totalScore += personalityScore
-    if (personalityScore > 0) bases.push('personality')
-  }
-
-  // Interests overlap (20% weight) - more lenient matching
+  // Personality compatibility removed - no longer collecting MBTI/Enneagram
+  
+  // Interests overlap (30% weight, increased from 20%) - more lenient matching
   if (me.hobbies && candidate.hobbies && me.hobbies.length > 0 && candidate.hobbies.length > 0) {
     const interestOverlap = me.hobbies.filter(hobby => 
       candidate.hobbies.includes(hobby)
@@ -104,25 +97,6 @@ function scoreCandidate(me: Candidate, candidate: Candidate, weights: Weights = 
   }
 
   return { score: totalScore, bases }
-}
-
-function calculatePersonalityScore(mbti1: string, mbti2: string): number {
-  // Simple MBTI compatibility scoring
-  const compatiblePairs = [
-    ['INTJ', 'ENFP'], ['ENTP', 'INFJ'], ['ENFJ', 'INTP'], ['ENTJ', 'INFP'],
-    ['ISFP', 'ESTJ'], ['ISTP', 'ESTP'], ['ISFJ', 'ESFP'], ['ISTJ', 'ESFJ']
-  ]
-  
-  for (const pair of compatiblePairs) {
-    if ((mbti1 === pair[0] && mbti2 === pair[1]) || (mbti1 === pair[1] && mbti2 === pair[0])) {
-      return 1.0
-    }
-  }
-  
-  // Same type gets medium score
-  if (mbti1 === mbti2) return 0.5
-  
-  return 0
 }
 
 function scoreCandidatesForUser(me: Candidate, candidates: Candidate[], weights: Weights = DEFAULT_WEIGHTS): ScoredMatch[] {
@@ -140,8 +114,6 @@ function scoreCandidatesForUser(me: Candidate, candidates: Candidate[], weights:
           baseBases = ['career']
         } else if (me.hobbies && candidate.hobbies && me.hobbies.length > 0 && candidate.hobbies.length > 0) {
           baseBases = ['interests']
-        } else if (me.mbti && candidate.mbti) {
-          baseBases = ['personality']
         } else {
           baseBases = ['other'] // Default fallback
         }
@@ -354,8 +326,6 @@ async function processUser(userId: string, eventId: string): Promise<void> {
         job_title,
         company,
         what_do_you_do,
-        mbti,
-        enneagram,
         avatar_url,
         networking_goals,
         hobbies,
@@ -395,8 +365,6 @@ async function processUser(userId: string, eventId: string): Promise<void> {
         job_title,
         company,
         what_do_you_do,
-        mbti,
-        enneagram,
         avatar_url,
         networking_goals,
         hobbies,
