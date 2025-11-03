@@ -10,7 +10,6 @@ import { GradientButton } from "@/components/ui/gradient-button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { HobbiesGridNew } from "@/components/ui/hobbies-grid-new"
 import { ImageCropModal } from "@/components/ui/image-crop-modal"
-import { ExpertiseSuggestions } from "@/components/ui/expertise-suggestions"
 import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
 import { User, Hobby } from "@/lib/types"
@@ -76,10 +75,6 @@ export function NewOnboardingFlow() {
   const [selectedHobbies, setSelectedHobbies] = useState<number[]>([])
   const [hobbyDetails, setHobbyDetails] = useState<Record<number, string>>({})
   const [customHobbies, setCustomHobbies] = useState<Array<{ id: string; label: string; details?: string }>>([])
-  
-  // Expertise data
-  const [expertiseTags, setExpertiseTags] = useState<string[]>([])
-  const [customExpertiseTags, setCustomExpertiseTags] = useState<string[]>([])
   
   // Event-specific data
   const [whyAttending, setWhyAttending] = useState("")
@@ -443,11 +438,7 @@ export function NewOnboardingFlow() {
         }
       })
 
-      const expertiseArray = [
-        areasOfExpertise,
-        ...(expertiseTags || []),
-        ...(customExpertiseTags || [])
-      ]
+      const expertiseArray = [areasOfExpertise]
 
       const { error: profileError } = await supabase
         .from("profiles")
@@ -758,15 +749,6 @@ export function NewOnboardingFlow() {
               <p className="text-xs text-destructive mt-1">{validationErrors.areasOfExpertise}</p>
             )}
           </div>
-
-          <ExpertiseSuggestions
-            jobTitle={jobTitle}
-            company={company}
-            selectedExpertise={expertiseTags}
-            customExpertise={customExpertiseTags}
-            onExpertiseChange={setExpertiseTags}
-            onCustomExpertiseChange={setCustomExpertiseTags}
-          />
         </div>
       )
     },

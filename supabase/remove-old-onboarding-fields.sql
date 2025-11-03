@@ -35,10 +35,15 @@ SELECT
 FROM event_members em
 JOIN profiles p ON em.user_id = p.id;
 
+-- Step 4: Drop old mapping/expertise tables if they exist
+-- (The expertise_tags column in profiles stores expertise as TEXT[] array)
+DROP TABLE IF EXISTS expertise_tags CASCADE;
+DROP TABLE IF EXISTS profile_expertise CASCADE;
+
 -- Verify columns have been removed and view recreated
 SELECT 
   'Migration completed successfully' as status,
-  'View recreated without personality fields' as details;
+  'View recreated without personality fields, old expertise tables cleaned up' as details;
 
 -- ============================================================
 -- NOTES
@@ -47,11 +52,16 @@ SELECT
 -- 1. Drops all_events_members view (which references mbti/enneagram)
 -- 2. Removes mbti and enneagram columns from profiles table
 -- 3. Recreates all_events_members view WITHOUT personality fields
+-- 4. Drops old expertise_tags and profile_expertise tables (no longer used)
 --
 -- Edge Function Update:
 -- The Edge Function has been updated to remove personality scoring.
 -- Matching weights redistributed: Goals 35%, Career 35%, Interests 30%.
 -- No personality fields are queried or used in matching.
+--
+-- Data Storage:
+-- expertise_tags are now stored as TEXT[] array in profiles table
+-- Hobbies table still exists for onboarding UI selections
 --
 -- Run this in your Supabase SQL Editor to apply the changes.
 
