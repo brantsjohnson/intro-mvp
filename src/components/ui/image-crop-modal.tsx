@@ -40,22 +40,18 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
     const handleLoad = () => {
       if (img.naturalWidth > 0 && img.naturalHeight > 0) {
         setImageLoaded(true)
-        // Calculate initial scale to fit image within container (preserving aspect ratio)
-        // We want the image to fill or exceed the container, so it can be cropped
-        const imageAspectRatio = img.naturalWidth / img.naturalHeight
-        const containerAspectRatio = 1 // container is square
         
-        let initialScale
-        if (imageAspectRatio > containerAspectRatio) {
-          // Image is wider - scale to fit height
-          initialScale = containerSize / img.naturalHeight
-        } else {
-          // Image is taller - scale to fit width
-          initialScale = containerSize / img.naturalWidth
-        }
+        // Calculate initial scale to fit image to SMALLEST dimension of container
+        // This ensures the entire image is visible initially
+        const scaleToFitWidth = containerSize / img.naturalWidth
+        const scaleToFitHeight = containerSize / img.naturalHeight
         
-        // Set initial scale to fill container (or slightly larger for flexibility)
-        setScale(Math.max(1, initialScale))
+        // Use the smaller scale so the image fits entirely within the container
+        const initialScale = Math.min(scaleToFitWidth, scaleToFitHeight)
+        
+        // Ensure we can zoom out at least a bit (don't make initial scale too small)
+        // But always start with image fitting within container
+        setScale(Math.max(0.5, initialScale))
         
         // Center the image initially
         // With scale applied, calculate centered position
@@ -64,6 +60,16 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
         const centerX = (containerSize - scaledWidth) / 2
         const centerY = (containerSize - scaledHeight) / 2
         setPosition({ x: centerX, y: centerY })
+        
+        console.log('Image loaded:', {
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
+          initialScale,
+          scaledWidth,
+          scaledHeight,
+          centerX,
+          centerY
+        })
       }
     }
     
@@ -170,52 +176,113 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
   const cropImage = () => {
     const canvas = canvasRef.current
     const img = imageRef.current
-    if (!canvas || !img || !imageLoaded) return
+    if (!canvas || !img || !imageLoaded) {
+      console.error('Crop failed: missing canvas, image, or image not loaded', {
+        hasCanvas: !!canvas,
+        hasImg: !!img,
+        imageLoaded
+      })
+      return
+    }
 
     const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    if (!ctx) {
+      console.error('Crop failed: cannot get canvas context')
+      return
+    }
+
+    console.log('Cropping image:', {
+      position,
+      scale,
+      imgWidth: img.naturalWidth,
+      imgHeight: img.naturalHeight,
+      containerSize,
+      cropSize
+    })
 
     // Set canvas size
     canvas.width = cropSize
     canvas.height = cropSize
+
+    // Clear canvas
+    ctx.clearRect(0, 0, cropSize, cropSize)
 
     // Create circular clipping path
     ctx.beginPath()
     ctx.arc(cropSize / 2, cropSize / 2, cropSize / 2, 0, 2 * Math.PI)
     ctx.clip()
 
-    // Calculate source rectangle from the visible area in container
-    // Position is relative to container top-left, so we need to convert to image coordinates
-    const sourceX = -position.x / scale
-    const sourceY = -position.y / scale
-    const sourceWidth = containerSize / scale
-    const sourceHeight = containerSize / scale
+    // Calculate the crop area center (middle of container)
+    const cropCenterX = containerSize / 2
+    const cropCenterY = containerSize / 2
+    const cropRadius = cropSize / 2
+
+    // Calculate the visible region in container coordinates
+    // The crop circle is centered in the container
+    const cropLeft = cropCenterX - cropRadius
+    const cropTop = cropCenterY - cropRadius
+
+    // Convert container coordinates to image coordinates
+    // Position is the offset of the image's top-left corner from container's top-left
+    // The image is scaled, so we need to divide by scale
+    const imageX = (cropLeft - position.x) / scale
+    const imageY = (cropTop - position.y) / scale
+    const imageCropSize = cropSize / scale
+
+    console.log('Crop calculations:', {
+      cropLeft,
+      cropTop,
+      imageX,
+      imageY,
+      imageCropSize
+    })
 
     // Draw the cropped image
-    ctx.drawImage(
-      img,
-      sourceX,
-      sourceY,
-      sourceWidth,
-      sourceHeight,
-      0,
-      0,
-      cropSize,
-      cropSize
-    )
+    try {
+      ctx.drawImage(
+        img,
+        imageX,
+        imageY,
+        imageCropSize,
+        imageCropSize,
+        0,
+        0,
+        cropSize,
+        cropSize
+      )
+
+      console.log('Image drawn to canvas successfully')
+    } catch (error) {
+      console.error('Error drawing image to canvas:', error)
+      return
+    }
 
     // Convert to blob and create URL
     canvas.toBlob((blob) => {
       if (blob) {
+        console.log('Canvas converted to blob, size:', blob.size)
         const croppedUrl = URL.createObjectURL(blob)
+        console.log('Blob URL created:', croppedUrl)
         onSave(croppedUrl)
+      } else {
+        console.error('Failed to convert canvas to blob')
       }
     }, 'image/jpeg', 0.9)
   }
 
   const handleSave = () => {
-    cropImage()
-    onClose()
+    console.log('Save button clicked, imageLoaded:', imageLoaded)
+    if (!imageLoaded) {
+      console.error('Cannot save: image not loaded')
+      return
+    }
+    
+    try {
+      cropImage()
+      onClose()
+    } catch (error) {
+      console.error('Error in handleSave:', error)
+    }
   }
 
   return (

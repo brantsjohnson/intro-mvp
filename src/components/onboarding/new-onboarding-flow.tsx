@@ -210,16 +210,30 @@ export function NewOnboardingFlow() {
   }
 
   const handleCropSave = async (croppedImageUrl: string) => {
+    console.log('handleCropSave called with URL:', croppedImageUrl)
     try {
       // Convert blob URL to File so it can be uploaded
+      console.log('Fetching blob from URL...')
       const response = await fetch(croppedImageUrl)
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch blob: ${response.statusText}`)
+      }
+      
+      console.log('Converting blob to File...')
       const blob = await response.blob()
+      console.log('Blob received, size:', blob.size, 'type:', blob.type)
+      
       const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' })
+      console.log('File created:', file.name, file.size, file.type)
       
       setAvatarFile(file)
       setAvatarPreview(croppedImageUrl)
       setShowCropModal(false)
       setTempImageUrl(null)
+      
+      console.log('Avatar file set successfully')
+      toast.success('Photo saved!')
     } catch (error) {
       console.error('Error processing cropped image:', error)
       toast.error('Failed to process image. Please try again.')
