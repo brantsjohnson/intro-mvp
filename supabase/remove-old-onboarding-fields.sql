@@ -49,9 +49,9 @@ SELECT
 -- 3. Recreates all_events_members view WITHOUT personality fields
 --
 -- Edge Function Update:
--- The Edge Function expects mbti/enneagram in the view, but will
--- handle NULL values gracefully. You should update the Edge Function
--- to remove personality scoring or redistribute the 0.25 weight.
+-- The Edge Function has been updated to remove personality scoring.
+-- Matching weights redistributed: Goals 35%, Career 35%, Interests 30%.
+-- No personality fields are queried or used in matching.
 --
 -- Run this in your Supabase SQL Editor to apply the changes.
 
