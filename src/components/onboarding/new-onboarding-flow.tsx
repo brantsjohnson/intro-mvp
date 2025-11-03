@@ -68,6 +68,24 @@ export function NewOnboardingFlow() {
   const [showCropModal, setShowCropModal] = useState(false)
   const [tempImageUrl, setTempImageUrl] = useState<string | null>(null)
   
+  // Cleanup preview URL when it changes
+  useEffect(() => {
+    return () => {
+      if (avatarPreview && avatarPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(avatarPreview)
+      }
+    }
+  }, [avatarPreview])
+  
+  // Cleanup temp image URL when component unmounts
+  useEffect(() => {
+    return () => {
+      if (tempImageUrl && tempImageUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(tempImageUrl)
+      }
+    }
+  }, [tempImageUrl])
+  
   // Event-specific data
   const [whyAttending, setWhyAttending] = useState("")
   const [connectionTypesSelected, setConnectionTypesSelected] = useState<string[]>([])
@@ -210,32 +228,73 @@ export function NewOnboardingFlow() {
 
   const handleCropSave = async (croppedImageUrl: string) => {
     console.log('handleCropSave called with URL:', croppedImageUrl)
+    
+    if (!croppedImageUrl) {
+      console.error('No cropped image URL provided')
+      toast.error('No image to save')
+      return
+    }
+    
     try {
       // Convert blob URL to File so it can be uploaded
       console.log('Fetching blob from URL...')
       const response = await fetch(croppedImageUrl)
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch blob: ${response.statusText}`)
+        throw new Error(`Failed to fetch blob: ${response.status} ${response.statusText}`)
       }
       
       console.log('Converting blob to File...')
       const blob = await response.blob()
       console.log('Blob received, size:', blob.size, 'type:', blob.type)
       
-      const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' })
-      console.log('File created:', file.name, file.size, file.type)
+      if (blob.size === 0) {
+        throw new Error('Blob is empty')
+      }
       
+      // Ensure we have a valid image type
+      const fileType = blob.type || 'image/jpeg'
+      const file = new File([blob], 'avatar.jpg', { type: fileType })
+      console.log('File created:', file.name, file.size, 'bytes', file.type)
+      
+      // Verify file is valid
+      if (file.size === 0) {
+        throw new Error('Created file is empty')
+      }
+      
+      // Revoke old preview URL if it exists
+      if (avatarPreview && avatarPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(avatarPreview)
+      }
+      
+      // Set the file BEFORE closing modal to ensure it's preserved
       setAvatarFile(file)
-      setAvatarPreview(croppedImageUrl)
+      
+      // Create a preview URL from the file (this will be cleaned up in useEffect)
+      const previewUrl = URL.createObjectURL(file)
+      setAvatarPreview(previewUrl)
+      
+      // Revoke the temp image URL since we have the file now
+      if (tempImageUrl && tempImageUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(tempImageUrl)
+      }
+      
+      // Close modal and clear temp URL
       setShowCropModal(false)
       setTempImageUrl(null)
       
-      console.log('Avatar file set successfully')
-      toast.success('Photo saved!')
-    } catch (error) {
-      console.error('Error processing cropped image:', error)
-      toast.error('Failed to process image. Please try again.')
+      console.log('Avatar file set successfully, file size:', file.size, 'bytes')
+      toast.success('Photo saved! It will be uploaded when you complete your profile.')
+    } catch (error: any) {
+      console.error('Error processing cropped image:', {
+        error,
+        message: error?.message,
+        stack: error?.stack,
+        url: croppedImageUrl
+      })
+      toast.error(`Failed to save photo: ${error?.message || 'Unknown error'}`)
+      setAvatarFile(null)
+      setAvatarPreview(null)
     }
   }
 
@@ -248,7 +307,18 @@ export function NewOnboardingFlow() {
   const uploadAvatar = async (userId: string) => {
     if (!avatarFile) {
       console.error('uploadAvatar: No avatar file provided')
-      return null
+      throw new Error('No avatar file to upload')
+    }
+
+    // Verify file is valid
+    if (avatarFile.size === 0) {
+      console.error('uploadAvatar: Avatar file is empty')
+      throw new Error('Avatar file is empty')
+    }
+
+    if (!avatarFile.type.startsWith('image/')) {
+      console.error('uploadAvatar: File is not an image', avatarFile.type)
+      throw new Error('File is not a valid image')
     }
 
     const fileExt = avatarFile.name.split('.').pop() || 'jpg'
@@ -260,7 +330,9 @@ export function NewOnboardingFlow() {
       fileName,
       filePath,
       fileSize: avatarFile.size,
-      fileType: avatarFile.type
+      fileSizeKB: (avatarFile.size / 1024).toFixed(2),
+      fileType: avatarFile.type,
+      fileLastModified: new Date(avatarFile.lastModified).toISOString()
     })
 
     try {
@@ -347,6 +419,23 @@ export function NewOnboardingFlow() {
       }
 
       console.log('Avatar uploaded successfully, public URL:', urlData.publicUrl)
+      
+      // Verify the URL is accessible
+      if (urlData.publicUrl) {
+        // Test if URL is accessible (optional, but helpful for debugging)
+        try {
+          const testResponse = await fetch(urlData.publicUrl, { method: 'HEAD' })
+          if (testResponse.ok) {
+            console.log('Avatar URL is accessible:', urlData.publicUrl)
+          } else {
+            console.warn('Avatar URL test returned status:', testResponse.status)
+          }
+        } catch (testError) {
+          console.warn('Could not test avatar URL accessibility:', testError)
+          // Continue anyway, the URL might still be valid
+        }
+      }
+      
       return urlData.publicUrl
     } catch (error: any) {
       console.error('Error uploading avatar:', {
@@ -354,7 +443,9 @@ export function NewOnboardingFlow() {
         message: error?.message,
         stack: error?.stack,
         userId,
-        filePath
+        filePath,
+        fileSize: avatarFile?.size,
+        fileType: avatarFile?.type
       })
       throw error
     }
@@ -514,31 +605,60 @@ export function NewOnboardingFlow() {
   }
 
   const handleCompleteProfile = async () => {
-    if (!user) return
+    if (!user) {
+      console.error('handleCompleteProfile: No user')
+      return
+    }
 
     if (!validateProfessionalForm()) {
       toast.error("Please complete all required fields")
       return
     }
 
+    console.log('handleCompleteProfile called, avatarFile:', {
+      hasAvatarFile: !!avatarFile,
+      avatarFileSize: avatarFile?.size,
+      avatarFileType: avatarFile?.type,
+      avatarFileName: avatarFile?.name
+    })
+
     setIsLoading(true)
     try {
       let avatarUrl = null
+      
+      // Try to upload avatar if we have one
       if (avatarFile) {
-        try {
-          avatarUrl = await uploadAvatar(user.id)
-          if (avatarUrl) {
-            console.log('Photo uploaded successfully to Supabase Storage:', avatarUrl)
+        // Verify file is still valid
+        if (avatarFile.size === 0) {
+          console.error('Avatar file is empty, cannot upload')
+          toast.error('Photo file is invalid. Please upload again.')
+        } else {
+          try {
+            console.log('Starting avatar upload...')
+            avatarUrl = await uploadAvatar(user.id)
+            if (avatarUrl) {
+              console.log('Photo uploaded successfully to Supabase Storage:', avatarUrl)
+              toast.success('Photo uploaded successfully!')
+            } else {
+              console.warn('Avatar upload returned null URL')
+            }
+          } catch (uploadError: any) {
+            console.error('Failed to upload photo:', {
+              error: uploadError,
+              message: uploadError?.message,
+              stack: uploadError?.stack
+            })
+            const errorMessage = uploadError?.message || 'Unknown error'
+            toast.error(`Photo upload failed: ${errorMessage}. Check console for details.`)
+            // Continue with profile save even if photo upload fails
           }
-        } catch (uploadError: any) {
-          console.error('Failed to upload photo:', uploadError)
-          const errorMessage = uploadError?.message || 'Unknown error'
-          toast.error(`Photo upload failed: ${errorMessage}. Check console for details.`)
-          // Continue with profile save even if photo upload fails
         }
       } else if (user.user_metadata?.avatar_url) {
         // Use Google OAuth photo if available and no manual upload
+        console.log('Using Google OAuth avatar URL:', user.user_metadata.avatar_url)
         avatarUrl = user.user_metadata.avatar_url
+      } else {
+        console.log('No avatar to upload')
       }
 
       const expertiseArray = [areasOfExpertise]
@@ -784,18 +904,30 @@ export function NewOnboardingFlow() {
               Profile Photo
             </Label>
             <div className="flex items-center space-x-4">
-              <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden">
-                {avatarPreview ? (
-                  <img src={avatarPreview} alt="Avatar preview" className="w-full h-full object-cover" />
-                ) : firstName && lastName ? (
-                  <div className="w-full h-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-lg">
-                    {firstName[0]}{lastName[0]}
+              <div className="relative">
+                <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden border-2 border-border">
+                  {avatarPreview ? (
+                    <img src={avatarPreview} alt="Avatar preview" className="w-full h-full object-cover" />
+                  ) : firstName && lastName ? (
+                    <div className="w-full h-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-lg">
+                      {firstName[0]}{lastName[0]}
+                    </div>
+                  ) : (
+                    <Camera className="h-8 w-8 text-muted-foreground" />
+                  )}
+                </div>
+                {avatarFile && (
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary border-2 border-background flex items-center justify-center">
+                    <span className="text-xs text-primary-foreground">✓</span>
                   </div>
-                ) : (
-                  <Camera className="h-8 w-8 text-muted-foreground" />
                 )}
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 flex-1">
+                {avatarFile && (
+                  <p className="text-xs text-muted-foreground">
+                    Photo saved ({Math.round(avatarFile.size / 1024)} KB). Will upload when you complete your profile.
+                  </p>
+                )}
                 <div className="flex space-x-2">
                   <input
                     type="file"
