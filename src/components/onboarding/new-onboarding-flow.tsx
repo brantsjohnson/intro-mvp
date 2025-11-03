@@ -960,22 +960,25 @@ export function NewOnboardingFlow() {
               ) : (
                 <GradientButton
                   onClick={() => {
-                    if (currentStep === 0) {
-                      if (!validateForm()) {
-                        toast.error("Please complete the required fields")
-                        return
-                      }
-                    } else if (currentStep === 1) {
-                      if (!validateProfessionalForm()) {
-                        toast.error("Please complete all required fields")
+                    const stepId = currentStepData.id
+                    if (stepId === "profile" && !validateForm()) {
+                      toast.error("Please complete the required fields")
+                      return
+                    } else if (stepId === "professional" && !validateProfessionalForm()) {
+                      toast.error("Please complete all required fields")
+                      return
+                    } else if (stepId === "connection-types") {
+                      if (connectionTypesSelected.length === 0) {
+                        toast.error("Please select at least one connection type")
                         return
                       }
                     }
                     setCurrentStep(currentStep + 1)
                   }}
                   disabled={
-                    (currentStep === 0 && (!firstName || !lastName)) ||
-                    (currentStep === 1 && (!jobTitle || !company || !yearsExperience || !areasOfExpertise))
+                    (currentStepData.id === "profile" && (!firstName || !lastName)) ||
+                    (currentStepData.id === "professional" && (!jobTitle || !company || !yearsExperience || !areasOfExpertise)) ||
+                    (currentStepData.id === "connection-types" && connectionTypesSelected.length === 0)
                   }
                 >
                   Continue
