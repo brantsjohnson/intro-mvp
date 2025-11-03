@@ -32,14 +32,14 @@ export function EventJoinScanner({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (eventCode.trim().length === 5) {
+    if (eventCode.trim().length === 6) {
       onJoinEvent(eventCode.trim().toUpperCase())
     }
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
-    if (value.length <= 5) {
+    if (value.length <= 6) {
       setEventCode(value)
     }
   }
@@ -156,8 +156,8 @@ export function EventJoinScanner({
                 return
               }
               
-              // Fallback to simple 5-character event code
-              if (scannedText && scannedText.length === 5 && /^[A-Z0-9]+$/.test(scannedText)) {
+              // Fallback to simple 6-character event code
+              if (scannedText && scannedText.length === 6 && /^[A-Z0-9]+$/.test(scannedText)) {
                 console.log('Stopping scanner and joining event with simple code')
                 setIsProcessing(true)
                 stopScanning()
@@ -265,15 +265,15 @@ export function EventJoinScanner({
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="event-code" className="block text-sm font-medium text-foreground mb-2">
-            Enter 5-character event code
+            Enter 6-character event code
           </label>
           <Input
             id="event-code"
             type="text"
             value={eventCode}
             onChange={handleInputChange}
-            placeholder="ABC12"
-            maxLength={5}
+            placeholder="ABC123"
+            maxLength={6}
             className="text-center text-lg font-mono tracking-wider"
             disabled={isLoading}
           />
@@ -281,7 +281,7 @@ export function EventJoinScanner({
         
         <GradientButton 
           type="submit"
-          disabled={eventCode.length !== 5 || isLoading}
+          disabled={eventCode.length !== 6 || isLoading}
           className="w-full rounded-full py-3 text-base font-medium"
         >
           {isLoading ? (
