@@ -93,6 +93,7 @@ export type Database = {
           checked_in_at: string | null
           last_seen_at: string | null
           onboarding_completed: boolean | null
+          adaptive_qna_json: Json | null
           created_at: string | null
           updated_at: string | null
         }

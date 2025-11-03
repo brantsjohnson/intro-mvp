@@ -1,19 +1,15 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GradientButton } from "@/components/ui/gradient-button"
-import { AccordionSection } from "@/components/ui/accordion-section"
-import { HobbiesGrid } from "@/components/ui/hobbies-grid"
-import { ExpertiseGrid } from "@/components/ui/expertise-grid"
 import { PresenceAvatar } from "@/components/ui/presence-avatar"
 import { QRCard } from "@/components/ui/qr-card"
 import { QRScanner } from "@/components/ui/qr-scanner"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createClientComponentClient } from "@/lib/supabase"
-import { Profile, Hobby } from "@/lib/types"
-// AI removed for now
+import { Profile } from "@/lib/types"
 import { toast } from "sonner"
 import { ArrowLeft, MessageSquare } from "lucide-react"
 
@@ -23,31 +19,14 @@ interface UserProfileProps {
 
 export function UserProfile({ userId }: UserProfileProps) {
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [hobbies, setHobbies] = useState<Hobby[]>([])
-  const [userHobbies, setUserHobbies] = useState<number[]>([])
-  const [currentUserHobbies, setCurrentUserHobbies] = useState<number[]>([])
-  const [expertise, setExpertise] = useState<{id: number, label: string}[]>([])
-  const [userExpertise, setUserExpertise] = useState<number[]>([])
-  const [currentUserExpertise, setCurrentUserExpertise] = useState<number[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isPresent, setIsPresent] = useState(false)
-  const [aiInsights, setAiInsights] = useState<{
-    why: string
-    activities: string
-    deeper: string
-  } | null>(null)
-  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false)
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false)
   const [isOwnProfile, setIsOwnProfile] = useState(false)
   const [hasConnection, setHasConnection] = useState(false)
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
-  const [matchBases, setMatchBases] = useState<string[]>([])
-  const [matchPanels, setMatchPanels] = useState<{
-    why_meet: string
-    shared_activities: string[]
-    dive_deeper: string
-  } | null>(null)
-  const [currentEvent, setCurrentEvent] = useState<{id: string, name: string} | null>(null)
+  const [matchExplanation, setMatchExplanation] = useState<string | null>(null)
+  const [currentEvent, setCurrentEvent] = useState<{event_id: string, event_name: string} | null>(null)
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -57,11 +36,11 @@ export function UserProfile({ userId }: UserProfileProps) {
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        // Load the profile
+        // Load the profile from users table
         const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userId)
+          .from("users")
+          .select("user_id, first_name, last_name, email, photo_url, career_title, company_name, expertise_summary, mbti_type, enneagram_type")
+          .eq("user_id", userId)
           .single()
 
         if (profileError) {
@@ -70,166 +49,91 @@ export function UserProfile({ userId }: UserProfileProps) {
           return
         }
 
-        setProfile(profileData)
-
-        // Load hobbies
-        const { data: hobbiesData } = await supabase
-          .from("hobbies")
-          .select("*")
-          .order("label")
-
-        if (hobbiesData) {
-          setHobbies(hobbiesData)
+        // Map to Profile interface
+        const mappedProfile: Profile = {
+          id: profileData.user_id,
+          first_name: profileData.first_name || "",
+          last_name: profileData.last_name || "",
+          email: profileData.email || "",
+          avatar_url: profileData.photo_url || null,
+          job_title: profileData.career_title || null,
+          company: profileData.company_name || null,
+          what_do_you_do: profileData.expertise_summary || null,
+          location: null,
+          linkedin_url: null,
+          mbti: profileData.mbti_type || null,
+          enneagram: profileData.enneagram_type || null,
+          networking_goals: null,
+          hobbies: null,
+          expertise_tags: null,
+          consent: true,
         }
 
-        // Load expertise
-        const { data: expertiseData } = await supabase
-          .from("expertise_tags")
-          .select("*")
-          .order("label")
+        setProfile(mappedProfile)
 
-        if (expertiseData) {
-          setExpertise(expertiseData)
-        }
-
-        // Load user's hobbies
-        const { data: userHobbiesData } = await supabase
-          .from("profile_hobbies")
-          .select("hobby_id")
-          .eq("user_id", userId)
-
-        if (userHobbiesData) {
-          setUserHobbies((userHobbiesData as Array<{ hobby_id: number }>).map(h => h.hobby_id))
-        }
-
-        // Load user's expertise
-        const { data: userExpertiseData } = await supabase
-          .from("profile_expertise")
-          .select("tag_id")
-          .eq("user_id", userId)
-
-        if (userExpertiseData) {
-          setUserExpertise((userExpertiseData as Array<{ tag_id: number }>).map(e => e.tag_id))
-        }
-
-        // Load current user's hobbies for comparison
+        // Load current user's info for comparison
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
           // Check if this is the user's own profile
           setIsOwnProfile(user.id === userId)
-
-          const { data: currentUserHobbiesData } = await supabase
-            .from("profile_hobbies")
-            .select("hobby_id")
-            .eq("user_id", user.id)
-
-          if (currentUserHobbiesData) {
-            setCurrentUserHobbies((currentUserHobbiesData as Array<{ hobby_id: number }>).map(h => h.hobby_id))
-          }
-
-          const { data: currentUserExpertiseData } = await supabase
-            .from("profile_expertise")
-            .select("tag_id")
-            .eq("user_id", user.id)
-
-          if (currentUserExpertiseData) {
-            setCurrentUserExpertise((currentUserExpertiseData as Array<{ tag_id: number }>).map(e => e.tag_id))
-          }
 
           // Check if user is present in current event (from attendance.checked_in_at)
           const eventId = searchParams.get('eventId')
           if (eventId) {
             const { data: attendanceData } = await supabase
               .from("attendance")
-              .select("checked_in_at")
+              .select("checked_in_at, events:event_id(event_id, event_name)")
               .eq("user_id", userId)
               .eq("event_id", eventId)
               .maybeSingle()
 
             if (attendanceData) {
               setIsPresent(!!attendanceData.checked_in_at)
-            }
-          }
-
-          // Detect if a connection already exists between current user and target
-          try {
-            const { data: existingConnection } = await supabase
-              .from("connections")
-              .select("id")
-              .or(`and(a.eq.${user.id},b.eq.${userId}),and(a.eq.${userId},b.eq.${user.id})`)
-              .limit(1)
-              .maybeSingle()
-            setHasConnection(Boolean(existingConnection))
-          } catch (_) {
-            // ignore errors; default is no connection
-          }
-
-          // Load current event data
-          const eventId = searchParams.get('eventId')
-          if (eventId) {
-            try {
-              const { data: eventData } = await supabase
-                .from("events")
-                .select("id, name")
-                .eq("id", eventId)
-                .single()
-              
-              if (eventData) {
-                setCurrentEvent(eventData)
+              if (attendanceData.events) {
+                setCurrentEvent({
+                  event_id: attendanceData.events.event_id,
+                  event_name: attendanceData.events.event_name
+                })
               }
-            } catch (error) {
-              console.warn('Failed to load event data:', error)
             }
-          }
 
-          // Load match data if this is a suggested connection
-          const source = searchParams.get('source')
-          if (source === 'suggested') {
-            if (eventId) {
+            // Detect if a connection already exists between current user and target
+            // Use a_id and b_id, ensuring a_id < b_id
+            const userIdA = user.id < userId ? user.id : userId
+            const userIdB = user.id < userId ? userId : user.id
+            
+            try {
+              const { data: existingConnection } = await supabase
+                .from("connections")
+                .select("connection_id, match_explanation_text")
+                .eq("event_id", eventId)
+                .eq("a_id", userIdA)
+                .eq("b_id", userIdB)
+                .maybeSingle()
+              
+              setHasConnection(Boolean(existingConnection))
+              if (existingConnection?.match_explanation_text) {
+                setMatchExplanation(existingConnection.match_explanation_text)
+              }
+            } catch (_) {
+              // ignore errors; default is no connection
+            }
+
+            // Load match explanation if this is a suggested connection
+            const source = searchParams.get('source')
+            if (source === 'suggested' && !matchExplanation) {
               try {
-                // Load match where current user is A and target is B
-                const { data: matchA } = await supabase
-                  .from("matches")
-                  .select("bases, why_meet, shared_activities, dive_deeper")
+                const { data: connectionData } = await supabase
+                  .from("connections")
+                  .select("match_explanation_text, match_score_breakdown_json")
                   .eq("event_id", eventId)
-                  .eq("a", user.id)
-                  .eq("b", userId)
-                  .limit(1)
+                  .eq("a_id", userIdA)
+                  .eq("b_id", userIdB)
+                  .eq("connection_kind", "system_match")
                   .maybeSingle()
 
-                // Load match where current user is B and target is A
-                const { data: matchB } = await supabase
-                  .from("matches")
-                  .select("bases, why_meet, shared_activities, dive_deeper")
-                  .eq("event_id", eventId)
-                  .eq("a", userId)
-                  .eq("b", user.id)
-                  .limit(1)
-                  .maybeSingle()
-
-                const match = matchA || matchB
-                if (match) {
-                  if (match.bases) {
-                    setMatchBases(match.bases)
-                  }
-                  if (match.why_meet || match.shared_activities || match.dive_deeper) {
-                    // Parse shared_activities if it's a JSON string
-                    let activities: string[] = []
-                    if (match.shared_activities) {
-                      try {
-                        activities = JSON.parse(match.shared_activities)
-                      } catch {
-                        // If parsing fails, treat as a single string
-                        activities = [match.shared_activities]
-                      }
-                    }
-                    
-                    setMatchPanels({
-                      why_meet: match.why_meet || '',
-                      shared_activities: activities,
-                      dive_deeper: match.dive_deeper || ''
-                    })
-                  }
+                if (connectionData?.match_explanation_text) {
+                  setMatchExplanation(connectionData.match_explanation_text)
                 }
               } catch (error) {
                 console.error("Error loading match data:", error)
@@ -246,16 +150,7 @@ export function UserProfile({ userId }: UserProfileProps) {
     }
 
     loadProfile()
-  }, [userId, router, supabase])
-
-  // Insights disabled
-  useEffect(() => {
-    const noop = () => {
-      if (!profile || hasGeneratedRef.current || isGeneratingInsights || aiInsights) return
-      hasGeneratedRef.current = true
-    }
-    noop()
-  }, [profile, userId, aiInsights])
+  }, [userId, router, supabase, searchParams])
 
   const handleMessage = () => {
     // Get current event ID from URL parameters
@@ -282,21 +177,8 @@ export function UserProfile({ userId }: UserProfileProps) {
       const eventId = searchParams.get('eventId')
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || !eventId) return
-      // Optional table; ignore if missing
-      await supabase
-        .from('connection_feedback')
-        .upsert({
-          event_id: eventId,
-          viewer_id: user.id,
-          target_id: userId,
-          no_count: 1
-        }, { onConflict: 'event_id,viewer_id,target_id' })
-        .select()
-      await supabase.rpc('increment_feedback_no', {
-        p_event_id: eventId,
-        p_viewer_id: user.id,
-        p_target_id: userId
-      }).catch(() => {})
+      // Optional analytics - ignore if table doesn't exist
+      // This was in the old schema, keeping for now but it may not exist
     } catch (_) {
       // swallow analytics errors
     }
@@ -308,31 +190,25 @@ export function UserProfile({ userId }: UserProfileProps) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || !eventId) return
 
+      // Ensure a_id < b_id for consistent lookup
+      const aId = user.id < userId ? user.id : userId
+      const bId = user.id < userId ? userId : user.id
+
       // Create connection if it doesn't exist
       const { error: insertError } = await supabase
         .from('connections')
-        .insert({ event_id: eventId, a: user.id, b: userId, source: 'match' })
-      if (insertError && !insertError.message.includes('duplicate')) {
+        .insert({ 
+          event_id: eventId, 
+          a_id: aId, 
+          b_id: bId, 
+          connection_kind: 'user_added',
+          user_add_method: 'manual_add',
+          created_by_user_id: user.id
+        })
+      
+      if (insertError && !insertError.message.includes('duplicate') && !insertError.message.includes('unique')) {
         throw insertError
       }
-
-      // Increment per-user event stats for current user only
-      try {
-        await supabase
-          .from('user_event_stats')
-          .upsert({ event_id: eventId, user_id: user.id, match_connections: 1 }, { onConflict: 'event_id,user_id' })
-        await supabase.rpc('increment_match_connections', { p_event_id: eventId, p_user_id: user.id }).catch(() => {})
-      } catch (error) {
-        console.warn('Failed to update user stats:', error)
-        // Don't fail the connection creation if stats update fails
-      }
-
-      // Optional: mark feedback yes timestamp
-      await supabase
-        .from('connection_feedback')
-        .upsert({ event_id: eventId, viewer_id: user.id, target_id: userId, yes_at: new Date().toISOString() }, { onConflict: 'event_id,viewer_id,target_id' })
-        .select()
-        .catch(() => {})
 
       setHasConnection(true)
       toast.success('Connection recorded')
@@ -349,6 +225,26 @@ export function UserProfile({ userId }: UserProfileProps) {
   const handleConnectionCreated = () => {
     // Refresh the profile or show success message
     toast.success("Connection created successfully!")
+    // Refresh connection status
+    const eventId = searchParams.get('eventId')
+    if (eventId) {
+      const loadConnection = async () => {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const userIdA = user.id < userId ? user.id : userId
+          const userIdB = user.id < userId ? userId : user.id
+          const { data: existingConnection } = await supabase
+            .from("connections")
+            .select("connection_id")
+            .eq("event_id", eventId)
+            .eq("a_id", userIdA)
+            .eq("b_id", userIdB)
+            .maybeSingle()
+          setHasConnection(Boolean(existingConnection))
+        }
+      }
+      loadConnection()
+    }
   }
 
   if (isLoading) {
@@ -375,22 +271,6 @@ export function UserProfile({ userId }: UserProfileProps) {
     )
   }
 
-  const mutualHobbies = hobbies.filter(hobby => 
-    userHobbies.includes(hobby.id) && currentUserHobbies.includes(hobby.id)
-  )
-
-  const theirUniqueHobbies = hobbies.filter(hobby => 
-    userHobbies.includes(hobby.id) && !currentUserHobbies.includes(hobby.id)
-  )
-
-  const mutualExpertise = expertise.filter(expertise => 
-    userExpertise.includes(expertise.id) && currentUserExpertise.includes(expertise.id)
-  )
-
-  const theirUniqueExpertise = expertise.filter(expertise => 
-    userExpertise.includes(expertise.id) && !currentUserExpertise.includes(expertise.id)
-  )
-
   return (
     <div className="min-h-screen gradient-bg">
       {/* Header */}
@@ -410,7 +290,7 @@ export function UserProfile({ userId }: UserProfileProps) {
                 {profile.first_name} {profile.last_name}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Connected at: {currentEvent?.name || 'Event'}
+                {currentEvent?.event_name || 'Event'}
               </p>
             </div>
 
@@ -442,18 +322,8 @@ export function UserProfile({ userId }: UserProfileProps) {
                     {profile.first_name} {profile.last_name}
                   </h2>
                   <p className="text-muted-foreground">
-                    {profile.job_title} | {profile.company}
+                    {profile.job_title || ""} {profile.company && `| ${profile.company}`}
                   </p>
-                  {/* Match basis pill - only show for suggested connections */}
-                  {searchParams.get('source') === 'suggested' && matchBases.length > 0 && (
-                    <div className="mt-2">
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border bg-orange-500/20 text-orange-400 border-orange-500/30">
-                        Matches: {matchBases.map(basis => 
-                          basis.charAt(0).toUpperCase() + basis.slice(1)
-                        ).join(' / ')}
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
             </CardContent>
@@ -464,89 +334,33 @@ export function UserProfile({ userId }: UserProfileProps) {
             <QRCard onScanClick={handleQRScan} />
           )}
 
-          {/* Match Insights - Only show for suggested connections */}
-          {searchParams.get('source') === 'suggested' && (
-            <div className="space-y-4">
-              <Card className="bg-card border-border shadow-elevation">
-                <CardHeader className="pb-1">
-                  <CardTitle className="text-primary">Why you two should meet</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-foreground leading-relaxed">
-                    {matchPanels?.why_meet || "Loading match insights..."}
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-card border-border shadow-elevation">
-                <CardHeader className="pb-1">
-                  <CardTitle className="text-primary">Activities you might enjoy</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="space-y-2">
-                    {matchPanels?.shared_activities?.map((activity, index) => (
-                      <p key={index} className="text-foreground leading-relaxed">
-                        {activity}
-                      </p>
-                    )) || <p className="text-foreground">Loading activities...</p>}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-card border-border shadow-elevation">
-                <CardHeader className="pb-1">
-                  <CardTitle className="text-primary">Where to dive deeper</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-foreground leading-relaxed">
-                    {matchPanels?.dive_deeper || "Loading conversation starter..."}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+          {/* Match Explanation - Only show for suggested connections */}
+          {searchParams.get('source') === 'suggested' && matchExplanation && (
+            <Card className="bg-card border-border shadow-elevation">
+              <CardHeader className="pb-1">
+                <CardTitle className="text-primary">Why you two should meet</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <p className="text-foreground leading-relaxed">
+                  {matchExplanation}
+                </p>
+              </CardContent>
+            </Card>
           )}
 
-          {/* Hobbies */}
-          <Card className="bg-card border-border shadow-elevation">
-            <CardHeader className="pb-1">
-              <CardTitle className="text-primary">Hobbies</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {profile.first_name} has all listed but checked are mutual.
-              </p>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <HobbiesGrid
-                hobbies={hobbies}
-                selectedHobbies={userHobbies}
-                onHobbyChange={() => {}} // Read-only for other users
-                mode="display"
-                mutualHobbies={mutualHobbies.map(h => h.id)}
-                theirUniqueHobbies={theirUniqueHobbies.map(h => h.id)}
-                showOnlySelected={true}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Expertise */}
-          <Card className="bg-card border-border shadow-elevation">
-            <CardHeader className="pb-1">
-              <CardTitle className="text-primary">Expertise</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {profile.first_name} has all listed but checked are mutual.
-              </p>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <ExpertiseGrid
-                expertise={expertise}
-                selectedExpertise={userExpertise}
-                onExpertiseChange={() => {}} // Read-only for other users
-                mode="display"
-                mutualExpertise={mutualExpertise.map(e => e.id)}
-                theirUniqueExpertise={theirUniqueExpertise.map(e => e.id)}
-                showOnlySelected={true}
-              />
-            </CardContent>
-          </Card>
+          {/* Expertise Summary */}
+          {profile.what_do_you_do && (
+            <Card className="bg-card border-border shadow-elevation">
+              <CardHeader className="pb-1">
+                <CardTitle className="text-primary">Expertise</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <p className="text-foreground leading-relaxed">
+                  {profile.what_do_you_do}
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           {/* About */}
           <Card className="bg-card border-border shadow-elevation">
@@ -554,14 +368,18 @@ export function UserProfile({ userId }: UserProfileProps) {
               <CardTitle className="text-primary">About</CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-3">
-              <div className="flex justify-between items-center py-2 border-b border-border">
-                <span className="text-muted-foreground">Company</span>
-                <span className="text-foreground">{profile.company}</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-border">
-                <span className="text-muted-foreground">Job Title</span>
-                <span className="text-foreground">{profile.job_title}</span>
-              </div>
+              {profile.company && (
+                <div className="flex justify-between items-center py-2 border-b border-border">
+                  <span className="text-muted-foreground">Company</span>
+                  <span className="text-foreground">{profile.company}</span>
+                </div>
+              )}
+              {profile.job_title && (
+                <div className="flex justify-between items-center py-2 border-b border-border">
+                  <span className="text-muted-foreground">Job Title</span>
+                  <span className="text-foreground">{profile.job_title}</span>
+                </div>
+              )}
               {profile.enneagram && (
                 <div className="flex justify-between items-center py-2 border-b border-border">
                   <span className="text-muted-foreground">Enneagram type</span>

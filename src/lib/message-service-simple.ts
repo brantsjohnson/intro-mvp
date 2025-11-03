@@ -52,56 +52,67 @@ export class MessageService {
   }
 
   // Get all threads for current user in an event
+  // NOTE: This method uses old schema (thread_id, sender, recipient) 
+  // and may need updating to use conversations/messages properly
   async getThreads(eventId: string): Promise<ThreadWithDetails[]> {
     const { data: { user } } = await this.supabase.auth.getUser()
     if (!user) throw new Error('Not authenticated')
 
-    // For now, we'll work with the existing messages table
-    // Get all messages for this event where user is sender or recipient
-    const { data: messages, error } = await this.supabase
-      .from('messages')
-      .select(`
-        *,
-        sender_profile:profiles!messages_sender_fkey(
-          id, first_name, last_name, avatar_url, job_title
-        )
-      `)
+    // For now, we'll use a simpler approach: get conversations first, then messages
+    const { data: conversations, error: convError } = await this.supabase
+      .from('conversations')
+      .select('conversation_id, participant_user_ids, created_at')
       .eq('event_id', eventId)
-      .or(`sender.eq.${user.id},recipient.eq.${user.id}`)
+      .contains('participant_user_ids', [user.id])
+    
+    if (convError || !conversations || conversations.length === 0) {
+      return []
+    }
+    
+    const conversationIds = conversations.map(c => c.conversation_id)
+    
+    const { data: messages, error: messagesError } = await this.supabase
+      .from('messages')
+      .select('*')
+      .in('conversation_id', conversationIds)
       .order('created_at', { ascending: false })
 
-    if (error) throw error
+    if (messagesError) throw messagesError
 
-    // Group messages by thread_id and create thread objects
+    // Group messages by conversation_id and create thread objects
     const threadMap = new Map<string, ThreadWithDetails>()
 
     for (const message of messages || []) {
-      const threadId = message.thread_id
+      const conversationId = message.conversation_id || message.thread_id // fallback for old schema
+      const conversation = conversations.find(c => c.conversation_id === conversationId)
       
-      if (!threadMap.has(threadId)) {
-        // Determine the other participant
-        const otherUserId = message.sender === user.id ? message.recipient : message.sender
-        const otherProfile = message.sender === user.id 
-          ? await this.getProfile(otherUserId)
-          : message.sender_profile
+      if (!conversation) continue
+      
+      if (!threadMap.has(conversationId)) {
+        // Find other participant
+        const otherUserId = conversation.participant_user_ids.find((id: string) => id !== user.id) || ''
+        const otherProfile = await this.getProfile(otherUserId)
 
-        threadMap.set(threadId, {
-          id: threadId,
+        // Get last message with sender profile
+        const senderProfile = await this.getProfile(message.sender_user_id || message.sender)
+
+        threadMap.set(conversationId, {
+          id: conversationId,
           event_id: eventId,
           participant_a: user.id,
-          participant_b: otherUserId || '',
-          created_at: message.created_at,
+          participant_b: otherUserId,
+          created_at: conversation.created_at || message.created_at,
           updated_at: message.created_at,
           last_message_at: message.created_at,
           other_participant: otherProfile || { id: '', first_name: 'Unknown', last_name: 'User' },
-          last_message: message as MessageWithSender,
+          last_message: { ...message, sender_profile: senderProfile || { id: '', first_name: '', last_name: '' } } as MessageWithSender,
           unread_count: 0
         })
       }
 
-      // Update unread count
-      const thread = threadMap.get(threadId)!
-      if (message.recipient === user.id && !message.is_read) {
+      // Update unread count (simplified - no is_read flag in new schema)
+      const thread = threadMap.get(conversationId)!
+      if (message.sender_user_id !== user.id && message.sender !== user.id) {
         thread.unread_count++
       }
     }
@@ -111,28 +122,34 @@ export class MessageService {
     )
   }
 
-  // Get messages for a specific thread
+  // Get messages for a specific thread/conversation
   async getThreadMessages(threadId: string): Promise<ConversationMessage[]> {
     const { data: { user } } = await this.supabase.auth.getUser()
     if (!user) throw new Error('Not authenticated')
 
+    // Try conversation_id first (new schema), fallback to thread_id (old schema)
     const { data, error } = await this.supabase
       .from('messages')
-      .select(`
-        *,
-        sender_profile:profiles!messages_sender_fkey(
-          id, first_name, last_name, avatar_url
-        )
-      `)
-      .eq('thread_id', threadId)
+      .select('*')
+      .or(`conversation_id.eq.${threadId},thread_id.eq.${threadId}`)
       .order('created_at', { ascending: true })
 
     if (error) throw error
 
-    return (data || []).map(message => ({
-      ...message,
-      is_from_current_user: message.sender === user.id
-    }))
+    // Load sender profiles for each message
+    const messagesWithProfiles = await Promise.all(
+      (data || []).map(async (message) => {
+        const senderId = message.sender_user_id || message.sender
+        const senderProfile = await this.getProfile(senderId)
+        return {
+          ...message,
+          sender_profile: senderProfile || { id: '', first_name: 'Unknown', last_name: 'User', avatar_url: null },
+          is_from_current_user: senderId === user.id
+        }
+      })
+    )
+
+    return messagesWithProfiles
   }
 
   // Send a message
@@ -293,11 +310,20 @@ export class MessageService {
     if (!userId) return null
 
     const { data } = await this.supabase
-      .from('profiles')
-      .select('id, first_name, last_name, avatar_url, job_title')
-      .eq('id', userId)
+      .from('users')
+      .select('user_id, first_name, last_name, photo_url, career_title')
+      .eq('user_id', userId)
       .single()
 
-    return data
+    if (!data) return null
+
+    // Map to Profile format
+    return {
+      id: data.user_id,
+      first_name: data.first_name || '',
+      last_name: data.last_name || '',
+      avatar_url: data.photo_url || null,
+      job_title: data.career_title || null
+    }
   }
 }

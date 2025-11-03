@@ -75,11 +75,14 @@ export function NewOnboardingFlow() {
   const [followUpResponses, setFollowUpResponses] = useState<Record<string, string>>({})
   const [businessNeed, setBusinessNeed] = useState("")
   
-  // Adaptive questions
-  const [adaptiveQuestions, setAdaptiveQuestions] = useState<any[]>([])
-  const [adaptiveResponses, setAdaptiveResponses] = useState<Record<string, any>>({})
-  const [currentAdaptiveQuestionIndex, setCurrentAdaptiveQuestionIndex] = useState(0)
-  const [showAdaptiveQuestions, setShowAdaptiveQuestions] = useState(false)
+  // Adaptive Q&A state
+  const [currentAdaptiveQuestion, setCurrentAdaptiveQuestion] = useState<{
+    id: string
+    text: string
+    options: Array<{ key: string; label: string }>
+  } | null>(null)
+  const [isLoadingQuestion, setIsLoadingQuestion] = useState(false)
+  const [adaptiveQnAComplete, setAdaptiveQnAComplete] = useState(false)
   
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   
@@ -287,6 +290,34 @@ export function NewOnboardingFlow() {
     }
   }
 
+  // Map UI connection type IDs to database format
+  const mapConnectionTypeToDB = (uiId: string): string => {
+    const mapping: Record<string, string> = {
+      "business-opportunities": "biz_opps",
+      "find-mentor": "find_mentor",
+      "be-mentor": "be_mentor",
+      "find-job": "find_job",
+      "recruit": "recruit",
+      "general": "general",
+      "other": "other"
+    }
+    return mapping[uiId] || uiId
+  }
+
+  // Map database connection type IDs back to UI format
+  const mapConnectionTypeFromDB = (dbId: string): string => {
+    const mapping: Record<string, string> = {
+      "biz_opps": "business-opportunities",
+      "find_mentor": "find-mentor",
+      "be_mentor": "be-mentor",
+      "find_job": "find-job",
+      "recruit": "recruit",
+      "general": "general",
+      "other": "other"
+    }
+    return mapping[dbId] || dbId
+  }
+
   const handleConnectionTypeChange = (typeId: string, checked: boolean) => {
     if (checked) {
       setConnectionTypesSelected([...connectionTypesSelected, typeId])
@@ -347,18 +378,25 @@ export function NewOnboardingFlow() {
   }
 
   const getFollowUpQuestion = (typeId: string): string => {
-    switch (typeId) {
+    // Handle both UI format (with hyphens) and DB format (with underscores)
+    const normalizedId = typeId.includes('-') ? typeId : mapConnectionTypeFromDB(typeId)
+    
+    switch (normalizedId) {
       case "find-mentor":
+      case "find_mentor":
         return "What type of mentorship are you looking for?"
       case "be-mentor":
+      case "be_mentor":
         return "What industries have you worked in or topics you know about?"
       case "business-opportunities":
+      case "biz_opps":
         return "What opportunities are you looking for?"
       case "general":
         return "What are your hobbies and interests?"
       case "other":
         return "What are your career goals?"
       case "find-job":
+      case "find_job":
         return "What type of job are you looking for?"
       case "recruit":
         return "What roles are you recruiting for?"
@@ -478,7 +516,10 @@ export function NewOnboardingFlow() {
   }
 
   const handleCompleteEventOnboarding = async () => {
-    if (!user || !eventId) return
+    if (!user || !eventId) {
+      console.error("Missing user or eventId", { user: !!user, eventId })
+      return
+    }
 
     if (!whyAttending.trim()) {
       toast.error("Please tell us why you're attending this event")
@@ -492,33 +533,169 @@ export function NewOnboardingFlow() {
 
     setIsLoading(true)
     try {
-      const { error } = await (supabase as any)
+      // Map connection types to database format
+      const dbConnectionTypes = connectionTypesSelected.map(mapConnectionTypeToDB)
+      
+      // Map follow-up responses keys to database format
+      const dbFollowUpResponses: Record<string, string> = {}
+      Object.keys(followUpResponses).forEach(uiKey => {
+        const dbKey = mapConnectionTypeToDB(uiKey)
+        dbFollowUpResponses[dbKey] = followUpResponses[uiKey]
+      })
+
+      console.log("Saving event onboarding:", {
+        event_id: eventId,
+        user_id: user.id,
+        why_attending_text: whyAttending,
+        connection_types_selected: dbConnectionTypes,
+        connection_followups_json: dbFollowUpResponses,
+        business_need_text: businessNeed
+      })
+
+      const { data, error } = await (supabase as any)
         .from("attendance")
         .upsert({
           event_id: eventId,
           user_id: user.id,
           why_attending_text: whyAttending,
-          connection_types_selected: connectionTypesSelected,
-          connection_followups_json: followUpResponses,
+          connection_types_selected: dbConnectionTypes,
+          connection_followups_json: dbFollowUpResponses,
           business_need_text: businessNeed,
-          onboarding_completed: true
+          onboarding_completed: false // Will be set to true after adaptive Q&A
         }, { onConflict: 'event_id,user_id' })
+        .select()
 
       if (error) {
-        console.error("Event onboarding error:", error)
-        toast.error("Failed to save your responses. Please try again.")
+        console.error("Event onboarding error details:", {
+          error,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
+        toast.error(`Failed to save your responses: ${error.message || 'Please try again.'}`)
         return
       }
 
-      toast.success("Event onboarding completed!")
+      console.log("Event onboarding saved successfully:", data)
       
+      // Event questions saved, now start adaptive Q&A
+      toast.success("Saved! Let's continue...")
+      
+      // Load first adaptive question
+      await loadNextAdaptiveQuestion()
+      
+    } catch (error: any) {
+      console.error("Error completing event onboarding:", {
+        error,
+        message: error?.message,
+        stack: error?.stack
+      })
+      toast.error(`An error occurred: ${error?.message || 'Unknown error'}`)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Load next adaptive question
+  const loadNextAdaptiveQuestion = async (selectedOption?: { qid: string; choice: string }) => {
+    if (!user || !eventId) return
+
+    setIsLoadingQuestion(true)
+    try {
+      const response = await fetch('/api/questions/next', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId,
+          userId: user.id,
+          selectedOption
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        console.error('Error loading next question:', error)
+        toast.error('Failed to load next question')
+        return
+      }
+
+      const result = await response.json()
+
+      if (result.done) {
+        // Questions complete, derive attendance and match
+        setAdaptiveQnAComplete(true)
+        await completeAdaptiveQnA()
+      } else if (result.question) {
+        setCurrentAdaptiveQuestion(result.question)
+      }
+    } catch (error: any) {
+      console.error('Error loading adaptive question:', error)
+      toast.error('An error occurred loading the question')
+    } finally {
+      setIsLoadingQuestion(false)
+    }
+  }
+
+  // Handle adaptive question answer selection
+  const handleAdaptiveAnswer = async (choice: string) => {
+    if (!currentAdaptiveQuestion) return
+
+    const selectedOption = {
+      qid: currentAdaptiveQuestion.id,
+      choice
+    }
+
+    // Auto-advance to next question
+    await loadNextAdaptiveQuestion(selectedOption)
+  }
+
+  // Complete adaptive Q&A flow
+  const completeAdaptiveQnA = async () => {
+    if (!user || !eventId) return
+
+    setIsLoading(true)
+    try {
+      // Derive attendance (generate summary, embedding, tags)
+      const deriveResponse = await fetch('/api/derive-attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId, userId: user.id })
+      })
+
+      if (!deriveResponse.ok) {
+        const error = await deriveResponse.json()
+        console.error('Error deriving attendance:', error)
+        toast.error('Failed to process your profile')
+        return
+      }
+
+      // Trigger incremental matching
+      const matchResponse = await fetch('/api/match-incremental', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId, userId: user.id })
+      })
+
+      const matchResult = await matchResponse.json()
+      const matchCount = matchResult.match_count || 0
+
+      if (matchCount > 0) {
+        // Show confetti and success message
+        toast.success(`🎉 Great! We found ${matchCount} ${matchCount === 1 ? 'match' : 'matches'} for you!`)
+      } else {
+        toast.success('Profile complete!')
+      }
+
+      // Redirect to home
       setIsRedirecting(true)
       setTimeout(() => {
-        router.push("/home")
-      }, 1500)
-    } catch (error) {
-      console.error("Error completing event onboarding:", error)
-      toast.error("An error occurred")
+        router.push('/home')
+      }, 2000)
+
+    } catch (error: any) {
+      console.error('Error completing adaptive Q&A:', error)
+      toast.error('An error occurred')
     } finally {
       setIsLoading(false)
     }
@@ -844,6 +1021,9 @@ export function NewOnboardingFlow() {
   const currentStepData = visibleSteps[currentStep]
   const isLastStep = currentStep === visibleSteps.length - 1
 
+  // Show adaptive Q&A if we have a current question or are loading one
+  const showAdaptiveQnA = currentAdaptiveQuestion || isLoadingQuestion || adaptiveQnAComplete
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -886,87 +1066,134 @@ export function NewOnboardingFlow() {
       )}
       
       <div className="w-full max-w-2xl">
-        <Card className="bg-card border-border shadow-elevation">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-xl font-semibold text-foreground">
-              {currentStepData.title}
-            </CardTitle>
-            <p className="text-muted-foreground">
-              {currentStepData.description}
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {currentStepData.component}
-            
-            <div className="flex justify-between pt-4">
-              <GradientButton
-                variant="outline"
-                onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-                disabled={currentStep === 0}
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </GradientButton>
+        {/* Adaptive Q&A Card - shown when in Q&A flow */}
+        {showAdaptiveQnA && (
+          <Card className="bg-card border-border shadow-elevation mb-4">
+            <CardContent className="p-6">
+              {isLoadingQuestion ? (
+                // Skeleton loading shimmer (no "Loading..." text)
+                <div className="space-y-4 animate-pulse">
+                  <div className="h-6 bg-muted rounded w-3/4"></div>
+                  <div className="space-y-3">
+                    <div className="h-12 bg-muted rounded"></div>
+                    <div className="h-12 bg-muted rounded"></div>
+                    <div className="h-12 bg-muted rounded"></div>
+                  </div>
+                </div>
+              ) : currentAdaptiveQuestion ? (
+                // Show current question
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground mb-6">
+                      {currentAdaptiveQuestion.text}
+                    </h3>
+                  </div>
+                  <div className="space-y-3">
+                    {currentAdaptiveQuestion.options.map((option) => (
+                      <button
+                        key={option.key}
+                        onClick={() => handleAdaptiveAnswer(option.key)}
+                        className="w-full p-4 text-left rounded-xl border border-border hover:border-primary hover:bg-primary/5 transition-colors"
+                      >
+                        <span className="text-foreground font-medium">{option.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : adaptiveQnAComplete ? (
+                // Completion state (should be brief before redirect)
+                <div className="text-center">
+                  <p className="text-foreground">Processing your responses...</p>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Regular onboarding steps - shown when not in adaptive Q&A */}
+        {!showAdaptiveQnA && currentStepData && (
+          <Card className="bg-card border-border shadow-elevation">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl font-semibold text-foreground">
+                {currentStepData.title}
+              </CardTitle>
+              <p className="text-muted-foreground">
+                {currentStepData.description}
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {currentStepData.component}
               
-              <div className="flex-1" />
-              
-              {isLastStep ? (
+              <div className="flex justify-between pt-4">
                 <GradientButton
-                  onClick={profileCompleted ? handleCompleteEventOnboarding : handleCompleteProfile}
-                  disabled={isLoading}
+                  variant="outline"
+                  onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+                  disabled={currentStep === 0}
                 >
-                  {isLoading ? "Completing..." : "Complete"}
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
                 </GradientButton>
-              ) : (
-                <GradientButton
-                  onClick={() => {
-                    const stepId = currentStepData.id
-                    if (stepId === "profile" && !validateForm()) {
-                      toast.error("Please complete the required fields")
-                      return
-                    } else if (stepId === "professional" && !validateProfessionalForm()) {
-                      toast.error("Please complete all required fields")
-                      return
-                    } else if (stepId === "connection-types") {
-                      if (connectionTypesSelected.length === 0) {
-                        toast.error("Please select at least one connection type")
+                
+                <div className="flex-1" />
+                
+                {isLastStep ? (
+                  <GradientButton
+                    onClick={profileCompleted ? handleCompleteEventOnboarding : handleCompleteProfile}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Completing..." : "Complete"}
+                  </GradientButton>
+                ) : (
+                  <GradientButton
+                    onClick={() => {
+                      const stepId = currentStepData.id
+                      if (stepId === "profile" && !validateForm()) {
+                        toast.error("Please complete the required fields")
                         return
+                      } else if (stepId === "professional" && !validateProfessionalForm()) {
+                        toast.error("Please complete all required fields")
+                        return
+                      } else if (stepId === "connection-types") {
+                        if (connectionTypesSelected.length === 0) {
+                          toast.error("Please select at least one connection type")
+                          return
+                        }
                       }
+                      setCurrentStep(currentStep + 1)
+                    }}
+                    disabled={
+                      (currentStepData.id === "profile" && (!firstName || !lastName)) ||
+                      (currentStepData.id === "professional" && (!jobTitle || !company || !yearsExperience || !areasOfExpertise)) ||
+                      (currentStepData.id === "connection-types" && connectionTypesSelected.length === 0)
                     }
-                    setCurrentStep(currentStep + 1)
-                  }}
-                  disabled={
-                    (currentStepData.id === "profile" && (!firstName || !lastName)) ||
-                    (currentStepData.id === "professional" && (!jobTitle || !company || !yearsExperience || !areasOfExpertise)) ||
-                    (currentStepData.id === "connection-types" && connectionTypesSelected.length === 0)
-                  }
-                >
-                  Continue
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </GradientButton>
-              )}
-            </div>
-          </CardContent>
-          
-          {!isLastStep && (
-            <div className="px-6 pb-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">
-                  Step {currentStep + 1} of {visibleSteps.length}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  {Math.round(((currentStep + 1) / visibleSteps.length) * 100)}%
-                </span>
+                  >
+                    Continue
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </GradientButton>
+                )}
               </div>
-              <div className="w-full bg-muted rounded-full h-2">
-                <div
-                  className="gradient-primary h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${((currentStep + 1) / visibleSteps.length) * 100}%` }}
-                />
+            </CardContent>
+            
+            {!isLastStep && (
+              <div className="px-6 pb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-muted-foreground">
+                    Step {currentStep + 1} of {visibleSteps.length}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {Math.round(((currentStep + 1) / visibleSteps.length) * 100)}%
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div
+                    className="gradient-primary h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${((currentStep + 1) / visibleSteps.length) * 100}%` }}
+                  />
+                </div>
               </div>
-            </div>
-          )}
-        </Card>
+            )}
+          </Card>
+        )}
       </div>
       
       <ImageCropModal
