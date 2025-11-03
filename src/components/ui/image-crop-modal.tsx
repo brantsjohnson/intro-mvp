@@ -35,15 +35,34 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
     
     // Reset loaded state when imageUrl changes
     setImageLoaded(false)
-    setScale(1) // Reset scale when new image loads
-    setPosition({ x: 0, y: 0 }) // Reset position when new image loads
+    // Don't reset scale/position here - will be set in handleLoad
     
     const handleLoad = () => {
       if (img.naturalWidth > 0 && img.naturalHeight > 0) {
         setImageLoaded(true)
-        // Center the image initially (use scale = 1 for initial centering)
-        const centerX = (containerSize - img.naturalWidth) / 2
-        const centerY = (containerSize - img.naturalHeight) / 2
+        // Calculate initial scale to fit image within container (preserving aspect ratio)
+        // We want the image to fill or exceed the container, so it can be cropped
+        const imageAspectRatio = img.naturalWidth / img.naturalHeight
+        const containerAspectRatio = 1 // container is square
+        
+        let initialScale
+        if (imageAspectRatio > containerAspectRatio) {
+          // Image is wider - scale to fit height
+          initialScale = containerSize / img.naturalHeight
+        } else {
+          // Image is taller - scale to fit width
+          initialScale = containerSize / img.naturalWidth
+        }
+        
+        // Set initial scale to fill container (or slightly larger for flexibility)
+        setScale(Math.max(1, initialScale))
+        
+        // Center the image initially
+        // With scale applied, calculate centered position
+        const scaledWidth = img.naturalWidth * initialScale
+        const scaledHeight = img.naturalHeight * initialScale
+        const centerX = (containerSize - scaledWidth) / 2
+        const centerY = (containerSize - scaledHeight) / 2
         setPosition({ x: centerX, y: centerY })
       }
     }
@@ -84,31 +103,41 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
   }, [imageUrl]) // Only depend on imageUrl, not scale
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    const container = e.currentTarget as HTMLElement
+    const rect = container.getBoundingClientRect()
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
+    
     setIsDragging(true)
     setDragStart({
-      x: e.clientX - position.x,
-      y: e.clientY - position.y
+      x: mouseX - position.x,
+      y: mouseY - position.y
     })
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging) return
     
-    const newX = e.clientX - dragStart.x
-    const newY = e.clientY - dragStart.y
+    const container = e.currentTarget as HTMLElement
+    const rect = container.getBoundingClientRect()
+    const newX = e.clientX - rect.left - dragStart.x
+    const newY = e.clientY - rect.top - dragStart.y
     
     // Constrain movement to keep image within bounds
     const img = imageRef.current
-    if (img) {
-      const imgWidth = img.naturalWidth * scale
-      const imgHeight = img.naturalHeight * scale
+    if (img && imageLoaded) {
+      const scaledWidth = img.naturalWidth * scale
+      const scaledHeight = img.naturalHeight * scale
       
-      const maxX = Math.max(0, imgWidth - containerSize)
-      const maxY = Math.max(0, imgHeight - containerSize)
+      // Calculate bounds - image should not go too far outside container
+      const minX = Math.min(0, containerSize - scaledWidth)
+      const maxX = 0
+      const minY = Math.min(0, containerSize - scaledHeight)
+      const maxY = 0
       
       setPosition({
-        x: Math.max(-maxX, Math.min(0, newX)),
-        y: Math.max(-maxY, Math.min(0, newY))
+        x: Math.max(minX, Math.min(maxX, newX)),
+        y: Math.max(minY, Math.min(maxY, newY))
       })
     }
   }
@@ -117,12 +146,26 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
     setIsDragging(false)
   }
 
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault()
-    const delta = e.deltaY > 0 ? 0.9 : 1.1
-    const newScale = Math.max(0.5, Math.min(3, scale * delta))
-    setScale(newScale)
-  }
+  // Use native event listener for wheel to avoid passive listener issues
+  useEffect(() => {
+    if (!isOpen || !imageRef.current) return
+    
+    const container = imageRef.current.parentElement
+    if (!container) return
+    
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? 0.9 : 1.1
+      const newScale = Math.max(0.5, Math.min(3, scale * delta))
+      setScale(newScale)
+    }
+    
+    container.addEventListener('wheel', handleWheel, { passive: false })
+    
+    return () => {
+      container.removeEventListener('wheel', handleWheel)
+    }
+  }, [isOpen, scale])
 
   const cropImage = () => {
     const canvas = canvasRef.current
@@ -141,19 +184,20 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
     ctx.arc(cropSize / 2, cropSize / 2, cropSize / 2, 0, 2 * Math.PI)
     ctx.clip()
 
-    // Calculate source rectangle
-    const sourceX = -position.x
-    const sourceY = -position.y
-    const sourceWidth = containerSize
-    const sourceHeight = containerSize
+    // Calculate source rectangle from the visible area in container
+    // Position is relative to container top-left, so we need to convert to image coordinates
+    const sourceX = -position.x / scale
+    const sourceY = -position.y / scale
+    const sourceWidth = containerSize / scale
+    const sourceHeight = containerSize / scale
 
     // Draw the cropped image
     ctx.drawImage(
       img,
-      sourceX / scale,
-      sourceY / scale,
-      sourceWidth / scale,
-      sourceHeight / scale,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
       0,
       0,
       cropSize,
@@ -191,7 +235,6 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              onWheel={handleWheel}
             >
               {/* Image */}
               <img
@@ -200,11 +243,17 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
                 alt="Profile preview"
                 className="absolute select-none"
                 style={{
-                  transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
-                  transformOrigin: 'center center',
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover'
+                  transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+                  transformOrigin: 'top left',
+                  width: imageLoaded && imageRef.current
+                    ? `${imageRef.current.naturalWidth}px`
+                    : 'auto',
+                  height: imageLoaded && imageRef.current
+                    ? `${imageRef.current.naturalHeight}px`
+                    : 'auto',
+                  // No objectFit - we want to preserve exact dimensions
+                  maxWidth: 'none',
+                  maxHeight: 'none'
                 }}
                 draggable={false}
               />

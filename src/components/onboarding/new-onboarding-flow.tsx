@@ -233,28 +233,64 @@ export function NewOnboardingFlow() {
   }
 
   const uploadAvatar = async (userId: string) => {
-    if (!avatarFile) return null
+    if (!avatarFile) {
+      console.error('uploadAvatar: No avatar file provided')
+      return null
+    }
 
     const fileExt = avatarFile.name.split('.').pop() || 'jpg'
     const fileName = `${userId}.${fileExt}`
     const filePath = `${userId}/${fileName}`
+
+    console.log('Uploading avatar:', {
+      userId,
+      fileName,
+      filePath,
+      fileSize: avatarFile.size,
+      fileType: avatarFile.type
+    })
 
     try {
       // Check if bucket exists and is accessible
       const { data: buckets, error: bucketsError } = await (supabase as any).storage.listBuckets()
       
       if (bucketsError) {
-        console.error('Storage bucket check error:', bucketsError)
-        throw new Error(`Storage access error: ${bucketsError.message}`)
+        console.error('Storage bucket check error:', {
+          error: bucketsError,
+          message: bucketsError.message,
+          code: bucketsError.code
+        })
+        throw new Error(`Storage access error: ${bucketsError.message || 'Unable to access storage buckets'}`)
       }
+
+      console.log('Available buckets:', buckets?.map((b: any) => b.name))
 
       const avatarsBucket = buckets?.find((b: any) => b.name === 'avatars')
       if (!avatarsBucket) {
+        console.error('avatars bucket not found. Available buckets:', buckets?.map((b: any) => b.name))
         throw new Error('avatars storage bucket does not exist. Please create it in Supabase Storage.')
       }
 
+      console.log('avatars bucket found:', {
+        name: avatarsBucket.name,
+        public: avatarsBucket.public,
+        id: avatarsBucket.id
+      })
+
+      // Verify current user matches the path structure (RLS requirement)
+      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      if (!currentUser || currentUser.id !== userId) {
+        console.error('User mismatch:', {
+          currentUserId: currentUser?.id,
+          requestedUserId: userId
+        })
+        throw new Error('Authentication error: User ID mismatch')
+      }
+
+      console.log('Attempting upload to path:', filePath)
+
       // Upload with upsert to overwrite existing avatars
-      const { error: uploadError } = await (supabase as any).storage
+      const { data: uploadData, error: uploadError } = await (supabase as any).storage
         .from('avatars')
         .upload(filePath, avatarFile, {
           contentType: 'image/jpeg',
@@ -263,29 +299,50 @@ export function NewOnboardingFlow() {
         })
 
       if (uploadError) {
-        console.error('Upload error details:', uploadError)
+        console.error('Upload error details:', {
+          error: uploadError,
+          message: uploadError.message,
+          statusCode: uploadError.statusCode,
+          errorCode: uploadError.error,
+          path: filePath,
+          userId: userId
+        })
+        
         // Provide more helpful error messages
-        if (uploadError.message?.includes('new row violates row-level security')) {
-          throw new Error('Storage permission error: Please check RLS policies for avatars bucket')
+        if (uploadError.message?.includes('new row violates row-level security') || 
+            uploadError.message?.includes('row-level security') ||
+            uploadError.statusCode === 403) {
+          throw new Error('Storage permission error: The avatars bucket RLS policy may not allow this upload. Please check that the RLS policy allows authenticated users to upload to paths matching their user ID.')
         }
-        if (uploadError.message?.includes('Bucket not found')) {
+        if (uploadError.message?.includes('Bucket not found') || uploadError.statusCode === 404) {
           throw new Error('avatars bucket not found. Please create it in Supabase Storage.')
         }
-        throw new Error(`Upload failed: ${uploadError.message}`)
+        throw new Error(`Upload failed: ${uploadError.message || 'Unknown error'}`)
       }
+
+      console.log('Upload successful:', uploadData)
 
       // Get public URL
       const { data: urlData } = (supabase as any).storage
         .from('avatars')
         .getPublicUrl(filePath)
 
+      console.log('Public URL data:', urlData)
+
       if (!urlData?.publicUrl) {
         throw new Error('Failed to get public URL for uploaded image')
       }
 
+      console.log('Avatar uploaded successfully, public URL:', urlData.publicUrl)
       return urlData.publicUrl
     } catch (error: any) {
-      console.error('Error uploading avatar:', error)
+      console.error('Error uploading avatar:', {
+        error,
+        message: error?.message,
+        stack: error?.stack,
+        userId,
+        filePath
+      })
       throw error
     }
   }
