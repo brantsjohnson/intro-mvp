@@ -26,17 +26,62 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
   const containerSize = 300 // Size of the container
 
   useEffect(() => {
-    if (imageUrl && imageRef.current) {
-      const img = imageRef.current
-      img.onload = () => {
+    if (!imageUrl || !imageRef.current) {
+      setImageLoaded(false)
+      return
+    }
+
+    const img = imageRef.current
+    
+    // Reset loaded state when imageUrl changes
+    setImageLoaded(false)
+    setScale(1) // Reset scale when new image loads
+    setPosition({ x: 0, y: 0 }) // Reset position when new image loads
+    
+    const handleLoad = () => {
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
         setImageLoaded(true)
-        // Center the image initially
-        const centerX = (containerSize - img.naturalWidth * scale) / 2
-        const centerY = (containerSize - img.naturalHeight * scale) / 2
+        // Center the image initially (use scale = 1 for initial centering)
+        const centerX = (containerSize - img.naturalWidth) / 2
+        const centerY = (containerSize - img.naturalHeight) / 2
         setPosition({ x: centerX, y: centerY })
       }
     }
-  }, [imageUrl, scale])
+    
+    const handleError = () => {
+      console.error('Failed to load image')
+      setImageLoaded(false)
+    }
+    
+    // Remove any existing handlers to avoid duplicates
+    img.onload = null
+    img.onerror = null
+    
+    // Set new handlers
+    img.onload = handleLoad
+    img.onerror = handleError
+    
+    // Check if image is already loaded (cached images may already be complete)
+    // Use setTimeout to check after DOM updates
+    const checkComplete = () => {
+      if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+        handleLoad()
+      }
+    }
+    
+    // Check immediately and after a short delay to catch cached images
+    checkComplete()
+    const timeoutId = setTimeout(checkComplete, 100)
+    
+    return () => {
+      clearTimeout(timeoutId)
+      // Cleanup handlers
+      if (img) {
+        img.onload = null
+        img.onerror = null
+      }
+    }
+  }, [imageUrl]) // Only depend on imageUrl, not scale
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true)
