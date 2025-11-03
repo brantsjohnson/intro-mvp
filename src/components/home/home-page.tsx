@@ -611,22 +611,46 @@ export function HomePage() {
                 <div className="text-sm text-muted-foreground space-y-1">
                   {currentEvent.starts_at && (
                     <p>
-                      {new Date(currentEvent.starts_at).toLocaleDateString('en-US', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric'
-                      })} @ {new Date(currentEvent.starts_at).toLocaleTimeString('en-US', {
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        hour12: true
-                      })}
-                      {currentEvent.ends_at && (
-                        <> - {new Date(currentEvent.ends_at).toLocaleTimeString('en-US', {
+                      {(() => {
+                        const startDate = new Date(currentEvent.starts_at)
+                        const endDate = currentEvent.ends_at ? new Date(currentEvent.ends_at) : null
+                        
+                        const startDateStr = startDate.toLocaleDateString('en-US', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric'
+                        })
+                        const startTimeStr = startDate.toLocaleTimeString('en-US', {
                           hour: 'numeric',
                           minute: '2-digit',
-                          hour12: true
-                        })}</>
-                      )}
+                          hour12: true,
+                          timeZoneName: 'short'
+                        })
+                        
+                        if (endDate) {
+                          const endDateStr = endDate.toLocaleDateString('en-US', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric'
+                          })
+                          const endTimeStr = endDate.toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true,
+                            timeZoneName: 'short'
+                          })
+                          
+                          // If same day, show: "Nov 2, 2025 @ 9:30 AM - 6:00 PM"
+                          // If different day, show: "Nov 2, 2025 @ 9:30 AM - Nov 12, 2025 @ 6:00 PM"
+                          if (startDateStr === endDateStr) {
+                            return `${startDateStr} @ ${startTimeStr} - ${endTimeStr}`
+                          } else {
+                            return `${startDateStr} @ ${startTimeStr} - ${endDateStr} @ ${endTimeStr}`
+                          }
+                        } else {
+                          return `${startDateStr} @ ${startTimeStr}`
+                        }
+                      })()}
                     </p>
                   )}
                   {currentEvent.location && (
