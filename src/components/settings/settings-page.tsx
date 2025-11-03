@@ -47,8 +47,6 @@ export function SettingsPage() {
   const [jobTitle, setJobTitle] = useState("")
   const [company, setCompany] = useState("")
   const [linkedinUrl, setLinkedinUrl] = useState("")
-  const [mbti, setMbti] = useState("")
-  const [enneagram, setEnneagram] = useState("")
   const [location, setLocation] = useState("")
   
   const router = useRouter()
@@ -83,8 +81,6 @@ export function SettingsPage() {
           setJobTitle(profileData.job_title || "")
           setCompany(profileData.company || "")
           setLinkedinUrl(profileData.linkedin_url || "")
-          setMbti(profileData.mbti || "")
-          setEnneagram(profileData.enneagram || "")
           setLocation(profileData.location || "")
           setWhatDoYouDo(profileData.what_do_you_do || "")
 
@@ -207,8 +203,6 @@ export function SettingsPage() {
           job_title: jobTitle,
           company: company,
           linkedin_url: linkedinUrl,
-          mbti: mbti,
-          enneagram: enneagram,
           location: location,
         })
         .eq("id", profile.id)
@@ -353,8 +347,6 @@ export function SettingsPage() {
           job_title: jobTitle,
           company: company,
           linkedin_url: linkedinUrl,
-          mbti: mbti,
-          enneagram: enneagram,
           what_do_you_do: whatDoYouDo,
           networking_goals: combinedGoals,
           hobbies: hobbiesArray,
@@ -631,32 +623,6 @@ export function SettingsPage() {
                       placeholder="https://linkedin.com/in/yourprofile"
                     />
                   </div>
-                  
-                  <div>
-                    <Label htmlFor="enneagram">Enneagram Type</Label>
-                    <Input
-                      id="enneagram"
-                      value={enneagram}
-                      onChange={(e) => setEnneagram(e.target.value)}
-                      disabled={!isEditing}
-                      className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
-                      style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
-                      placeholder="e.g., 8 - Challenger"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="mbti">Myers-Briggs Type</Label>
-                    <Input
-                      id="mbti"
-                      value={mbti}
-                      onChange={(e) => setMbti(e.target.value)}
-                      disabled={!isEditing}
-                      className={isEditing ? "border-primary/20 focus:border-primary focus:ring-primary text-black" : ""}
-                      style={isEditing ? { backgroundColor: '#DDDDDD', color: 'black' } : {}}
-                      placeholder="e.g., ENTJ"
-                    />
-                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -678,16 +644,16 @@ export function SettingsPage() {
                       <div className="text-foreground whitespace-pre-wrap">{whatDoYouDo}</div>
                     </div>
                   )}
-                  {enneagram && (
+                  {profile?.enneagram && (
                     <div className="flex justify-between items-center py-2 border-b border-border">
                       <span className="text-muted-foreground">Enneagram type</span>
-                      <span className="text-foreground">{enneagram}</span>
+                      <span className="text-foreground">{profile.enneagram}</span>
                     </div>
                   )}
-                  {mbti && (
+                  {profile?.mbti && (
                     <div className="flex justify-between items-center py-2 border-b border-border">
                       <span className="text-muted-foreground">Myers-Briggs type</span>
-                      <span className="text-foreground">{mbti}</span>
+                      <span className="text-foreground">{profile.mbti}</span>
                     </div>
                   )}
                 </div>

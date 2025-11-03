@@ -10,16 +10,13 @@ import { GradientButton } from "@/components/ui/gradient-button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { HobbiesGridNew } from "@/components/ui/hobbies-grid-new"
 import { ImageCropModal } from "@/components/ui/image-crop-modal"
-import { PersonalitySelect } from "@/components/ui/personality-select"
 import { ExpertiseSuggestions } from "@/components/ui/expertise-suggestions"
-import { NetworkingGoalsNew } from "@/components/ui/networking-goals-new"
 import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
 import { User, Hobby } from "@/lib/types"
-import { useAutoSave } from "@/lib/use-autosave"
 import { toast } from "sonner"
-import { Camera, ArrowRight, Upload, Settings } from "lucide-react"
-
+import { Camera, ArrowRight, Upload, Select as SelectIcon, ArrowLeft } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface OnboardingStep {
   id: string
@@ -28,75 +25,87 @@ interface OnboardingStep {
   component: React.ReactNode
 }
 
-export function OnboardingFlow() {
+// Connection type options
+const connectionTypes = [
+  { id: "general", label: "General Connections" },
+  { id: "business-opportunities", label: "Discover Business Opportunities" },
+  { id: "find-mentor", label: "Find a Mentor" },
+  { id: "be-mentor", label: "Be a Mentor" },
+  { id: "find-job", label: "Find a Job" },
+  { id: "recruit", label: "Recruit" },
+  { id: "other", label: "Other" }
+]
+
+// Years of experience options
+const experienceOptions = [
+  "0-1 years",
+  "2-5 years",
+  "6-10 years",
+  "11-15 years",
+  "16-20 years",
+  "21+ years"
+]
+
+export function NewOnboardingFlow() {
   const searchParams = useSearchParams()
-  const fromEventJoin = searchParams.get('from') === 'event-join'
+  const eventCode = searchParams.get('code')
   const eventId = searchParams.get('eventId')
-  const [currentStep, setCurrentStep] = useState(0) // Always start from index 0 of the visible steps
+  const fromEventJoin = searchParams.get('from') === 'event-join'
+  
+  const [currentStep, setCurrentStep] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(false)
   const [user, setUser] = useState<User | null>(null)
-  const [hobbies, setHobbies] = useState<Hobby[]>([])
-  const [selectedHobbies, setSelectedHobbies] = useState<number[]>([])
-  const [expertiseTags, setExpertiseTags] = useState<string[]>([])
-  const [customExpertiseTags, setCustomExpertiseTags] = useState<string[]>([])
-  const [networkingGoals, setNetworkingGoals] = useState<string[]>([])
-  const [networkingGoalDetails, setNetworkingGoalDetails] = useState<Record<string, string>>({})
-  const [customNetworkingGoal, setCustomNetworkingGoal] = useState("")
-  const [isJoiningEvent, setIsJoiningEvent] = useState(false)
+  const [profileCompleted, setProfileCompleted] = useState(false)
+  const [profileExists, setProfileExists] = useState(false)
   
-  // Profile data
+  // Profile data (one-time)
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [jobTitle, setJobTitle] = useState("")
   const [company, setCompany] = useState("")
-  const [whatDoYouDo, setWhatDoYouDo] = useState("")
-  const [careerGoals, setCareerGoals] = useState("")
-  const [mbti, setMbti] = useState("")
-  const [enneagram, setEnneagram] = useState("")
+  const [yearsExperience, setYearsExperience] = useState("")
+  const [areasOfExpertise, setAreasOfExpertise] = useState("")
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [showCropModal, setShowCropModal] = useState(false)
   const [tempImageUrl, setTempImageUrl] = useState<string | null>(null)
+  
+  // Hobbies data
+  const [hobbies, setHobbies] = useState<Hobby[]>([])
+  const [selectedHobbies, setSelectedHobbies] = useState<number[]>([])
   const [hobbyDetails, setHobbyDetails] = useState<Record<number, string>>({})
   const [customHobbies, setCustomHobbies] = useState<Array<{ id: string; label: string; details?: string }>>([])
+  
+  // Expertise data
+  const [expertiseTags, setExpertiseTags] = useState<string[]>([])
+  const [customExpertiseTags, setCustomExpertiseTags] = useState<string[]>([])
+  
+  // Event-specific data
+  const [whyAttending, setWhyAttending] = useState("")
+  const [connectionTypesSelected, setConnectionTypesSelected] = useState<string[]>([])
+  const [followUpResponses, setFollowUpResponses] = useState<Record<string, string>>({})
+  const [businessNeed, setBusinessNeed] = useState("")
+  
+  // Adaptive questions
+  const [adaptiveQuestions, setAdaptiveQuestions] = useState<any[]>([])
+  const [adaptiveResponses, setAdaptiveResponses] = useState<Record<string, any>>({})
+  const [currentAdaptiveQuestionIndex, setCurrentAdaptiveQuestionIndex] = useState(0)
+  const [showAdaptiveQuestions, setShowAdaptiveQuestions] = useState(false)
+  
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   
   const router = useRouter()
   const supabase = createClientComponentClient()
 
-  // Auto-save functionality
-  useAutoSave({
-    userId: user?.id || null,
-    user: user,
-    data: {
-      firstName,
-      lastName,
-      mbti,
-      enneagram,
-      selectedHobbies,
-      hobbyDetails,
-      customHobbies,
-      jobTitle,
-      company,
-      whatDoYouDo,
-      careerGoals,
-      expertiseTags,
-      customExpertiseTags,
-      networkingGoals,
-      networkingGoalDetails,
-      customNetworkingGoal
-    },
-    enabled: !!user && !!(firstName || lastName) // Only auto-save if user exists and has basic info
-  })
-
-
+  // Check if user has completed profile
   useEffect(() => {
-    const getUser = async () => {
+    const checkProfileStatus = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         setUser(user)
-        // Pre-fill form fields from Google OAuth data
+        
+        // Pre-fill from Google OAuth
         if (user.user_metadata) {
           const metadata = user.user_metadata
           if (metadata.first_name) setFirstName(metadata.first_name)
@@ -110,55 +119,51 @@ export function OnboardingFlow() {
           }
           if (metadata.avatar_url) setAvatarPreview(metadata.avatar_url)
         }
-      }
-    }
-    
-    // Initial check
-    getUser()
-    
-    // Set a timeout to redirect if no user is found after 3 seconds
-    const timeoutId = setTimeout(() => {
-      if (!user) {
-        console.log('Timeout: No user found after 3 seconds, redirecting to auth')
-        router.push("/auth")
-      }
-    }, 3000)
-    
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state changed:', event, session?.user?.id)
-      if (session?.user) {
-        clearTimeout(timeoutId) // Clear timeout if user is found
-        setUser(session.user)
-        // Pre-fill form fields from Google OAuth data
-        if (session.user.user_metadata) {
-          const metadata = session.user.user_metadata
-          if (metadata.first_name) setFirstName(metadata.first_name)
-          if (metadata.last_name) setLastName(metadata.last_name)
-          if (metadata.full_name) {
-            const nameParts = metadata.full_name.split(' ')
-            if (nameParts.length >= 2) {
-              setFirstName(nameParts[0])
-              setLastName(nameParts.slice(1).join(' '))
+        
+        // Check if profile exists and is complete
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("first_name, last_name, job_title, company, avatar_url")
+          .eq("id", user.id)
+          .single()
+        
+        if (profile) {
+          setProfileExists(true)
+          setFirstName(profile.first_name || "")
+          setLastName(profile.last_name || "")
+          setJobTitle(profile.job_title || "")
+          setCompany(profile.company || "")
+          setAvatarPreview(profile.avatar_url || null)
+          
+          // Profile is complete if has required fields
+          const isComplete = profile.first_name && profile.last_name && profile.job_title && profile.company
+          setProfileCompleted(isComplete)
+          
+          if (isComplete) {
+            // Skip profile steps if complete
+            if (fromEventJoin) {
+              // Jump to event-specific questions
+              setCurrentStep(0) // Will be adjusted based on visible steps
+            } else {
+              // User wants to join an event
+              setCurrentStep(0) // Will show event code entry
             }
           }
-          if (metadata.avatar_url) setAvatarPreview(metadata.avatar_url)
         }
-      } else if (event === 'SIGNED_OUT') {
-        clearTimeout(timeoutId)
-        router.push("/auth")
+      } else {
+        // No user, redirect to auth
+        setTimeout(() => {
+          router.push("/auth")
+        }, 1000)
       }
-    })
-    
-    return () => {
-      clearTimeout(timeoutId)
-      subscription.unsubscribe()
     }
-  }, [router, supabase.auth, user])
+    
+    checkProfileStatus()
+  }, [router, supabase, fromEventJoin])
 
   useEffect(() => {
     const fetchHobbies = async () => {
-      const { data, error } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
         .from("hobbies")
         .select("*")
         .order("label")
@@ -175,13 +180,11 @@ export function OnboardingFlow() {
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         toast.error("Image must be smaller than 5MB")
         return
       }
       
-      // Validate file type
       if (!file.type.startsWith('image/')) {
         toast.error("Please select an image file")
         return
@@ -205,7 +208,6 @@ export function OnboardingFlow() {
       video.srcObject = stream
       video.play()
       
-      // Create a canvas to capture the photo
       const canvas = document.createElement('canvas')
       const context = canvas.getContext('2d')
       
@@ -223,7 +225,6 @@ export function OnboardingFlow() {
             setShowCropModal(true)
           }
           
-          // Stop the camera
           stream.getTracks().forEach(track => track.stop())
         }, 'image/jpeg', 0.9)
       })
@@ -252,7 +253,7 @@ export function OnboardingFlow() {
     const fileName = `${userId}.${fileExt}`
     const filePath = `${userId}/${fileName}`
 
-    const { error: uploadError } = await (supabase as any).storage // eslint-disable-line @typescript-eslint/no-explicit-any
+    const { error: uploadError } = await (supabase as any).storage
       .from('avatars')
       .upload(filePath, avatarFile)
 
@@ -260,13 +261,12 @@ export function OnboardingFlow() {
       throw uploadError
     }
 
-    const { data } = (supabase as any).storage // eslint-disable-line @typescript-eslint/no-explicit-any
+    const { data } = (supabase as any).storage
       .from('avatars')
       .getPublicUrl(filePath)
 
     return data.publicUrl
   }
-
 
   const handleCustomHobbyAdd = (label: string) => {
     const newHobby = {
@@ -281,12 +281,6 @@ export function OnboardingFlow() {
     setCustomHobbies(customHobbies.filter(hobby => hobby.id !== id))
   }
 
-  const handleCustomHobbyDetailsChange = (id: string, details: string) => {
-    setCustomHobbies(customHobbies.map(hobby => 
-      hobby.id === id ? { ...hobby, details } : hobby
-    ))
-  }
-
   const handleHobbyDetailsChange = (hobbyId: number, details: string) => {
     setHobbyDetails(prev => ({
       ...prev,
@@ -294,28 +288,18 @@ export function OnboardingFlow() {
     }))
   }
 
-  const handleNetworkingGoalChange = (goalId: string, checked: boolean) => {
+  const handleConnectionTypeChange = (typeId: string, checked: boolean) => {
     if (checked) {
-      setNetworkingGoals([...networkingGoals, goalId])
+      setConnectionTypesSelected([...connectionTypesSelected, typeId])
     } else {
-      setNetworkingGoals(networkingGoals.filter(id => id !== goalId))
-      // Clear details when goal is unchecked
-      setNetworkingGoalDetails(prev => {
-        const newDetails = { ...prev }
-        delete newDetails[goalId]
-        return newDetails
+      setConnectionTypesSelected(connectionTypesSelected.filter(id => id !== typeId))
+      setFollowUpResponses(prev => {
+        const newResponses = { ...prev }
+        delete newResponses[typeId]
+        return newResponses
       })
     }
   }
-
-  const handleNetworkingGoalDetailChange = (goalId: string, detail: string) => {
-    setNetworkingGoalDetails(prev => ({
-      ...prev,
-      [goalId]: detail
-    }))
-  }
-
-
 
   const handleJoinEvent = async (eventCode: string) => {
     if (!user) {
@@ -323,9 +307,8 @@ export function OnboardingFlow() {
       return
     }
 
-    setIsJoiningEvent(true)
+    setIsLoading(true)
     try {
-      // Find the event by code
       const { data: eventData, error: eventError } = await supabase
         .from("events")
         .select("id, name")
@@ -337,7 +320,6 @@ export function OnboardingFlow() {
         return
       }
 
-      // Add user to the event
       const { error: joinError } = await supabase
         .from("event_members")
         .insert({
@@ -355,18 +337,39 @@ export function OnboardingFlow() {
         return
       }
 
-      toast.success(`Successfully joined ${eventData.name}!`)
-      
-      // Redirect to home page
-      setTimeout(() => {
-        router.push("/home")
-      }, 1000)
+      // Update URL and move to next step
+      router.push(`/onboarding?from=event-join&eventId=${eventData.id}`)
     } catch (error) {
       console.error("Error joining event:", error)
       toast.error("An error occurred while joining the event")
     } finally {
-      setIsJoiningEvent(false)
+      setIsLoading(false)
     }
+  }
+
+  const getFollowUpQuestion = (typeId: string): string => {
+    switch (typeId) {
+      case "find-mentor":
+        return "What type of mentorship are you looking for?"
+      case "be-mentor":
+        return "What industries have you worked in or topics you know about?"
+      case "business-opportunities":
+        return "What opportunities are you looking for?"
+      case "general":
+        return "What are your hobbies and interests?"
+      case "other":
+        return "What are your career goals?"
+      case "find-job":
+        return "What type of job are you looking for?"
+      case "recruit":
+        return "What roles are you recruiting for?"
+      default:
+        return ""
+    }
+  }
+
+  const shouldShowBusinessNeed = () => {
+    return connectionTypesSelected.length > 0 && !connectionTypesSelected.includes("find-job")
   }
 
   const validateForm = () => {
@@ -392,35 +395,35 @@ export function OnboardingFlow() {
     if (!company.trim()) {
       errors.company = "Please enter your company"
     }
+    if (!yearsExperience) {
+      errors.yearsExperience = "Please select years of experience"
+    }
+    if (!areasOfExpertise.trim()) {
+      errors.areasOfExpertise = "Please enter areas of expertise"
+    }
     
     setValidationErrors(errors)
     return Object.keys(errors).length === 0
   }
 
-  const handleCompleteOnboarding = async () => {
+  const handleCompleteProfile = async () => {
     if (!user) return
 
-    // Validate required fields
-    if (!validateForm()) {
-      toast.error("Please complete the required fields")
+    if (!validateProfessionalForm()) {
+      toast.error("Please complete all required fields")
       return
     }
 
     setIsLoading(true)
     try {
-      // Upload avatar if provided, otherwise use Google avatar URL
       let avatarUrl = null
       if (avatarFile) {
         avatarUrl = await uploadAvatar(user.id)
       } else if (user.user_metadata?.avatar_url) {
-        // Use Google avatar URL if no file was uploaded
         avatarUrl = user.user_metadata.avatar_url
       }
 
-      // Build hobbies array from all hobby data
       const hobbiesArray: string[] = []
-      
-      // Add selected hobbies with details
       selectedHobbies.forEach(hobbyId => {
         const hobby = hobbies.find(h => h.id === hobbyId)
         if (hobby) {
@@ -432,8 +435,6 @@ export function OnboardingFlow() {
           }
         }
       })
-      
-      // Add custom hobbies with details
       customHobbies.forEach(customHobby => {
         if (customHobby.details && customHobby.details.trim()) {
           hobbiesArray.push(`${customHobby.label}: ${customHobby.details.trim()}`)
@@ -442,39 +443,12 @@ export function OnboardingFlow() {
         }
       })
 
-      // Build expertise array
       const expertiseArray = [
+        areasOfExpertise,
         ...(expertiseTags || []),
         ...(customExpertiseTags || [])
       ]
 
-      // Build networking goals array with details
-      const networkingGoalsArray: string[] = []
-      networkingGoals.forEach(goalId => {
-        const goalLabel = goalId.split('-').map(word => 
-          word.charAt(0).toUpperCase() + word.slice(1)
-        ).join(' ')
-        const details = networkingGoalDetails[goalId]
-        if (details && details.trim()) {
-          networkingGoalsArray.push(`${goalLabel}: ${details.trim()}`)
-        } else {
-          networkingGoalsArray.push(goalLabel)
-        }
-      })
-
-      // Debug: Log the data being saved
-      console.log('Saving profile data:', {
-        hobbiesArray,
-        expertiseArray,
-        networkingGoalsArray,
-        customNetworkingGoal,
-        selectedHobbies,
-        customHobbies,
-        expertiseTags,
-        customExpertiseTags
-      })
-
-      // Use upsert to handle both create and update cases
       const { error: profileError } = await supabase
         .from("profiles")
         .upsert({
@@ -485,14 +459,8 @@ export function OnboardingFlow() {
           avatar_url: avatarUrl,
           job_title: jobTitle,
           company: company,
-          what_do_you_do: whatDoYouDo || null,
-          career_goals: careerGoals || null,
-          mbti: mbti || null,
-          enneagram: enneagram || null,
-          networking_goals: networkingGoalsArray,
-          hobbies: hobbiesArray,
           expertise_tags: expertiseArray,
-          who_they_want_to_meet: customNetworkingGoal.trim() || null,
+          hobbies: hobbiesArray,
           consent: true
         }, {
           onConflict: 'id'
@@ -504,56 +472,80 @@ export function OnboardingFlow() {
         return
       }
 
-      // All hobby and expertise data is now stored in the profiles table
-      // No need for separate table operations
-
-      // Save event-specific networking goals if coming from event join
-      if (fromEventJoin && eventId) {
-        if (networkingGoalsArray.length > 0) {
-          const { error: eventNetworkingError } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-            .from("event_networking_goals")
-            .upsert({
-              event_id: eventId,
-              user_id: user.id,
-              networking_goals: networkingGoalsArray
-            })
-
-          if (eventNetworkingError) {
-            console.error("Event networking goals error:", eventNetworkingError)
-            toast.error("Failed to save networking goals for this event")
-            return
-          }
-        }
-      }
-
-      toast.success("Onboarding completed!")
+      toast.success("Profile completed!")
+      setProfileCompleted(true)
       
-      // Show loading screen while redirecting
-      setIsRedirecting(true)
-      setTimeout(() => {
-        if (fromEventJoin) {
-          // If coming from event join, go directly to home (event already joined)
-          router.push("/home")
-        } else {
-          // If not coming from event join, redirect to join event page (step 2)
-          router.push("/event/join")
-        }
-      }, 1000) // Small delay to let user see the success message
-    } catch {
-      toast.error("An error occurred during onboarding")
+      // If event code exists, move to event questions
+      if (eventCode) {
+        await handleJoinEvent(eventCode)
+      } else if (!fromEventJoin) {
+        // Otherwise, go to event join page
+        router.push("/event/join")
+      } else {
+        // Already in event join flow, move to next step
+        setCurrentStep(0) // Will show event questions
+      }
+    } catch (error) {
+      console.error("Error completing profile:", error)
+      toast.error("An error occurred")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const steps: OnboardingStep[] = [
+  const handleCompleteEventOnboarding = async () => {
+    if (!user || !eventId) return
+
+    if (!whyAttending.trim()) {
+      toast.error("Please tell us why you're attending this event")
+      return
+    }
+
+    if (connectionTypesSelected.length === 0) {
+      toast.error("Please select at least one connection type")
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      // For now, just save the connection types to event_networking_goals
+      // Note: We may need to create a separate table for full event onboarding data
+      const { error } = await (supabase as any)
+        .from("event_networking_goals")
+        .upsert({
+          event_id: eventId,
+          user_id: user.id,
+          networking_goals: connectionTypesSelected
+        })
+
+      if (error) {
+        console.error("Event onboarding error:", error)
+        toast.error("Failed to save your responses. Please try again.")
+        return
+      }
+
+      toast.success("Event onboarding completed!")
+      
+      setIsRedirecting(true)
+      setTimeout(() => {
+        router.push("/home")
+      }, 1500)
+    } catch (error) {
+      console.error("Error completing event onboarding:", error)
+      toast.error("An error occurred")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Define steps based on whether profile is completed
+  const profileSteps: OnboardingStep[] = [
     {
       id: "profile",
       title: "Complete Your Profile",
-      description: "Tell us about yourself so we can find the right connections",
+      description: "Tell us about yourself",
       component: (
         <div className="space-y-6">
-          {/* Avatar Upload */}
           <div>
             <Label className="text-sm font-medium text-foreground mb-3 block">
               Profile Photo
@@ -561,7 +553,6 @@ export function OnboardingFlow() {
             <div className="flex items-center space-x-4">
               <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden">
                 {avatarPreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={avatarPreview} alt="Avatar preview" className="w-full h-full object-cover" />
                 ) : firstName && lastName ? (
                   <div className="w-full h-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-lg">
@@ -593,14 +584,10 @@ export function OnboardingFlow() {
                     Take Photo
                   </GradientButton>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Your photo will be visible to other attendees
-                </p>
               </div>
             </div>
           </div>
 
-          {/* Name Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="firstName" className="text-sm font-medium text-foreground">
@@ -653,50 +640,6 @@ export function OnboardingFlow() {
               )}
             </div>
           </div>
-
-          {/* Personality Types */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <PersonalitySelect
-              value={mbti}
-              onChange={setMbti}
-              type="mbti"
-            />
-            <PersonalitySelect
-              value={enneagram}
-              onChange={setEnneagram}
-              type="enneagram"
-            />
-          </div>
-
-          {/* Hobbies & Interests */}
-          <div>
-            <Label className="text-sm font-medium text-foreground mb-3 block">
-              Hobbies & Interests
-            </Label>
-            <HobbiesGridNew
-              hobbies={hobbies}
-              selectedHobbies={selectedHobbies}
-              customHobbies={customHobbies}
-              hobbyDetails={hobbyDetails}
-              onHobbyChange={(hobbyId, checked) => {
-                if (checked) {
-                  setSelectedHobbies([...selectedHobbies, hobbyId])
-                } else {
-                  setSelectedHobbies(selectedHobbies.filter(id => id !== hobbyId))
-                  // Remove details when hobby is unchecked
-                  setHobbyDetails(prev => {
-                    const newDetails = { ...prev }
-                    delete newDetails[hobbyId]
-                    return newDetails
-                  })
-                }
-              }}
-              onHobbyDetailsChange={handleHobbyDetailsChange}
-              onCustomHobbyAdd={handleCustomHobbyAdd}
-              onCustomHobbyRemove={handleCustomHobbyRemove}
-              onCustomHobbyDetailsChange={handleCustomHobbyDetailsChange}
-            />
-          </div>
         </div>
       )
     },
@@ -706,7 +649,6 @@ export function OnboardingFlow() {
       description: "Tell us about your work and expertise",
       component: (
         <div className="space-y-6">
-          {/* Job Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="jobTitle" className="text-sm font-medium text-foreground">
@@ -760,47 +702,66 @@ export function OnboardingFlow() {
             </div>
           </div>
 
-          {/* What Do You Do */}
           <div>
-            <Label htmlFor="whatDoYouDo" className="text-sm font-medium text-foreground">
-              What do you do? (Optional)
+            <Label htmlFor="yearsExperience" className="text-sm font-medium text-foreground">
+              Years of Experience *
             </Label>
-            <Textarea
-              id="whatDoYouDo"
-              value={whatDoYouDo}
-              onChange={(e) => setWhatDoYouDo(e.target.value)}
-              placeholder="e.g., I build AI-powered tools for small businesses, help startups with fundraising, design user experiences for healthcare apps..."
-              className="mt-1 rounded-xl"
-              rows={2}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Describe what you do in your own words - this helps create better matches.
-            </p>
+            <Select
+              value={yearsExperience}
+              onValueChange={(value) => {
+                setYearsExperience(value)
+                if (validationErrors.yearsExperience) {
+                  setValidationErrors(prev => {
+                    const newErrors = { ...prev }
+                    delete newErrors.yearsExperience
+                    return newErrors
+                  })
+                }
+              }}
+            >
+              <SelectTrigger className={`mt-1 rounded-xl ${validationErrors.yearsExperience ? 'border-destructive' : ''}`}>
+                <SelectValue placeholder="Select years of experience" />
+              </SelectTrigger>
+              <SelectContent>
+                {experienceOptions.map(option => (
+                  <SelectItem key={option} value={option}>{option}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {validationErrors.yearsExperience && (
+              <p className="text-xs text-destructive mt-1">{validationErrors.yearsExperience}</p>
+            )}
           </div>
 
-          {/* Career Goals */}
           <div>
-            <Label htmlFor="careerGoals" className="text-sm font-medium text-foreground">
-              What are your career goals? (Optional)
+            <Label htmlFor="areasOfExpertise" className="text-sm font-medium text-foreground">
+              Areas of Expertise *
             </Label>
-            <Textarea
-              id="careerGoals"
-              value={careerGoals}
-              onChange={(e) => setCareerGoals(e.target.value)}
-              placeholder="e.g., Move into product leadership, learn fundraising, expand into international markets."
-              className="mt-1 rounded-xl"
-              rows={3}
+            <Input
+              id="areasOfExpertise"
+              value={areasOfExpertise}
+              onChange={(e) => {
+                setAreasOfExpertise(e.target.value)
+                if (validationErrors.areasOfExpertise) {
+                  setValidationErrors(prev => {
+                    const newErrors = { ...prev }
+                    delete newErrors.areasOfExpertise
+                    return newErrors
+                  })
+                }
+              }}
+              placeholder="e.g. AI, Software Development, Product Design"
+              className={`mt-1 rounded-xl ${validationErrors.areasOfExpertise ? 'border-destructive' : ''}`}
+              required
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              This helps us connect you with people who share your professional interests or can help you grow.
-            </p>
+            {validationErrors.areasOfExpertise && (
+              <p className="text-xs text-destructive mt-1">{validationErrors.areasOfExpertise}</p>
+            )}
           </div>
 
-          {/* Areas of Expertise with AI suggestions */}
           <ExpertiseSuggestions
             jobTitle={jobTitle}
             company={company}
-            careerGoals={careerGoals}
             selectedExpertise={expertiseTags}
             customExpertise={customExpertiseTags}
             onExpertiseChange={setExpertiseTags}
@@ -810,55 +771,149 @@ export function OnboardingFlow() {
       )
     },
     {
-      id: "networking-goals",
-      title: "Networking Goals",
-      description: "What are you hoping to get out of this event?",
+      id: "hobbies",
+      title: "Hobbies & Interests",
+      description: "What are you passionate about?",
       component: (
         <div className="space-y-6">
-          <p className="text-sm text-muted-foreground">
-            Your goals help us connect you with the right people.
-          </p>
-          
-          <NetworkingGoalsNew
-            selectedGoals={networkingGoals}
-            goalDetails={networkingGoalDetails}
-            customGoal={customNetworkingGoal}
-            onGoalChange={handleNetworkingGoalChange}
-            onGoalDetailChange={handleNetworkingGoalDetailChange}
-            onCustomGoalChange={setCustomNetworkingGoal}
+          <HobbiesGridNew
+            hobbies={hobbies}
+            selectedHobbies={selectedHobbies}
+            customHobbies={customHobbies}
+            hobbyDetails={hobbyDetails}
+            onHobbyChange={(hobbyId, checked) => {
+              if (checked) {
+                setSelectedHobbies([...selectedHobbies, hobbyId])
+              } else {
+                setSelectedHobbies(selectedHobbies.filter(id => id !== hobbyId))
+                setHobbyDetails(prev => {
+                  const newDetails = { ...prev }
+                  delete newDetails[hobbyId]
+                  return newDetails
+                })
+              }
+            }}
+            onHobbyDetailsChange={handleHobbyDetailsChange}
+            onCustomHobbyAdd={handleCustomHobbyAdd}
+            onCustomHobbyRemove={handleCustomHobbyRemove}
+            onCustomHobbyDetailsChange={(id, details) => {
+              setCustomHobbies(customHobbies.map(hobby => 
+                hobby.id === id ? { ...hobby, details } : hobby
+              ))
+            }}
           />
         </div>
       )
     }
   ]
 
-  if (!user) {
-    return <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-        <p className="text-muted-foreground">Loading...</p>
-      </div>
-    </div>
-  }
+  const eventSteps: OnboardingStep[] = [
+    {
+      id: "why-attending",
+      title: "Why are you attending?",
+      description: "Help us understand your goals for this event",
+      component: (
+        <div className="space-y-4">
+          <Textarea
+            value={whyAttending}
+            onChange={(e) => setWhyAttending(e.target.value)}
+            placeholder="Tell us why you chose to attend this event..."
+            className="rounded-xl min-h-[120px]"
+            rows={5}
+          />
+        </div>
+      )
+    },
+    {
+      id: "connection-types",
+      title: "Connection Types",
+      description: "What types of connections would you be ok with?",
+      component: (
+        <div className="space-y-4">
+          {connectionTypes.map((type) => (
+            <div key={type.id} className="flex items-center space-x-3 rounded-xl p-4 transition-colors hover:bg-muted/50">
+              <Checkbox
+                id={`connection-${type.id}`}
+                checked={connectionTypesSelected.includes(type.id)}
+                onCheckedChange={(checked) => handleConnectionTypeChange(type.id, checked as boolean)}
+                className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+              />
+              <label
+                htmlFor={`connection-${type.id}`}
+                className="text-sm font-medium cursor-pointer flex-1"
+              >
+                {type.label}
+              </label>
+            </div>
+          ))}
+        </div>
+      )
+    },
+    {
+      id: "follow-ups",
+      title: "Tell us more",
+      description: "Help us find the right connections",
+      component: (
+        <div className="space-y-4">
+          {connectionTypesSelected.map((typeId) => {
+            const question = getFollowUpQuestion(typeId)
+            if (!question) return null
+            
+            return (
+              <div key={typeId}>
+                <Label className="text-sm font-medium text-foreground mb-2 block">
+                  {question}
+                </Label>
+                <Textarea
+                  value={followUpResponses[typeId] || ""}
+                  onChange={(e) => setFollowUpResponses(prev => ({
+                    ...prev,
+                    [typeId]: e.target.value
+                  }))}
+                  placeholder={question}
+                  className="rounded-xl min-h-[100px]"
+                  rows={4}
+                />
+              </div>
+            )
+          })}
+        </div>
+      )
+    },
+    ...(shouldShowBusinessNeed() ? [{
+      id: "business-need",
+      title: "Business Need",
+      description: "What is your business looking for?",
+      component: (
+        <div className="space-y-4">
+          <Textarea
+            value={businessNeed}
+            onChange={(e) => setBusinessNeed(e.target.value)}
+            placeholder="What is something your business is in need of right now?"
+            className="rounded-xl min-h-[120px]"
+            rows={5}
+          />
+        </div>
+      )
+    }] : [])
+  ]
 
-  // Determine which steps to show based on how user arrived
-  // If coming from event join: show only step 2 (networking goals) since profile is already complete
-  // If not coming from event join: show only 2 steps (profile, professional), then redirect to /event/join
-  const visibleSteps = fromEventJoin ? steps.slice(2) : steps.slice(0, 2)
+  const visibleSteps = profileCompleted ? eventSteps : profileSteps
   const currentStepData = visibleSteps[currentStep]
   const isLastStep = currentStep === visibleSteps.length - 1
 
-  // Safety check - if currentStepData is undefined, reset to a valid step
-  if (!currentStepData && visibleSteps.length > 0) {
-    console.error('Invalid currentStep:', currentStep, 'visibleSteps length:', visibleSteps.length)
-    // Reset to first step if we're in an invalid state
-    if (currentStep >= visibleSteps.length) {
-      setCurrentStep(0)
-    }
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
   }
 
-  // Show loading state if we don't have valid step data
-  if (!currentStepData || visibleSteps.length === 0) {
+  if (!currentStepData) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center">
@@ -871,18 +926,17 @@ export function OnboardingFlow() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      {/* Full-screen loading overlay */}
       {(isLoading || isRedirecting) && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="bg-card border border-border rounded-lg p-8 text-center shadow-elevation">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
             <h3 className="text-lg font-semibold text-foreground mb-2">
-              {isRedirecting ? "Redirecting to your dashboard..." : "Setting up your profile..."}
+              {isRedirecting ? "Redirecting to your dashboard..." : "Saving your information..."}
             </h3>
             <p className="text-muted-foreground">
               {isRedirecting 
                 ? "Taking you to your personalized homepage." 
-                : "This may take a few moments. Please don't close this window."
+                : "This may take a few moments."
               }
             </p>
           </div>
@@ -903,56 +957,52 @@ export function OnboardingFlow() {
             {currentStepData.component}
             
             <div className="flex justify-between pt-4">
-              {/* Only show back button if not on step 3 (networking goals) */}
-              {!isLastStep && (
+              <GradientButton
+                variant="outline"
+                onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+                disabled={currentStep === 0}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back
+              </GradientButton>
+              
+              <div className="flex-1" />
+              
+              {isLastStep ? (
                 <GradientButton
-                  variant="outline"
-                  onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-                  disabled={currentStep === 0}
+                  onClick={profileCompleted ? handleCompleteEventOnboarding : handleCompleteProfile}
+                  disabled={isLoading}
                 >
-                  Back
+                  {isLoading ? "Completing..." : "Complete"}
+                </GradientButton>
+              ) : (
+                <GradientButton
+                  onClick={() => {
+                    if (currentStep === 0) {
+                      if (!validateForm()) {
+                        toast.error("Please complete the required fields")
+                        return
+                      }
+                    } else if (currentStep === 1) {
+                      if (!validateProfessionalForm()) {
+                        toast.error("Please complete all required fields")
+                        return
+                      }
+                    }
+                    setCurrentStep(currentStep + 1)
+                  }}
+                  disabled={
+                    (currentStep === 0 && (!firstName || !lastName)) ||
+                    (currentStep === 1 && (!jobTitle || !company || !yearsExperience || !areasOfExpertise))
+                  }
+                >
+                  Continue
+                  <ArrowRight className="h-4 w-4 ml-2" />
                 </GradientButton>
               )}
-              
-              {/* Center the button if no back button */}
-              <div className={isLastStep ? "w-full flex justify-center" : ""}>
-                {isLastStep ? (
-                  <GradientButton
-                    onClick={handleCompleteOnboarding}
-                    disabled={isLoading || (fromEventJoin ? (networkingGoals.length === 0 && !customNetworkingGoal.trim()) : (!firstName || !lastName || !jobTitle || !company))}
-                  >
-                    {isLoading ? "Completing..." : (fromEventJoin ? "Find Matches" : "Join Event")}
-                  </GradientButton>
-                ) : (
-                  <GradientButton
-                    onClick={() => {
-                      if (currentStep === 0) {
-                        if (!validateForm()) {
-                          toast.error("Please complete the required fields")
-                          return
-                        }
-                      } else if (currentStep === 1) {
-                        if (!validateProfessionalForm()) {
-                          toast.error("Please complete the required fields")
-                          return
-                        }
-                      }
-                      setCurrentStep(currentStep + 1)
-                    }}
-                    disabled={
-                      (currentStep === 0 && (!firstName || !lastName)) ||
-                      (currentStep === 1 && (!jobTitle || !company))
-                    }
-                  >
-                    Continue
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </GradientButton>
-                )}
-              </div>
             </div>
           </CardContent>
           
-          {/* Progress Bar at Bottom - only show for non-final steps */}
           {!isLastStep && (
             <div className="px-6 pb-6">
               <div className="flex items-center justify-between mb-2">
@@ -974,7 +1024,6 @@ export function OnboardingFlow() {
         </Card>
       </div>
       
-      {/* Image Crop Modal */}
       <ImageCropModal
         isOpen={showCropModal}
         onClose={handleCropCancel}
@@ -984,3 +1033,4 @@ export function OnboardingFlow() {
     </div>
   )
 }
+
