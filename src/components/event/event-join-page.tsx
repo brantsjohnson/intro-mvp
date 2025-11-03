@@ -10,9 +10,9 @@ import { toast } from "sonner"
 import { ArrowLeft } from "lucide-react"
 
 interface Event {
-  id: string
-  name: string
-  code: string
+  event_id: string
+  event_name: string
+  event_code: string
 }
 
 export function EventJoinPage() {
@@ -81,9 +81,8 @@ export function EventJoinPage() {
       // First, get the event by code
       const { data: event, error: eventError } = await supabase
         .from("events")
-        .select("*")
-        .eq("code", eventCode.toUpperCase())
-        .eq("is_active", true)
+        .select("event_id, event_name, event_code")
+        .eq("event_code", eventCode.toUpperCase())
         .maybeSingle()
 
       if (eventError) {
@@ -101,9 +100,9 @@ export function EventJoinPage() {
 
       // Check if user is already a member
       const { data: existingMember, error: memberCheckError } = await supabase
-        .from("event_members")
+        .from("attendance")
         .select("event_id, user_id")
-        .eq("event_id", typedEvent.id)
+        .eq("event_id", typedEvent.event_id)
         .eq("user_id", user.id)
         .maybeSingle()
 
@@ -122,10 +121,11 @@ export function EventJoinPage() {
 
       // Join the event
       const { error: joinError } = await supabase
-        .from("event_members")
+        .from("attendance")
         .insert({
-          event_id: typedEvent.id,
-          user_id: user.id
+          event_id: typedEvent.event_id,
+          user_id: user.id,
+          checked_in_at: new Date().toISOString()
         })
 
       if (joinError) {
@@ -141,7 +141,7 @@ export function EventJoinPage() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ 
-            eventId: typedEvent.id, 
+            eventId: typedEvent.event_id, 
             newUserId: user.id 
           }),
         })
@@ -152,7 +152,7 @@ export function EventJoinPage() {
 
       toast.success("Successfully joined event!")
       // Redirect to onboarding step 3 (networking goals) for this specific event
-      router.push(`/onboarding?from=event-join&eventId=${typedEvent.id}`)
+      router.push(`/onboarding?from=event-join&eventId=${typedEvent.event_id}`)
     } catch (error) {
       console.error("Error joining event:", error)
       toast.error("An error occurred")

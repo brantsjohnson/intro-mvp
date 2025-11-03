@@ -129,57 +129,71 @@ export function HomePage() {
     if (!user) return
     
     try {
-      // Load profile
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
+      // Load user row and map to legacy Profile shape used by UI
+      const { data: userRow, error: userError } = await supabase
+        .from("users")
+        .select("user_id, first_name, last_name, email, photo_url, career_title, company_name, hobbies")
+        .eq("user_id", user.id)
         .single()
 
-      if (profileError) {
+      if (userError) {
         toast.error("Failed to load profile")
         return
       }
 
-      setProfile(profileData)
+      const mappedProfile: Profile = {
+        id: userRow.user_id,
+        first_name: userRow.first_name || "",
+        last_name: userRow.last_name || "",
+        email: userRow.email || "",
+        avatar_url: userRow.photo_url || null,
+        job_title: userRow.career_title || null,
+        company: userRow.company_name || null,
+        what_do_you_do: null,
+        location: null,
+        linkedin_url: null,
+        mbti: null,
+        enneagram: null,
+        networking_goals: null,
+        hobbies: (userRow.hobbies as string[] | null) || null,
+        expertise_tags: null,
+        consent: true,
+      }
+      setProfile(mappedProfile)
 
-      // Load current event (for now, just get the first event the user is in)
-      const { data: eventData, error: eventError } = await supabase
-        .from("event_members")
-        .select(`
-          is_present,
-          events (
-            id,
-            name,
-            code,
-            starts_at,
-            ends_at
-          )
-        `)
+      // Load current event from attendance join events (most recent)
+      const { data: attendanceRows, error: attendanceError } = await supabase
+        .from("attendance")
+        .select("checked_in_at, event_id, events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)")
         .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
         .limit(1)
 
-      console.log("Event membership query result:", { eventData, eventError, userId: user.id })
+      console.log("Attendance query result:", { attendanceRows, attendanceError, userId: user.id })
 
-      if (eventError) {
-        console.error("Error loading event membership:", eventError)
+      if (attendanceError) {
+        console.error("Error loading attendance:", attendanceError)
         // Clear current event if there's an error
         setCurrentEvent(null)
         setIsPresent(false)
         setMatches([])
-      } else if (eventData && eventData.length > 0) {
-        const eventMember = eventData[0] as any // eslint-disable-line @typescript-eslint/no-explicit-any
-        console.log("Event member data:", eventMember)
-        if (eventMember?.events) {
-          const event = eventMember.events as Event
-          // Set matchmaking_enabled to false by default if not present
-          if (!event.matchmaking_enabled) {
-            event.matchmaking_enabled = false
+      } else if (attendanceRows && attendanceRows.length > 0) {
+        const row: any = attendanceRows[0]
+        if (row?.events) {
+          const mappedEvent: Event = {
+            id: row.events.event_id,
+            name: row.events.event_name,
+            code: row.events.event_code,
+            starts_at: row.events.event_starts_at,
+            ends_at: row.events.event_ends_at,
+            header_image_url: null,
+            is_active: true,
+            matchmaking_enabled: true,
           }
-          setCurrentEvent(event)
-          setIsPresent(eventMember.is_present || false)
-          loadMatches(eventMember.events.id)
-          loadConnections(eventMember.events.id)
+          setCurrentEvent(mappedEvent)
+          setIsPresent(!!row.checked_in_at)
+          loadMatches(mappedEvent.id)
+          loadConnections(mappedEvent.id)
         } else {
           // No event data, clear everything
           setCurrentEvent(null)
@@ -207,89 +221,77 @@ export function HomePage() {
     if (!user) return
     
     try {
-      // Load matches where current user is A (show profile B)
-      const aSidePromise = supabase
-        .from("matches")
-        .select(`
-          id,
-          summary,
-          bases,
-          why_meet,
-          shared_activities,
-          dive_deeper,
-          profiles!b (
-            id,
-            first_name,
-            last_name,
-            job_title,
-            company,
-            avatar_url
-          ),
-          all_events_members!b (
-            is_present
-          )
-        `)
+      // Load system matches (connections) and resolve other user profile
+      const { data: edges, error: edgesError } = await supabase
+        .from("connections")
+        .select("a_id, b_id, match_explanation_text, created_at")
         .eq("event_id", eventId)
-        .eq("a", user.id)
+        .eq("connection_kind", "system_match")
+        .or(`a_id.eq.${user.id},b_id.eq.${user.id}`)
 
-      // Load matches where current user is B (show profile A)
-      const bSidePromise = supabase
-        .from("matches")
-        .select(`
-          id,
-          summary,
-          bases,
-          why_meet,
-          shared_activities,
-          dive_deeper,
-          profiles!a (
-            id,
-            first_name,
-            last_name,
-            job_title,
-            company,
-            avatar_url
-          ),
-          all_events_members!a (
-            is_present
-          )
-        `)
-        .eq("event_id", eventId)
-        .eq("b", user.id)
-
-      const [{ data: aData, error: aError }, { data: bData, error: bError }] = await Promise.all([aSidePromise, bSidePromise])
-
-      if (aError || bError) {
-        console.error("Failed to load matches:", aError || bError)
+      if (edgesError || !edges) {
+        console.error("Failed to load connections:", edgesError)
         return
       }
 
-      const toFormatted = (rows: any[] | null) => // eslint-disable-line @typescript-eslint/no-explicit-any
-        (rows || []).map((match: any) => ({
-          id: match.id,
-          summary: match.summary,
-          bases: match.bases,
-          why_meet: match.why_meet,
-          shared_activities: match.shared_activities,
-          dive_deeper: match.dive_deeper,
-          profile: match.profiles,
-          is_present: match.all_events_members?.is_present || false
-        }))
+      const otherUserIds = edges.map(e => (e.a_id === user.id ? e.b_id : e.a_id)).filter(Boolean) as string[]
+      const uniqueOtherIds = Array.from(new Set(otherUserIds))
 
-      // Merge and de-duplicate by id, prefer earliest
-      const merged = [...toFormatted(aData), ...toFormatted(bData)]
-      const seen = new Set<string>()
-      const deduped: MatchWithProfile[] = []
-      for (const m of merged) {
-        if (!seen.has(m.id)) {
-          seen.add(m.id)
-          deduped.push(m)
-        }
+      if (uniqueOtherIds.length === 0) {
+        setMatches([])
+        return
       }
 
-      // Sort by creation date, newest first, limit to top 3
-      deduped.sort((a, b) => new Date(b.id).getTime() - new Date(a.id).getTime())
-      setMatches(deduped.slice(0, 3))
+      const { data: others, error: othersError } = await supabase
+        .from("users")
+        .select("user_id, first_name, last_name, career_title, company_name, photo_url")
+        .in("user_id", uniqueOtherIds)
+
+      if (othersError || !others) {
+        console.error("Failed to load other users:", othersError)
+        return
+      }
+
+      const userMap = new Map(others.map(u => [u.user_id, u]))
+
+      const formatted: MatchWithProfile[] = edges
+        .map(e => {
+          const otherId = e.a_id === user.id ? e.b_id : e.a_id
+          const u = otherId ? userMap.get(otherId) : null
+          if (!u) return null
+          const profile: Profile = {
+            id: u.user_id,
+            first_name: u.first_name || "",
+            last_name: u.last_name || "",
+            email: "",
+            avatar_url: u.photo_url || null,
+            job_title: u.career_title || null,
+            company: u.company_name || null,
+            what_do_you_do: null,
+            location: null,
+            linkedin_url: null,
+            mbti: null,
+            enneagram: null,
+            networking_goals: null,
+            hobbies: null,
+            expertise_tags: null,
+            consent: true,
+          }
+          return {
+            id: e.created_at || `${u.user_id}-${e.match_explanation_text || ""}`,
+            summary: e.match_explanation_text || "",
+            bases: [],
+            why_meet: e.match_explanation_text || "",
+            shared_activities: "",
+            dive_deeper: "",
+            profile,
+            is_present: false,
+          }
+        })
+        .filter(Boolean) as MatchWithProfile[]
+
+      formatted.sort((a, b) => new Date(b.id).getTime() - new Date(a.id).getTime())
+      setMatches(formatted.slice(0, 3))
     } catch (error) {
       console.error("Failed to load matches:", error)
     }
@@ -299,75 +301,64 @@ export function HomePage() {
     if (!user) return
     
     try {
-      // Load connections where current user is A (show profile B)
-      const aSidePromise = supabase
+      const { data: edges, error: edgesError } = await supabase
         .from("connections")
-        .select(`
-          id,
-          source,
-          created_at,
-          profiles!b (
-            id,
-            first_name,
-            last_name,
-            job_title,
-            company,
-            avatar_url
-          )
-        `)
+        .select("a_id, b_id, user_add_method, created_at, connection_kind")
         .eq("event_id", eventId)
-        .eq("a", user.id)
+        .or(`a_id.eq.${user.id},b_id.eq.${user.id}`)
 
-      // Load connections where current user is B (show profile A)
-      const bSidePromise = supabase
-        .from("connections")
-        .select(`
-          id,
-          source,
-          created_at,
-          profiles!a (
-            id,
-            first_name,
-            last_name,
-            job_title,
-            company,
-            avatar_url
-          )
-        `)
-        .eq("event_id", eventId)
-        .eq("b", user.id)
-
-      const [{ data: aData, error: aError }, { data: bData, error: bError }] = await Promise.all([aSidePromise, bSidePromise])
-
-      if (aError || bError) {
-        console.error("Failed to load connections:", aError || bError)
+      if (edgesError || !edges) {
+        console.error("Failed to load connections:", edgesError)
         return
       }
 
-      const toFormatted = (rows: any[] | null) => // eslint-disable-line @typescript-eslint/no-explicit-any
-        (rows || []).map((connection: any) => ({
-          id: connection.id,
-          source: connection.source,
-          created_at: connection.created_at,
-          profile: connection.profiles,
-          connection_reason: connection.source === 'qr' ? 'QR Code Connection' : 'AI Match'
-        }))
+      const otherUserIds = edges.map(e => (e.a_id === user.id ? e.b_id : e.a_id)).filter(Boolean) as string[]
+      const uniqueOtherIds = Array.from(new Set(otherUserIds))
 
-      // Merge and de-duplicate by id, prefer earliest
-      const merged = [...toFormatted(aData), ...toFormatted(bData)]
-      const seen = new Set<string>()
-      const deduped: ConnectionWithProfile[] = []
-      for (const c of merged) {
-        if (!seen.has(c.id)) {
-          seen.add(c.id)
-          deduped.push(c)
-        }
+      const { data: others, error: othersError } = await supabase
+        .from("users")
+        .select("user_id, first_name, last_name, career_title, company_name, photo_url")
+        .in("user_id", uniqueOtherIds)
+
+      if (othersError || !others) {
+        console.error("Failed to load other users for connections:", othersError)
+        return
       }
 
-      // Sort by creation date, newest first
-      deduped.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      
-      setConnections(deduped)
+      const userMap = new Map(others.map(u => [u.user_id, u]))
+
+      const formatted: ConnectionWithProfile[] = edges.map(e => {
+        const otherId = e.a_id === user.id ? e.b_id : e.a_id
+        const u = otherId ? userMap.get(otherId) : null
+        const profile: Profile = u ? {
+          id: u.user_id,
+          first_name: u.first_name || "",
+          last_name: u.last_name || "",
+          email: "",
+          avatar_url: u.photo_url || null,
+          job_title: u.career_title || null,
+          company: u.company_name || null,
+          what_do_you_do: null,
+          location: null,
+          linkedin_url: null,
+          mbti: null,
+          enneagram: null,
+          networking_goals: null,
+          hobbies: null,
+          expertise_tags: null,
+          consent: true,
+        } : ({} as any)
+        return {
+          id: `${e.a_id}-${e.b_id}-${e.created_at}`,
+          source: e.user_add_method || (e.connection_kind === 'system_match' ? 'match' : 'manual'),
+          created_at: e.created_at || new Date().toISOString(),
+          profile,
+          connection_reason: e.user_add_method === 'qr' ? 'QR Code Connection' : (e.connection_kind === 'system_match' ? 'AI Match' : 'Manual Add')
+        }
+      })
+
+      formatted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      setConnections(formatted)
     } catch (error) {
       console.error("Failed to load connections:", error)
     }
@@ -379,9 +370,9 @@ export function HomePage() {
     setIsLoading(true)
     try {
       const newPresence = !isPresent
-      const { error } = await (supabase as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-        .from("event_members")
-        .update({ is_present: newPresence })
+      const { error } = await (supabase as any)
+        .from("attendance")
+        .update({ checked_in_at: newPresence ? new Date().toISOString() : null })
         .eq("event_id", currentEvent.id)
         .eq("user_id", user.id)
 

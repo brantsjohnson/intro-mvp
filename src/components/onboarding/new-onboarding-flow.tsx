@@ -116,22 +116,22 @@ export function NewOnboardingFlow() {
         }
         
         // Check if profile exists and is complete
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("first_name, last_name, job_title, company, avatar_url")
-          .eq("id", user.id)
+        const { data: person } = await supabase
+          .from("users")
+          .select("first_name, last_name, career_title, company_name, photo_url")
+          .eq("user_id", user.id)
           .single()
         
-        if (profile) {
+        if (person) {
           setProfileExists(true)
-          setFirstName(profile.first_name || "")
-          setLastName(profile.last_name || "")
-          setJobTitle(profile.job_title || "")
-          setCompany(profile.company || "")
-          setAvatarPreview(profile.avatar_url || null)
+          setFirstName(person.first_name || "")
+          setLastName(person.last_name || "")
+          setJobTitle(person.career_title || "")
+          setCompany(person.company_name || "")
+          setAvatarPreview(person.photo_url || null)
           
           // Profile is complete if has required fields
-          const isComplete = profile.first_name && profile.last_name && profile.job_title && profile.company
+          const isComplete = person.first_name && person.last_name && person.career_title && person.company_name
           setProfileCompleted(isComplete)
           
           if (isComplete) {
@@ -306,8 +306,8 @@ export function NewOnboardingFlow() {
     try {
       const { data: eventData, error: eventError } = await supabase
         .from("events")
-        .select("id, name")
-        .eq("code", eventCode.toUpperCase())
+        .select("event_id, event_name")
+        .eq("event_code", eventCode.toUpperCase())
         .single()
 
       if (eventError || !eventData) {
@@ -316,11 +316,11 @@ export function NewOnboardingFlow() {
       }
 
       const { error: joinError } = await supabase
-        .from("event_members")
+        .from("attendance")
         .insert({
-          event_id: eventData.id,
+          event_id: eventData.event_id,
           user_id: user.id,
-          is_present: true
+          checked_in_at: new Date().toISOString()
         })
 
       if (joinError) {
@@ -333,7 +333,7 @@ export function NewOnboardingFlow() {
       }
 
       // Update URL and move to next step
-      router.push(`/onboarding?from=event-join&eventId=${eventData.id}`)
+      router.push(`/onboarding?from=event-join&eventId=${eventData.event_id}`)
     } catch (error) {
       console.error("Error joining event:", error)
       toast.error("An error occurred while joining the event")
@@ -441,20 +441,19 @@ export function NewOnboardingFlow() {
       const expertiseArray = [areasOfExpertise]
 
       const { error: profileError } = await supabase
-        .from("profiles")
+        .from("users")
         .upsert({
-          id: user.id,
+          user_id: user.id,
           first_name: firstName,
           last_name: lastName,
           email: user.email || "",
-          avatar_url: avatarUrl,
-          job_title: jobTitle,
-          company: company,
-          expertise_tags: expertiseArray,
-          hobbies: hobbiesArray,
-          consent: true
+          photo_url: avatarUrl,
+          career_title: jobTitle,
+          company_name: company,
+          expertise_summary: expertiseArray.join(", "),
+          hobbies: hobbiesArray
         }, {
-          onConflict: 'id'
+          onConflict: 'user_id'
         })
 
       if (profileError) {
@@ -499,15 +498,17 @@ export function NewOnboardingFlow() {
 
     setIsLoading(true)
     try {
-      // For now, just save the connection types to event_networking_goals
-      // Note: We may need to create a separate table for full event onboarding data
       const { error } = await (supabase as any)
-        .from("event_networking_goals")
+        .from("attendance")
         .upsert({
           event_id: eventId,
           user_id: user.id,
-          networking_goals: connectionTypesSelected
-        })
+          why_attending_text: whyAttending,
+          connection_types_selected: connectionTypesSelected,
+          connection_followups_json: followUpResponses,
+          business_need_text: businessNeed,
+          onboarding_completed: true
+        }, { onConflict: 'event_id,user_id' })
 
       if (error) {
         console.error("Event onboarding error:", error)

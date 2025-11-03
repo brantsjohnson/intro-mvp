@@ -66,10 +66,10 @@ export function SettingsPage() {
         }
 
         // Load profile
-      const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
+      const { data: person, error: profileError } = await supabase
+          .from("users")
+          .select("user_id, first_name, last_name, email, photo_url, career_title, company_name, mbti_type, enneagram_type")
+          .eq("user_id", user.id)
           .single()
 
       if (profileError) {
@@ -77,31 +77,50 @@ export function SettingsPage() {
         return
       }
 
-          setProfile(profileData)
-          setJobTitle(profileData.job_title || "")
-          setCompany(profileData.company || "")
-          setLinkedinUrl(profileData.linkedin_url || "")
-          setLocation(profileData.location || "")
-          setWhatDoYouDo(profileData.what_do_you_do || "")
+          const mapped: Profile = {
+            id: person.user_id,
+            first_name: person.first_name || "",
+            last_name: person.last_name || "",
+            email: person.email || "",
+            avatar_url: person.photo_url || null,
+            job_title: person.career_title || null,
+            company: person.company_name || null,
+            what_do_you_do: null,
+            location: null,
+            linkedin_url: null,
+            mbti: person.mbti_type || null,
+            enneagram: person.enneagram_type || null,
+            networking_goals: null,
+            hobbies: null,
+            expertise_tags: null,
+            consent: true,
+          }
+          setProfile(mapped)
+          setJobTitle(person.career_title || "")
+          setCompany(person.company_name || "")
+          setLinkedinUrl("")
+          setLocation("")
+          setWhatDoYouDo("")
 
       // Load user's events
       const { data: eventData, error: eventError } = await supabase
-        .from("event_members")
-        .select(`
-          events (
-            id,
-            name,
-            code,
-            starts_at,
-            ends_at
-          )
-        `)
+        .from("attendance")
+        .select("events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at)")
         .eq("user_id", user.id)
 
       if (eventError) {
         console.error("Error loading events:", eventError)
       } else if (eventData) {
-        const events = eventData.map((item: any) => item.events).filter(Boolean)
+        const events = eventData.map((item: any) => item.events).filter(Boolean).map((e: any) => ({
+          id: e.event_id,
+          name: e.event_name,
+          code: e.event_code,
+          starts_at: e.event_starts_at,
+          ends_at: e.event_ends_at,
+          header_image_url: null,
+          is_active: true,
+          matchmaking_enabled: true,
+        }))
         setUserEvents(events)
         
         // Set current event (first one for now)
@@ -110,14 +129,14 @@ export function SettingsPage() {
           
           // Load presence status for current event
           const { data: presenceData, error: presenceError } = await supabase
-            .from("event_members")
-            .select("is_present")
+            .from("attendance")
+            .select("checked_in_at")
             .eq("user_id", user.id)
             .eq("event_id", events[0].id)
             .single()
           
           if (!presenceError && presenceData) {
-            setIsPresent(presenceData.is_present || false)
+            setIsPresent(!!presenceData.checked_in_at)
           }
         }
         }
@@ -198,14 +217,12 @@ export function SettingsPage() {
     setIsSaving(true)
     try {
       const { error } = await supabase
-        .from("profiles")
+        .from("users")
         .update({
-          job_title: jobTitle,
-          company: company,
-          linkedin_url: linkedinUrl,
-          location: location,
+          career_title: jobTitle,
+          company_name: company,
         })
-        .eq("id", profile.id)
+        .eq("user_id", profile.id)
 
       if (error) {
         toast.error("Failed to update profile")
@@ -295,8 +312,8 @@ export function SettingsPage() {
 
     try {
       const { error } = await supabase
-        .from("event_members")
-        .update({ is_present: !isPresent })
+        .from("attendance")
+        .update({ checked_in_at: !isPresent ? new Date().toISOString() : null })
         .eq("user_id", profile.id)
         .eq("event_id", currentEvent.id)
 

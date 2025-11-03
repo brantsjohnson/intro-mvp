@@ -21,29 +21,26 @@ export default function Home() {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
           setUser(user)
-          // Check if user has completed onboarding by looking for profile
+          // Check if user has completed onboarding by looking for required fields in users
           try {
-            const { data: profile, error: profileError } = await supabase
-              .from("profiles")
-              .select("id, first_name, last_name, job_title, company")
-              .eq("id", user.id)
+            const { data: person, error: userError } = await supabase
+              .from("users")
+              .select("user_id, first_name, last_name, career_title, company_name")
+              .eq("user_id", user.id)
               .single()
             
-            if (profileError) {
-              console.error("Error checking profile:", profileError)
-              // If there's an error checking profile, assume user needs onboarding
+            if (userError) {
+              console.warn("User row not found yet; route to onboarding", userError)
               router.push("/onboarding")
-            } else if (profile && profile.first_name && profile.last_name && profile.job_title && profile.company) {
-              // User has completed onboarding (has required fields), redirect to home
+            } else if (person && person.first_name && person.last_name && person.career_title && person.company_name) {
               router.push("/home")
             } else {
-              // User hasn't completed onboarding, redirect to onboarding
               router.push("/onboarding")
             }
           } catch (dbError) {
             console.error("Database error:", dbError)
-            // If database is down, redirect to onboarding as fallback
-            router.push("/onboarding")
+            // Gracefully keep user on landing if something is wrong
+            router.push("/home")
           }
         } else {
           setUser(null)
