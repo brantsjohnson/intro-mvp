@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -13,7 +12,7 @@ import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
 import { User } from "@/lib/types"
 import { toast } from "sonner"
-import { Camera, ArrowRight, Upload, Select as SelectIcon, ArrowLeft } from "lucide-react"
+import { Camera, ArrowRight, Upload, Select as SelectIcon, ArrowLeft, ChevronLeft, Loader2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface OnboardingStep {
@@ -1095,6 +1094,52 @@ export function NewOnboardingFlow() {
   // Show adaptive Q&A if we have a current question or are loading one
   const showAdaptiveQnA = currentAdaptiveQuestion || isLoadingQuestion || adaptiveQnAComplete
 
+  // Calculate progress percentage
+  const getProgressPercentage = () => {
+    if (showAdaptiveQnA) {
+      // For adaptive Q&A, we don't know total questions, so show 90%+ to indicate near completion
+      return adaptiveQnAComplete ? 100 : 90
+    }
+    return ((currentStep + 1) / visibleSteps.length) * 100
+  }
+
+  // Check if step is valid for continue button
+  const isStepValid = () => {
+    if (!currentStepData) return false
+    if (currentStepData.id === "profile") return firstName && lastName
+    if (currentStepData.id === "professional") return jobTitle && company && yearsExperience && areasOfExpertise
+    if (currentStepData.id === "connection-types") return connectionTypesSelected.length > 0
+    if (currentStepData.id === "why-attending") return whyAttending.trim().length > 0
+    return true
+  }
+
+  // Handle next step
+  const handleNext = () => {
+    if (!currentStepData) return
+    
+    const stepId = currentStepData.id
+    if (stepId === "profile" && !validateForm()) {
+      toast.error("Please complete the required fields")
+      return
+    } else if (stepId === "professional" && !validateProfessionalForm()) {
+      toast.error("Please complete all required fields")
+      return
+    } else if (stepId === "connection-types") {
+      if (connectionTypesSelected.length === 0) {
+        toast.error("Please select at least one connection type")
+        return
+      }
+    }
+    setCurrentStep(currentStep + 1)
+  }
+
+  // Handle back step
+  const handleBack = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1)
+    }
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -1118,7 +1163,8 @@ export function NewOnboardingFlow() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background text-foreground flex flex-col relative">
+      {/* Loading/Redirecting overlay */}
       {(isLoading || isRedirecting) && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="bg-card border border-border rounded-lg p-8 text-center shadow-elevation">
@@ -1135,14 +1181,27 @@ export function NewOnboardingFlow() {
           </div>
         </div>
       )}
-      
-      <div className="w-full max-w-2xl">
-        {/* Adaptive Q&A Card - shown when in Q&A flow */}
-        {showAdaptiveQnA && (
-          <Card className="bg-card border-border shadow-elevation mb-4">
-            <CardContent className="p-6">
+
+      {/* Fixed Top Progress Bar */}
+      {currentStep > 0 && (
+        <div className="fixed top-0 left-0 right-0 z-20">
+          <div className="w-full h-[2px] bg-muted">
+            <div 
+              className="gradient-progress h-[2px] transition-all duration-300 ease-out" 
+              style={{ width: `${getProgressPercentage()}%` }}
+            ></div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content Area - Centered with max 512px */}
+      <div className={`flex-1 flex items-center justify-center px-6 ${currentStep === 0 ? '' : 'md:items-center items-start pt-8 md:pt-0'} ${currentStep > 0 ? 'pb-48' : ''}`}>
+        <div className={`w-full max-w-lg transition-all duration-300 animate-fade-up`}>
+          {/* Adaptive Q&A Content */}
+          {showAdaptiveQnA ? (
+            <div className="space-y-6">
               {isLoadingQuestion ? (
-                // Skeleton loading shimmer (no "Loading..." text)
+                // Skeleton loading shimmer
                 <div className="space-y-4 animate-pulse">
                   <div className="h-6 bg-muted rounded w-3/4"></div>
                   <div className="space-y-3">
@@ -1172,100 +1231,85 @@ export function NewOnboardingFlow() {
                   </div>
                 </div>
               ) : adaptiveQnAComplete ? (
-                // Completion state (should be brief before redirect)
+                // Completion state
                 <div className="text-center">
                   <p className="text-foreground">Processing your responses...</p>
                 </div>
               ) : null}
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          ) : currentStepData ? (
+            // Regular onboarding steps
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold text-foreground mb-2">
+                  {currentStepData.title}
+                </h2>
+                <p className="text-muted-foreground">
+                  {currentStepData.description}
+                </p>
+              </div>
+              <div className="space-y-6">
+                {currentStepData.component}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
 
-        {/* Regular onboarding steps - shown when not in adaptive Q&A */}
-        {!showAdaptiveQnA && currentStepData && (
-          <Card className="bg-card border-border shadow-elevation">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-xl font-semibold text-foreground">
-                {currentStepData.title}
-              </CardTitle>
-              <p className="text-muted-foreground">
-                {currentStepData.description}
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {currentStepData.component}
+      {/* Fixed Bottom Navigation */}
+      {currentStep > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border pb-4 px-6 z-10">
+          <div className="max-w-lg mx-auto pt-4">
+            <div className="flex gap-4 mb-2">
+              {/* Back Button */}
+              <GradientButton 
+                variant="outline" 
+                onClick={handleBack} 
+                disabled={currentStep <= 1} 
+                className="flex items-center justify-center w-16 h-16 rounded-2xl border-2 border-primary disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </GradientButton>
               
-              <div className="flex justify-between pt-4">
-                <GradientButton
-                  variant="outline"
-                  onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-                  disabled={currentStep === 0}
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
-                </GradientButton>
-                
-                <div className="flex-1" />
-                
-                {isLastStep ? (
-                  <GradientButton
-                    onClick={profileCompleted ? handleCompleteEventOnboarding : handleCompleteProfile}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? "Completing..." : "Complete"}
-                  </GradientButton>
+              {/* Continue Button */}
+              <GradientButton 
+                onClick={isLastStep 
+                  ? (profileCompleted ? handleCompleteEventOnboarding : handleCompleteProfile)
+                  : handleNext
+                } 
+                disabled={isLastStep 
+                  ? isLoading 
+                  : !isStepValid() || isLoading || isLoadingQuestion
+                } 
+                className="flex-1 h-16 rounded-2xl text-lg font-medium gradient-primary text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading || isLoadingQuestion ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Loading...
+                  </span>
+                ) : isLastStep ? (
+                  isLoading ? "Completing..." : "Complete"
                 ) : (
-                  <GradientButton
-                    onClick={() => {
-                      const stepId = currentStepData.id
-                      if (stepId === "profile" && !validateForm()) {
-                        toast.error("Please complete the required fields")
-                        return
-                      } else if (stepId === "professional" && !validateProfessionalForm()) {
-                        toast.error("Please complete all required fields")
-                        return
-                      } else if (stepId === "connection-types") {
-                        if (connectionTypesSelected.length === 0) {
-                          toast.error("Please select at least one connection type")
-                          return
-                        }
-                      }
-                      setCurrentStep(currentStep + 1)
-                    }}
-                    disabled={
-                      (currentStepData.id === "profile" && (!firstName || !lastName)) ||
-                      (currentStepData.id === "professional" && (!jobTitle || !company || !yearsExperience || !areasOfExpertise)) ||
-                      (currentStepData.id === "connection-types" && connectionTypesSelected.length === 0)
-                    }
-                  >
+                  <>
                     Continue
                     <ArrowRight className="h-4 w-4 ml-2" />
-                  </GradientButton>
+                  </>
                 )}
-              </div>
-            </CardContent>
+              </GradientButton>
+            </div>
             
-            {!isLastStep && (
-              <div className="px-6 pb-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-muted-foreground">
-                    Step {currentStep + 1} of {visibleSteps.length}
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    {Math.round(((currentStep + 1) / visibleSteps.length) * 100)}%
-                  </span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div
-                    className="gradient-primary h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${((currentStep + 1) / visibleSteps.length) * 100}%` }}
-                  />
-                </div>
+            {/* Footer */}
+            {currentStep >= 3 && (
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">
+                  Service provided by <a href="https://www.linkedin.com/company/intro-event" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">INTRO</a>
+                </p>
               </div>
             )}
-          </Card>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
       
       <ImageCropModal
         isOpen={showCropModal}

@@ -184,4 +184,40 @@
     background-size: 400% 400%;
     animation: gradientShift 15s ease infinite;
   }
+  
+  /* Progress bar gradient */
+  .gradient-progress {
+    background: linear-gradient(90deg, #EC874E 0%, #BF341E 50%, #A855F7 100%);
+  }
+  
+  /* Fade animations */
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes fadeOut {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+  }
+  
+  .animate-fade-up {
+    animation: fadeUp 0.3s ease-out;
+  }
+  
+  .animate-fade-out {
+    animation: fadeOut 0.3s ease-out;
+  }
 }
