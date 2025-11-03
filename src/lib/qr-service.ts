@@ -176,14 +176,17 @@ export class QRCodeService {
    */
   async getCurrentUserEventId(userId: string): Promise<string | null> {
     try {
+      // Use attendance table (new schema) and get most recent event
       const { data, error } = await this.supabase
-        .from('event_members')
+        .from('attendance')
         .select('event_id')
         .eq('user_id', userId)
+        .order('created_at', { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle()
 
       if (error || !data) {
+        console.error('Error getting user event ID:', error)
         return null
       }
 

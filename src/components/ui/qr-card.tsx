@@ -13,10 +13,11 @@ import { toast } from "sonner"
 
 interface QRCardProps {
   onScanClick: () => void
+  eventId?: string
   className?: string
 }
 
-export function QRCard({ onScanClick, className }: QRCardProps) {
+export function QRCard({ onScanClick, eventId, className }: QRCardProps) {
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const qrService = new QRCodeService()
@@ -33,15 +34,19 @@ export function QRCard({ onScanClick, className }: QRCardProps) {
         return
       }
 
-      // Get current user's event
-      const eventId = await qrService.getCurrentUserEventId(user.id)
-      if (!eventId) {
+      // Use provided eventId or fetch it
+      let currentEventId = eventId
+      if (!currentEventId) {
+        currentEventId = await qrService.getCurrentUserEventId(user.id)
+      }
+      
+      if (!currentEventId) {
         toast.error('You must be in an event to generate QR code')
         return
       }
 
       // Generate QR code
-      const url = await qrService.generateQRCode(user.id, eventId)
+      const url = await qrService.generateQRCode(user.id, currentEventId)
       if (url) {
         setQrCodeUrl(url)
       } else {
@@ -56,8 +61,11 @@ export function QRCard({ onScanClick, className }: QRCardProps) {
   }
 
   useEffect(() => {
-    generateQRCode()
-  }, [])
+    if (eventId) {
+      generateQRCode()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId])
 
   return (
     <div className={cn("space-y-3", className)}>

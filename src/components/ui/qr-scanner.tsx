@@ -111,11 +111,11 @@ export function QRScanner({ isOpen, onClose, onConnectionCreated }: QRScannerPro
 
       // Validate that both users are in the same event
       const { data: scannerEventMember } = await supabase
-        .from('event_members')
+        .from('attendance')
         .select('event_id')
         .eq('user_id', user.id)
         .eq('event_id', qrData.eventId)
-        .single()
+        .maybeSingle()
 
       if (!scannerEventMember) {
         toast.error('You must be in the same event to view this profile')

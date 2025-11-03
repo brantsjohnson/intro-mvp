@@ -731,7 +731,7 @@ export function HomePage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <QRCard onScanClick={handleQRScan} />
+                  <QRCard onScanClick={handleQRScan} eventId={currentEvent.id} />
                 </CardContent>
               </Card>
             )}
