@@ -444,9 +444,9 @@ export function HomePage() {
 
       // Check if user is already a member
       const { data: existingMember, error: memberCheckError } = await supabase
-        .from("event_members")
+        .from("attendance")
         .select("event_id, user_id")
-        .eq("event_id", event.id)
+        .eq("event_id", event.event_id)
         .eq("user_id", user.id)
         .maybeSingle()
 
@@ -463,10 +463,11 @@ export function HomePage() {
 
       // Join the event
       const { error: joinError } = await supabase
-        .from("event_members")
+        .from("attendance")
         .insert({
-          event_id: event.id,
-          user_id: user.id
+          event_id: event.event_id,
+          user_id: user.id,
+          checked_in_at: new Date().toISOString()
         })
 
       if (joinError) {
@@ -482,7 +483,7 @@ export function HomePage() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ 
-            eventId: event.id, 
+            eventId: event.event_id, 
             newUserId: user.id 
           }),
         })
@@ -493,7 +494,7 @@ export function HomePage() {
 
       toast.success("Successfully joined event!")
       // After joining from Home, ask networking goals; but if user completes onboarding first, they can come back from Home too
-      router.push(`/onboarding?from=event-join&eventId=${event.id}`)
+      router.push(`/onboarding?from=event-join&eventId=${event.event_id}`)
     } catch (error) {
       console.error("Error joining event:", error)
       toast.error("An error occurred")

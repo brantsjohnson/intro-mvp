@@ -136,16 +136,19 @@ export function UserProfile({ userId }: UserProfileProps) {
             setCurrentUserExpertise((currentUserExpertiseData as Array<{ tag_id: number }>).map(e => e.tag_id))
           }
 
-          // Check if user is present in current event
-          const { data: eventMember } = await supabase
-            .from("event_members")
-            .select("is_present")
-            .eq("user_id", userId)
-            .limit(1)
-            .single()
+          // Check if user is present in current event (from attendance.checked_in_at)
+          const eventId = searchParams.get('eventId')
+          if (eventId) {
+            const { data: attendanceData } = await supabase
+              .from("attendance")
+              .select("checked_in_at")
+              .eq("user_id", userId)
+              .eq("event_id", eventId)
+              .maybeSingle()
 
-          if (eventMember) {
-            setIsPresent(eventMember.is_present)
+            if (attendanceData) {
+              setIsPresent(!!attendanceData.checked_in_at)
+            }
           }
 
           // Detect if a connection already exists between current user and target

@@ -68,22 +68,22 @@ export function MessagesPage() {
         }
 
         // Load all attendees in the event
-        const { data: eventMembers } = await supabase
-          .from('event_members')
+        const { data: attendanceData } = await supabase
+          .from('attendance')
           .select(`
             user_id,
-            profiles!event_members_user_id_fkey (
-              id,
+            users:user_id (
+              user_id,
               first_name,
               last_name,
-              avatar_url,
-              job_title
+              photo_url,
+              career_title
             )
           `)
           .eq('event_id', eventId)
           .neq('user_id', user.id) // Exclude current user
 
-        if (!eventMembers) return
+        if (!attendanceData) return
 
         // Get existing threads to check for unread counts
         const threadsData = await messageService.getThreads(eventId)
@@ -93,18 +93,18 @@ export function MessagesPage() {
         })
 
         // Format attendees with unread counts
-        const attendeesData: AttendeeWithUnread[] = eventMembers
-          .map(member => {
-            const profile = member.profiles
+        const attendeesData: AttendeeWithUnread[] = attendanceData
+          .map((member: any) => {
+            const profile = member.users
             if (!profile) return null
             
-            const thread = threadMap.get(profile.id)
+            const thread = threadMap.get(profile.user_id)
             return {
-              id: profile.id,
-              first_name: profile.first_name,
-              last_name: profile.last_name,
-              avatar_url: profile.avatar_url,
-              job_title: profile.job_title,
+              id: profile.user_id,
+              first_name: profile.first_name || '',
+              last_name: profile.last_name || '',
+              avatar_url: profile.photo_url || null,
+              job_title: profile.career_title || null,
               unread_count: thread?.unread_count || 0,
               has_thread: !!thread
             }

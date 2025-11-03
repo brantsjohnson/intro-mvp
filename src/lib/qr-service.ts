@@ -115,11 +115,11 @@ export class QRCodeService {
 
       // Check if both users are in the same event
       const { data: scannerEventMember } = await this.supabase
-        .from('event_members')
+        .from('attendance')
         .select('event_id')
         .eq('user_id', scannerUserId)
         .eq('event_id', qrData.eventId)
-        .single()
+        .maybeSingle()
 
       if (!scannerEventMember) {
         toast.error('You must be in the same event to connect')
@@ -127,12 +127,18 @@ export class QRCodeService {
       }
 
       // Check if connection already exists
+      // Ensure a_id < b_id for consistent lookup
+      const [aId, bId] = scannerUserId < qrData.userId 
+        ? [scannerUserId, qrData.userId]
+        : [qrData.userId, scannerUserId]
+      
       const { data: existingConnection } = await this.supabase
         .from('connections')
-        .select('id')
+        .select('event_id, a_id, b_id')
         .eq('event_id', qrData.eventId)
-        .or(`and(a.eq.${scannerUserId},b.eq.${qrData.userId}),and(a.eq.${qrData.userId},b.eq.${scannerUserId})`)
-        .single()
+        .eq('a_id', aId)
+        .eq('b_id', bId)
+        .maybeSingle()
 
       if (existingConnection) {
         toast.info('You are already connected with this person')
@@ -144,9 +150,11 @@ export class QRCodeService {
         .from('connections')
         .insert({
           event_id: qrData.eventId,
-          a: scannerUserId,
-          b: qrData.userId,
-          source: 'qr'
+          a_id: scannerUserId,
+          b_id: qrData.userId,
+          connection_kind: 'user_added',
+          user_add_method: 'qr',
+          created_by_user_id: scannerUserId
         })
         .select()
 

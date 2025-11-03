@@ -189,16 +189,46 @@ export class MessageService {
   // Get unread message count for current user in an event
   async getUnreadCount(eventId: string): Promise<number> {
     const { data: { user } } = await this.supabase.auth.getUser()
-    if (!user) throw new Error('Not authenticated')
+    if (!user) {
+      // Silently return 0 if not authenticated (prevents error spam)
+      return 0
+    }
 
-    const { data: count, error } = await this.supabase
-      .rpc('get_unread_message_count', {
-        p_user_id: user.id,
-        p_event_id: eventId
-      })
+    try {
+      // Get all conversations for this event where user is a participant
+      const { data: conversations, error: convError } = await this.supabase
+        .from('conversations')
+        .select('conversation_id')
+        .eq('event_id', eventId)
+        .contains('participant_user_ids', [user.id])
 
-    if (error) throw error
-    return count || 0
+      if (convError || !conversations || conversations.length === 0) {
+        return 0
+      }
+
+      const conversationIds = conversations.map(c => c.conversation_id)
+
+      // Count unread messages (messages not from current user, using simple heuristic)
+      // Since messages table doesn't have is_read flag in new schema, 
+      // we'll use a simple approach: count recent messages not from user
+      const { count, error } = await this.supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .in('conversation_id', conversationIds)
+        .neq('sender_user_id', user.id)
+        // Only count messages from last 7 days to approximate "unread"
+        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+
+      if (error) {
+        console.error('Error getting unread count:', error)
+        return 0
+      }
+
+      return count || 0
+    } catch (error) {
+      console.error('Error in getUnreadCount:', error)
+      return 0
+    }
   }
 
   // Search for users in an event to start new conversations
@@ -206,26 +236,34 @@ export class MessageService {
     const { data: { user } } = await this.supabase.auth.getUser()
     if (!user) throw new Error('Not authenticated')
 
-    // First get event member IDs
-    const { data: eventMembers } = await this.supabase
-      .from('event_members')
+    // First get event member IDs from attendance table
+    const { data: attendanceData } = await this.supabase
+      .from('attendance')
       .select('user_id')
       .eq('event_id', eventId)
 
-    if (!eventMembers) return []
+    if (!attendanceData) return []
 
-    const memberIds = eventMembers.map(m => m.user_id)
+    const memberIds = attendanceData.map(a => a.user_id)
 
     const { data, error } = await this.supabase
-      .from('profiles')
-      .select('id, first_name, last_name, avatar_url, job_title')
-      .in('id', memberIds)
-      .neq('id', user.id)
+      .from('users')
+      .select('user_id, first_name, last_name, photo_url, career_title')
+      .in('user_id', memberIds)
+      .neq('user_id', user.id)
       .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
       .limit(10)
 
     if (error) throw error
-    return data || []
+    
+    // Map to Profile format
+    return (data || []).map(u => ({
+      id: u.user_id,
+      first_name: u.first_name || '',
+      last_name: u.last_name || '',
+      avatar_url: u.photo_url || null,
+      job_title: u.career_title || null
+    }))
   }
 
   // Subscribe to real-time message updates

@@ -122,11 +122,11 @@ export function ConversationView() {
         } else         if (userId) {
           // Validate that the user is in the same event
           const { data: userInEvent } = await supabase
-            .from('event_members')
+            .from('attendance')
             .select('user_id')
             .eq('event_id', eventId)
             .eq('user_id', userId)
-            .single()
+            .maybeSingle()
           
           if (!userInEvent) {
             toast.error("This user is not in the current event")
@@ -148,9 +148,9 @@ export function ConversationView() {
           
           // Get user profile for new conversation
           const { data: userProfile } = await supabase
-            .from('profiles')
-            .select('id, first_name, last_name, avatar_url, job_title')
-            .eq('id', userId)
+            .from('users')
+            .select('user_id, first_name, last_name, photo_url, career_title')
+            .eq('user_id', userId)
             .single()
           
           if (userProfile) {
@@ -162,7 +162,13 @@ export function ConversationView() {
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
               last_message_at: null,
-              other_participant: userProfile,
+              other_participant: {
+                id: userProfile.user_id,
+                first_name: userProfile.first_name || '',
+                last_name: userProfile.last_name || '',
+                avatar_url: userProfile.photo_url || null,
+                job_title: userProfile.career_title || null
+              },
               last_message: undefined,
               unread_count: 0
             })
