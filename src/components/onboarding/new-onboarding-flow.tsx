@@ -7,12 +7,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ImageCropModal } from "@/components/ui/image-crop-modal"
-import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
 import { User } from "@/lib/types"
 import { toast } from "sonner"
-import { Camera, ArrowRight, Upload, Select as SelectIcon, ArrowLeft, ChevronLeft, Loader2 } from "lucide-react"
+import { ArrowRight, ChevronLeft, Loader2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface OnboardingStep {
@@ -63,28 +61,6 @@ export function NewOnboardingFlow() {
   const [company, setCompany] = useState("")
   const [yearsExperience, setYearsExperience] = useState("")
   const [areasOfExpertise, setAreasOfExpertise] = useState("")
-  const [avatarFile, setAvatarFile] = useState<File | null>(null)
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
-  const [showCropModal, setShowCropModal] = useState(false)
-  const [tempImageUrl, setTempImageUrl] = useState<string | null>(null)
-  
-  // Cleanup preview URL when it changes
-  useEffect(() => {
-    return () => {
-      if (avatarPreview && avatarPreview.startsWith('blob:')) {
-        URL.revokeObjectURL(avatarPreview)
-      }
-    }
-  }, [avatarPreview])
-  
-  // Cleanup temp image URL when component unmounts
-  useEffect(() => {
-    return () => {
-      if (tempImageUrl && tempImageUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(tempImageUrl)
-      }
-    }
-  }, [tempImageUrl])
   
   // Event-specific data
   const [whyAttending, setWhyAttending] = useState("")
@@ -125,7 +101,6 @@ export function NewOnboardingFlow() {
               setLastName(nameParts.slice(1).join(' '))
             }
           }
-          if (metadata.avatar_url) setAvatarPreview(metadata.avatar_url)
         }
         
         // Check if profile exists and is complete
@@ -141,7 +116,6 @@ export function NewOnboardingFlow() {
           setLastName(person.last_name || "")
           setJobTitle(person.career_title || "")
           setCompany(person.company_name || "")
-          setAvatarPreview(person.photo_url || null)
           
           // Profile is complete if has required fields
           const isComplete = person.first_name && person.last_name && person.career_title && person.company_name
@@ -168,288 +142,6 @@ export function NewOnboardingFlow() {
     
     checkProfileStatus()
   }, [router, supabase, fromEventJoin])
-
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("Image must be smaller than 5MB")
-        return
-      }
-      
-      if (!file.type.startsWith('image/')) {
-        toast.error("Please select an image file")
-        return
-      }
-      
-      setAvatarFile(file)
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const result = e.target?.result as string
-        setTempImageUrl(result)
-        setShowCropModal(true)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const handleTakePhoto = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
-      const video = document.createElement('video')
-      video.srcObject = stream
-      video.play()
-      
-      const canvas = document.createElement('canvas')
-      const context = canvas.getContext('2d')
-      
-      video.addEventListener('loadedmetadata', () => {
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        context?.drawImage(video, 0, 0)
-        
-        canvas.toBlob((blob) => {
-          if (blob) {
-            const file = new File([blob], 'photo.jpg', { type: 'image/jpeg' })
-            setAvatarFile(file)
-            const url = URL.createObjectURL(blob)
-            setTempImageUrl(url)
-            setShowCropModal(true)
-          }
-          
-          stream.getTracks().forEach(track => track.stop())
-        }, 'image/jpeg', 0.9)
-      })
-    } catch (error) {
-      console.error('Camera error:', error)
-      toast.error("Camera access denied. Please use upload instead.")
-    }
-  }
-
-  const handleCropSave = async (croppedImageUrl: string) => {
-    console.log('handleCropSave called with URL:', croppedImageUrl)
-    
-    if (!croppedImageUrl) {
-      console.error('No cropped image URL provided')
-      toast.error('No image to save')
-      return
-    }
-    
-    try {
-      // Convert blob URL to File so it can be uploaded
-      console.log('Fetching blob from URL...')
-      const response = await fetch(croppedImageUrl)
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch blob: ${response.status} ${response.statusText}`)
-      }
-      
-      console.log('Converting blob to File...')
-      const blob = await response.blob()
-      console.log('Blob received, size:', blob.size, 'type:', blob.type)
-      
-      if (blob.size === 0) {
-        throw new Error('Blob is empty')
-      }
-      
-      // Ensure we have a valid image type
-      const fileType = blob.type || 'image/jpeg'
-      const file = new File([blob], 'avatar.jpg', { type: fileType })
-      console.log('File created:', file.name, file.size, 'bytes', file.type)
-      
-      // Verify file is valid
-      if (file.size === 0) {
-        throw new Error('Created file is empty')
-      }
-      
-      // Revoke old preview URL if it exists
-      if (avatarPreview && avatarPreview.startsWith('blob:')) {
-        URL.revokeObjectURL(avatarPreview)
-      }
-      
-      // Set the file BEFORE closing modal to ensure it's preserved
-      setAvatarFile(file)
-      
-      // Create a preview URL from the file (this will be cleaned up in useEffect)
-      const previewUrl = URL.createObjectURL(file)
-      setAvatarPreview(previewUrl)
-      
-      // Revoke the temp image URL since we have the file now
-      if (tempImageUrl && tempImageUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(tempImageUrl)
-      }
-      
-      // Close modal and clear temp URL
-      setShowCropModal(false)
-      setTempImageUrl(null)
-      
-      console.log('Avatar file set successfully, file size:', file.size, 'bytes')
-      toast.success('Photo saved! It will be uploaded when you complete your profile.')
-    } catch (error: any) {
-      console.error('Error processing cropped image:', {
-        error,
-        message: error?.message,
-        stack: error?.stack,
-        url: croppedImageUrl
-      })
-      toast.error(`Failed to save photo: ${error?.message || 'Unknown error'}`)
-      setAvatarFile(null)
-      setAvatarPreview(null)
-    }
-  }
-
-  const handleCropCancel = () => {
-    setShowCropModal(false)
-    setTempImageUrl(null)
-    setAvatarFile(null)
-  }
-
-  const uploadAvatar = async (userId: string) => {
-    if (!avatarFile) {
-      console.error('uploadAvatar: No avatar file provided')
-      throw new Error('No avatar file to upload')
-    }
-
-    // Verify file is valid
-    if (avatarFile.size === 0) {
-      console.error('uploadAvatar: Avatar file is empty')
-      throw new Error('Avatar file is empty')
-    }
-
-    if (!avatarFile.type.startsWith('image/')) {
-      console.error('uploadAvatar: File is not an image', avatarFile.type)
-      throw new Error('File is not a valid image')
-    }
-
-    const fileExt = avatarFile.name.split('.').pop() || 'jpg'
-    const fileName = `${userId}.${fileExt}`
-    const filePath = `${userId}/${fileName}`
-
-    console.log('Uploading avatar:', {
-      userId,
-      fileName,
-      filePath,
-      fileSize: avatarFile.size,
-      fileSizeKB: (avatarFile.size / 1024).toFixed(2),
-      fileType: avatarFile.type,
-      fileLastModified: new Date(avatarFile.lastModified).toISOString()
-    })
-
-    try {
-      // Check if bucket exists and is accessible
-      const { data: buckets, error: bucketsError } = await (supabase as any).storage.listBuckets()
-      
-      if (bucketsError) {
-        console.error('Storage bucket check error:', {
-          error: bucketsError,
-          message: bucketsError.message,
-          code: bucketsError.code
-        })
-        throw new Error(`Storage access error: ${bucketsError.message || 'Unable to access storage buckets'}`)
-      }
-
-      console.log('Available buckets:', buckets?.map((b: any) => b.name))
-
-      const avatarsBucket = buckets?.find((b: any) => b.name === 'avatars')
-      if (!avatarsBucket) {
-        console.error('avatars bucket not found. Available buckets:', buckets?.map((b: any) => b.name))
-        throw new Error('avatars storage bucket does not exist. Please create it in Supabase Storage.')
-      }
-
-      console.log('avatars bucket found:', {
-        name: avatarsBucket.name,
-        public: avatarsBucket.public,
-        id: avatarsBucket.id
-      })
-
-      // Verify current user matches the path structure (RLS requirement)
-      const { data: { user: currentUser } } = await supabase.auth.getUser()
-      if (!currentUser || currentUser.id !== userId) {
-        console.error('User mismatch:', {
-          currentUserId: currentUser?.id,
-          requestedUserId: userId
-        })
-        throw new Error('Authentication error: User ID mismatch')
-      }
-
-      console.log('Attempting upload to path:', filePath)
-
-      // Upload with upsert to overwrite existing avatars
-      const { data: uploadData, error: uploadError } = await (supabase as any).storage
-        .from('avatars')
-        .upload(filePath, avatarFile, {
-          contentType: 'image/jpeg',
-          upsert: true,
-          cacheControl: '3600'
-        })
-
-      if (uploadError) {
-        console.error('Upload error details:', {
-          error: uploadError,
-          message: uploadError.message,
-          statusCode: uploadError.statusCode,
-          errorCode: uploadError.error,
-          path: filePath,
-          userId: userId
-        })
-        
-        // Provide more helpful error messages
-        if (uploadError.message?.includes('new row violates row-level security') || 
-            uploadError.message?.includes('row-level security') ||
-            uploadError.statusCode === 403) {
-          throw new Error('Storage permission error: The avatars bucket RLS policy may not allow this upload. Please check that the RLS policy allows authenticated users to upload to paths matching their user ID.')
-        }
-        if (uploadError.message?.includes('Bucket not found') || uploadError.statusCode === 404) {
-          throw new Error('avatars bucket not found. Please create it in Supabase Storage.')
-        }
-        throw new Error(`Upload failed: ${uploadError.message || 'Unknown error'}`)
-      }
-
-      console.log('Upload successful:', uploadData)
-
-      // Get public URL
-      const { data: urlData } = (supabase as any).storage
-        .from('avatars')
-        .getPublicUrl(filePath)
-
-      console.log('Public URL data:', urlData)
-
-      if (!urlData?.publicUrl) {
-        throw new Error('Failed to get public URL for uploaded image')
-      }
-
-      console.log('Avatar uploaded successfully, public URL:', urlData.publicUrl)
-      
-      // Verify the URL is accessible
-      if (urlData.publicUrl) {
-        // Test if URL is accessible (optional, but helpful for debugging)
-        try {
-          const testResponse = await fetch(urlData.publicUrl, { method: 'HEAD' })
-          if (testResponse.ok) {
-            console.log('Avatar URL is accessible:', urlData.publicUrl)
-          } else {
-            console.warn('Avatar URL test returned status:', testResponse.status)
-          }
-        } catch (testError) {
-          console.warn('Could not test avatar URL accessibility:', testError)
-          // Continue anyway, the URL might still be valid
-        }
-      }
-      
-      return urlData.publicUrl
-    } catch (error: any) {
-      console.error('Error uploading avatar:', {
-        error,
-        message: error?.message,
-        stack: error?.stack,
-        userId,
-        filePath,
-        fileSize: avatarFile?.size,
-        fileType: avatarFile?.type
-      })
-      throw error
-    }
-  }
 
   // Map UI connection type IDs to database format
   const mapConnectionTypeToDB = (uiId: string): string => {
@@ -615,53 +307,15 @@ export function NewOnboardingFlow() {
       return
     }
 
-    console.log('handleCompleteProfile called, avatarFile:', {
-      hasAvatarFile: !!avatarFile,
-      avatarFileSize: avatarFile?.size,
-      avatarFileType: avatarFile?.type,
-      avatarFileName: avatarFile?.name
-    })
-
     setIsLoading(true)
     try {
-      let avatarUrl = null
-      
-      // Try to upload avatar if we have one
-      if (avatarFile) {
-        // Verify file is still valid
-        if (avatarFile.size === 0) {
-          console.error('Avatar file is empty, cannot upload')
-          toast.error('Photo file is invalid. Please upload again.')
-        } else {
-          try {
-            console.log('Starting avatar upload...')
-            avatarUrl = await uploadAvatar(user.id)
-            if (avatarUrl) {
-              console.log('Photo uploaded successfully to Supabase Storage:', avatarUrl)
-              toast.success('Photo uploaded successfully!')
-            } else {
-              console.warn('Avatar upload returned null URL')
-            }
-          } catch (uploadError: any) {
-            console.error('Failed to upload photo:', {
-              error: uploadError,
-              message: uploadError?.message,
-              stack: uploadError?.stack
-            })
-            const errorMessage = uploadError?.message || 'Unknown error'
-            toast.error(`Photo upload failed: ${errorMessage}. Check console for details.`)
-            // Continue with profile save even if photo upload fails
-          }
-        }
-      } else if (user.user_metadata?.avatar_url) {
-        // Use Google OAuth photo if available and no manual upload
-        console.log('Using Google OAuth avatar URL:', user.user_metadata.avatar_url)
-        avatarUrl = user.user_metadata.avatar_url
-      } else {
-        console.log('No avatar to upload')
-      }
+      // Use Google OAuth photo if available
+      const avatarUrl = user.user_metadata?.avatar_url || null
 
       const expertiseArray = [areasOfExpertise]
+
+      // Parse years of experience to integer
+      const yearsExpInt = parseInt(yearsExperience) || null
 
       const { error: profileError } = await supabase
         .from("users")
@@ -673,6 +327,7 @@ export function NewOnboardingFlow() {
           photo_url: avatarUrl,
           career_title: jobTitle,
           company_name: company,
+          career_years_experience: yearsExpInt,
           expertise_summary: expertiseArray.join(", ")
         }, {
           onConflict: 'user_id'
@@ -769,11 +424,41 @@ export function NewOnboardingFlow() {
 
       console.log("Event onboarding saved successfully:", data)
       
+      // Derive attendance data immediately after saving event onboarding
+      // This populates offer_summary, want_summary, embeddings, tags, etc.
+      console.log("Calling derive-attendance to populate all fields...")
+      try {
+        const deriveResponse = await fetch('/api/derive-attendance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ eventId, userId: user.id })
+        })
+
+        if (deriveResponse.ok) {
+          const deriveResult = await deriveResponse.json()
+          console.log("Derive-attendance completed:", deriveResult)
+        } else {
+          const error = await deriveResponse.json()
+          console.error('Error deriving attendance (non-blocking):', error)
+          // Don't block - continue with adaptive Q&A
+        }
+      } catch (deriveError) {
+        console.error('Error calling derive-attendance (non-blocking):', deriveError)
+        // Don't block - continue with adaptive Q&A
+      }
+      
       // Event questions saved, now start adaptive Q&A
       toast.success("Saved! Let's continue...")
       
-      // Load first adaptive question
-      await loadNextAdaptiveQuestion()
+      // Load first adaptive question, but allow progression if it fails
+      const adaptiveQnASuccess = await loadNextAdaptiveQuestion(undefined, true)
+      
+      // If adaptive Q&A is not available or fails, complete onboarding anyway
+      // The user has already provided all necessary information
+      if (!adaptiveQnASuccess) {
+        console.log('Adaptive Q&A not available, completing onboarding without it')
+        await completeAdaptiveQnA()
+      }
       
     } catch (error: any) {
       console.error("Error completing event onboarding:", {
@@ -788,8 +473,8 @@ export function NewOnboardingFlow() {
   }
 
   // Load next adaptive question
-  const loadNextAdaptiveQuestion = async (selectedOption?: { qid: string; choice: string }) => {
-    if (!user || !eventId) return
+  const loadNextAdaptiveQuestion = async (selectedOption?: { qid: string; choice: string }, allowFallback: boolean = false) => {
+    if (!user || !eventId) return false
 
     setIsLoadingQuestion(true)
     try {
@@ -804,10 +489,22 @@ export function NewOnboardingFlow() {
       })
 
       if (!response.ok) {
-        const error = await response.json()
+        let error
+        try {
+          error = await response.json()
+        } catch (e) {
+          error = { error: 'Failed to load next question', status: response.status }
+        }
         console.error('Error loading next question:', error)
+        
+        // If this is the initial load and fallback is allowed, proceed without adaptive Q&A
+        if (allowFallback && !selectedOption) {
+          console.log('Adaptive Q&A not available, proceeding without it')
+          return false
+        }
+        
         toast.error('Failed to load next question')
-        return
+        return false
       }
 
       const result = await response.json()
@@ -816,12 +513,24 @@ export function NewOnboardingFlow() {
         // Questions complete, derive attendance and match
         setAdaptiveQnAComplete(true)
         await completeAdaptiveQnA()
+        return true
       } else if (result.question) {
         setCurrentAdaptiveQuestion(result.question)
+        return true
       }
+      
+      return false
     } catch (error: any) {
       console.error('Error loading adaptive question:', error)
+      
+      // If this is the initial load and fallback is allowed, proceed without adaptive Q&A
+      if (allowFallback && !selectedOption) {
+        console.log('Adaptive Q&A error, proceeding without it:', error)
+        return false
+      }
+      
       toast.error('An error occurred loading the question')
+      return false
     } finally {
       setIsLoadingQuestion(false)
     }
@@ -833,7 +542,8 @@ export function NewOnboardingFlow() {
 
     const selectedOption = {
       qid: currentAdaptiveQuestion.id,
-      choice
+      choice,
+      questionText: currentAdaptiveQuestion.text // Store question text for AI context
     }
 
     // Auto-advance to next question
@@ -846,18 +556,35 @@ export function NewOnboardingFlow() {
 
     setIsLoading(true)
     try {
-      // Derive attendance (generate summary, embedding, tags)
+      // Mark onboarding as complete
+      const { error: updateError } = await supabase
+        .from('attendance')
+        .update({ onboarding_completed: true })
+        .eq('event_id', eventId)
+        .eq('user_id', user.id)
+
+      if (updateError) {
+        console.error('Error marking onboarding as complete:', updateError)
+        // Continue anyway, as this is not critical
+      }
+
+      // Derive attendance AGAIN after adaptive Q&A completes
+      // This updates personality data based on Q&A answers
+      console.log("Deriving attendance after adaptive Q&A completion...")
       const deriveResponse = await fetch('/api/derive-attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventId, userId: user.id })
       })
 
-      if (!deriveResponse.ok) {
+      if (deriveResponse.ok) {
+        const deriveResult = await deriveResponse.json()
+        console.log("Derive-attendance after Q&A completed:", deriveResult)
+      } else {
         const error = await deriveResponse.json()
-        console.error('Error deriving attendance:', error)
-        toast.error('Failed to process your profile')
-        return
+        console.error('Error deriving attendance after Q&A:', error)
+        // Don't block progression if this fails
+        console.warn('Continuing despite derive-attendance error')
       }
 
       // Trigger incremental matching
@@ -885,7 +612,12 @@ export function NewOnboardingFlow() {
 
     } catch (error: any) {
       console.error('Error completing adaptive Q&A:', error)
-      toast.error('An error occurred')
+      // Even if there's an error, redirect to home since onboarding data is saved
+      toast.success('Profile saved! Redirecting...')
+      setIsRedirecting(true)
+      setTimeout(() => {
+        router.push('/home')
+      }, 1500)
     } finally {
       setIsLoading(false)
     }
@@ -899,60 +631,6 @@ export function NewOnboardingFlow() {
       description: "Tell us about yourself",
       component: (
         <div className="space-y-6">
-          <div>
-            <Label className="text-sm font-medium text-foreground mb-3 block">
-              Profile Photo
-            </Label>
-            <div className="flex items-center space-x-4">
-              <div className="relative">
-                <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden border-2 border-border">
-                  {avatarPreview ? (
-                    <img src={avatarPreview} alt="Avatar preview" className="w-full h-full object-cover" />
-                  ) : firstName && lastName ? (
-                    <div className="w-full h-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-lg">
-                      {firstName[0]}{lastName[0]}
-                    </div>
-                  ) : (
-                    <Camera className="h-8 w-8 text-muted-foreground" />
-                  )}
-                </div>
-                {avatarFile && (
-                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary border-2 border-background flex items-center justify-center">
-                    <span className="text-xs text-primary-foreground">✓</span>
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2 flex-1">
-                {avatarFile && (
-                  <p className="text-xs text-muted-foreground">
-                    Photo saved ({Math.round(avatarFile.size / 1024)} KB). Will upload when you complete your profile.
-                  </p>
-                )}
-                <div className="flex space-x-2">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarUpload}
-                    className="hidden"
-                    id="avatar-upload"
-                  />
-                  <Label htmlFor="avatar-upload" className="cursor-pointer">
-                    <GradientButton variant="outline" size="sm" asChild>
-                      <span className="flex items-center">
-                        <Upload className="h-4 w-4 mr-1" />
-                        {avatarPreview ? 'Change Photo' : 'Upload Photo'}
-                      </span>
-                    </GradientButton>
-                  </Label>
-                  <GradientButton variant="outline" size="sm" onClick={handleTakePhoto}>
-                    <Camera className="h-4 w-4 mr-1" />
-                    Take Photo
-                  </GradientButton>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="firstName" className="text-sm font-medium text-foreground">
@@ -1327,7 +1005,7 @@ export function NewOnboardingFlow() {
       )}
 
       {/* Main Content Area - Centered with max 512px */}
-      <div className={`flex-1 flex items-center justify-center px-6 ${currentStep === 0 ? '' : 'md:items-center items-start pt-8 md:pt-0'} ${currentStep > 0 ? 'pb-48' : ''}`}>
+      <div className={`flex-1 flex items-center justify-center px-6 ${currentStep === 0 ? '' : 'md:items-center items-start pt-8 md:pt-0'} pb-48`}>
         <div className={`w-full max-w-lg transition-all duration-300 animate-fade-up`}>
           {/* Adaptive Q&A Content */}
           {showAdaptiveQnA ? (
@@ -1389,66 +1067,57 @@ export function NewOnboardingFlow() {
       </div>
 
       {/* Fixed Bottom Navigation */}
-      {currentStep > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border pb-4 px-6 z-10">
-          <div className="max-w-lg mx-auto pt-4">
-            <div className="flex gap-4 mb-2">
-              {/* Back Button */}
-              <GradientButton 
-                variant="outline" 
-                onClick={handleBack} 
-                disabled={currentStep <= 1} 
-                className="flex items-center justify-center w-16 h-16 rounded-2xl border-2 border-primary disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft className="w-6 h-6" />
-              </GradientButton>
-              
-              {/* Continue Button */}
-              <GradientButton 
-                onClick={isLastStep 
-                  ? (profileCompleted ? handleCompleteEventOnboarding : handleCompleteProfile)
-                  : handleNext
-                } 
-                disabled={isLastStep 
-                  ? isLoading 
-                  : !isStepValid() || isLoading || isLoadingQuestion
-                } 
-                className="flex-1 h-16 rounded-2xl text-lg font-medium gradient-primary text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading || isLoadingQuestion ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Loading...
-                  </span>
-                ) : isLastStep ? (
-                  isLoading ? "Completing..." : "Complete"
-                ) : (
-                  <>
-                    Continue
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </>
-                )}
-              </GradientButton>
-            </div>
+      <div className="fixed bottom-0 left-0 right-0 bg-card border-t-2 border-border shadow-2xl px-6 z-[100] py-4">
+        <div className="max-w-lg mx-auto">
+          <div className="flex gap-4 items-center">
+            {/* Back Button */}
+            <GradientButton 
+              variant="outline" 
+              onClick={handleBack} 
+              disabled={currentStep <= 0} 
+              className="flex items-center justify-center w-16 h-16 rounded-2xl border-2 border-primary disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </GradientButton>
             
-            {/* Footer */}
-            {currentStep >= 3 && (
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">
-                  Service provided by <a href="https://www.linkedin.com/company/intro-event" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">INTRO</a>
-                </p>
-              </div>
-            )}
+            {/* Continue Button */}
+            <GradientButton 
+              onClick={isLastStep 
+                ? (profileCompleted ? handleCompleteEventOnboarding : handleCompleteProfile)
+                : handleNext
+              } 
+              disabled={isLastStep 
+                ? isLoading 
+                : !isStepValid() || isLoading || isLoadingQuestion
+              } 
+              className="flex-1 h-16 rounded-2xl text-lg font-medium gradient-primary text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
+            >
+              {isLoading || isLoadingQuestion ? (
+                <span className="flex items-center gap-2 justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Loading...
+                </span>
+              ) : isLastStep ? (
+                isLoading ? "Completing..." : "Complete"
+              ) : (
+                <span className="flex items-center justify-center">
+                  Continue
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </span>
+              )}
+            </GradientButton>
           </div>
+          
+          {/* Footer */}
+          {currentStep >= 3 && (
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">
+                Service provided by <a href="https://www.linkedin.com/company/intro-event" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">INTRO</a>
+              </p>
+            </div>
+          )}
         </div>
-      )}
-      
-      <ImageCropModal
-        isOpen={showCropModal}
-        onClose={handleCropCancel}
-        onSave={handleCropSave}
-        imageUrl={tempImageUrl || ''}
-      />
+      </div>
     </div>
   )
 }

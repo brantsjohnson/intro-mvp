@@ -57,7 +57,8 @@ export default function CreateEventPage() {
       }
 
       toast.success(`Event ${result.event.event_code} created successfully!`)
-      router.push('/home')
+      // Redirect to admin event edit page to configure onboarding questions
+      router.push(`/admin/event/${result.event.event_id}`)
     } catch (error) {
       console.error('Error creating event:', error)
       toast.error('An error occurred while creating the event')

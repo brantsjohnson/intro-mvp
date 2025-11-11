@@ -5,91 +5,75 @@ export async function POST(request: NextRequest) {
   try {
     const { eventId, newUserId } = await request.json()
     
-    if (!eventId || !newUserId) {
+    if (!eventId) {
       return NextResponse.json({ 
-        error: 'eventId and newUserId are required' 
+        error: 'eventId is required' 
       }, { status: 400 })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    // Get event details
-    const { data: eventData, error: eventError } = await supabase
-      .from('events')
-      .select('code, is_active, starts_at, ends_at, matchmaking_enabled')
-      .eq('id', eventId)
-      .single()
-
-    if (eventError || !eventData) {
+    if (!supabaseUrl || !supabaseServiceKey) {
       return NextResponse.json({ 
-        error: 'Event not found' 
-      }, { status: 404 })
-    }
-
-    // Check if event is live
-    const now = new Date()
-    const startsAt = new Date(eventData.starts_at)
-    const endsAt = new Date(eventData.ends_at)
-    
-    const isEventLive = eventData.is_active && 
-                       eventData.matchmaking_enabled && 
-                       now >= startsAt && 
-                       now <= endsAt
-
-    if (!isEventLive) {
-      return NextResponse.json({ 
-        success: true,
-        message: 'Event is not live, skipping auto-matching',
-        event_status: {
-          is_active: eventData.is_active,
-          matchmaking_enabled: eventData.matchmaking_enabled,
-          is_within_date_range: now >= startsAt && now <= endsAt
-        }
-      })
-    }
-
-    // Call the Edge Function to auto-match the new user
-    const matchmakerUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/matchmaker`
-    const matchmakerResponse = await fetch(matchmakerUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        event_id: eventId,
-        user_id: newUserId,
-        auto_match_new_user: true
-      })
-    })
-
-    const matchmakerResult = await matchmakerResponse.json()
-
-    if (!matchmakerResponse.ok) {
-      console.error('Auto-match failed:', matchmakerResult)
-      return NextResponse.json({ 
-        success: false,
-        error: 'Failed to auto-match user',
-        details: matchmakerResult.error
+        error: 'Missing Supabase configuration' 
       }, { status: 500 })
     }
 
-    return NextResponse.json({
+    // If newUserId is provided, call match-incremental logic
+    if (newUserId) {
+      const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+      // Call the matchmaker Edge Function with incremental flag
+      const matchmakerUrl = `${supabaseUrl}/functions/v1/matchmaker`
+      const matchmakerResponse = await fetch(matchmakerUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          event_id: eventId,
+          user_id: newUserId,
+          auto_match_new_user: true
+        })
+      })
+
+      if (!matchmakerResponse.ok) {
+        const errorText = await matchmakerResponse.text()
+        console.error('Matchmaker error:', errorText)
+        return NextResponse.json({ 
+          error: 'Failed to trigger matching',
+          details: errorText
+        }, { status: 500 })
+      }
+
+      const matchmakerResult = await matchmakerResponse.json()
+
+      // Count how many matches were created for this user
+      const { count, error: countError } = await supabase
+        .from('matches')
+        .select('*', { count: 'exact', head: true })
+        .eq('event_id', eventId)
+        .is('is_system', true)
+        .or(`a.eq.${newUserId},b.eq.${newUserId}`)
+
+      return NextResponse.json({
+        success: true,
+        match_count: count || 0,
+        matchmaker_result: matchmakerResult
+      })
+    }
+
+    // Otherwise, trigger full event matching (this would be done via matchmaker edge function)
+    return NextResponse.json({ 
       success: true,
-      message: 'New user auto-matched successfully',
-      user_id: newUserId,
-      event_id: eventId,
-      event_code: eventData.code,
-      matchmaker_result: matchmakerResult
+      message: 'Refresh matches endpoint - use match-incremental for specific users'
     })
 
   } catch (error: any) {
     console.error('Refresh matches error:', error)
     return NextResponse.json({ 
-      success: false,
       error: 'Internal server error', 
       details: error?.message 
     }, { status: 500 })

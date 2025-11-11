@@ -36,7 +36,11 @@ export async function POST(request: NextRequest) {
         ...currentTranscript,
         asked: [
           ...(currentTranscript.asked || []),
-          { qid: selectedOption.qid, choice: selectedOption.choice }
+          { 
+            qid: selectedOption.qid, 
+            choice: selectedOption.choice,
+            questionText: selectedOption.questionText || null // Store question text for AI context
+          }
         ]
       }
 

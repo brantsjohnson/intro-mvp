@@ -48,13 +48,13 @@ export async function POST(request: NextRequest) {
 
     const matchmakerResult = await matchmakerResponse.json()
 
-    // Count how many connections were created for this user
+    // Count how many matches were created for this user
     const { count, error: countError } = await supabase
-      .from('connections')
+      .from('matches')
       .select('*', { count: 'exact', head: true })
       .eq('event_id', eventId)
-      .eq('connection_kind', 'system_match')
-      .or(`a_id.eq.${userId},b_id.eq.${userId}`)
+      .is('is_system', true)
+      .or(`a.eq.${userId},b.eq.${userId}`)
 
     if (countError) {
       console.error('Error counting matches:', countError)

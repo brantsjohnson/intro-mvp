@@ -31,7 +31,13 @@ export type Database = {
           want_summary_text: string | null
           want_embedding: unknown | null
           want_tags: string[] | null
+          need_embedding: unknown | null
+          need_tags: string[] | null
+          profile_embedding: unknown | null
           career_goals_tags: string[] | null
+          industry_tags: string[] | null
+          hobby_tags: string[] | null
+          personality_embedding: unknown | null
           engagement_availability_status: string | null
           collaboration_role_intent: string | null
           personality_json: Json | null
@@ -82,8 +88,12 @@ export type Database = {
           business_need_text: string | null
           event_profile_summary_text: string | null
           event_profile_embedding: unknown | null
+          profile_embedding: unknown | null
           event_offer_tags: string[] | null
           event_want_tags: string[] | null
+          event_need_tags: string[] | null
+          event_industry_tags: string[] | null
+          event_hobby_tags: string[] | null
           event_goals_tags: string[] | null
           event_availability_status: string | null
           event_role_intent: string | null
@@ -92,6 +102,7 @@ export type Database = {
           user_connection_count: number | null
           checked_in_at: string | null
           last_seen_at: string | null
+          last_profile_change_at: string | null
           onboarding_completed: boolean | null
           adaptive_qna_json: Json | null
           created_at: string | null
@@ -121,6 +132,7 @@ export type Database = {
       }
       connections: {
         Row: {
+          connection_id: string
           event_id: string
           a_id: string
           b_id: string
@@ -138,7 +150,9 @@ export type Database = {
           matched_by_job_id: string | null
           created_at: string | null
         }
-        Insert: Database["public"]["Tables"]["connections"]["Row"]
+        Insert: Omit<Database["public"]["Tables"]["connections"]["Row"], "connection_id"> & {
+          connection_id?: string
+        }
         Update: Partial<Database["public"]["Tables"]["connections"]["Row"]>
         Relationships: []
       }
