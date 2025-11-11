@@ -90,8 +90,8 @@ export function MatchCard({
               </span>
             </div>
             
-            {/* Summary - Ensure full visibility */}
-            <p className="text-sm text-muted-foreground leading-relaxed">
+            {/* Summary - limited to two lines */}
+            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
               {summary}
             </p>
           </div>

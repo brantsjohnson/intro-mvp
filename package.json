@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:users": "tsx scripts/seed-users.ts",
+    "wipe:all": "tsx scripts/seed-users.ts wipe",
+    "deploy:all": "tsx scripts/deploy-all.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -55,9 +58,11 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "15.5.3",
     "tailwindcss": "^4",
+    "tsx": "^4.20.6",
     "tw-animate-css": "^1.3.8",
     "typescript": "^5"
   },

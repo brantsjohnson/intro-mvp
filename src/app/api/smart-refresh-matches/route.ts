@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { refreshEventMatchExplanations } from '@/lib/matching/refresh-explanations'
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,9 +64,10 @@ export async function POST(request: NextRequest) {
       const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000).toISOString()
       
       const { data: staleUsers, error: staleError } = await supabase
-        .from('matches')
-        .select('a, b')
+        .from('connections')
+        .select('a_id, b_id')
         .eq('event_id', eventData.id)
+        .eq('connection_kind', 'system_match')
         .lt('created_at', tenMinutesAgo)
         .order('created_at', { ascending: true })
         .limit(10) // Get 10 matches to find unique users
@@ -77,8 +79,8 @@ export async function POST(request: NextRequest) {
         }, { status: 500 })
       }
 
-      // Extract unique user IDs from both a and b columns
-      const allUserIds = staleUsers?.flatMap(match => [match.a, match.b]) || []
+      // Extract unique user IDs from both a_id and b_id columns
+      const allUserIds = staleUsers?.flatMap(match => [match.a_id, match.b_id]) || []
       usersToRefresh = [...new Set(allUserIds)].slice(0, 5) // Only refresh 5 users at a time
       console.log(`🔄 Smart refresh: Found ${usersToRefresh.length} users needing refresh`)
     }
@@ -106,11 +108,17 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({ 
             event_id: eventData.id,
             user_id: userIdToRefresh,
-            auto_match_new_user: true
+            mode: 'incremental'
           })
         })
 
         const matchmakerResult = await matchmakerResponse.json()
+
+        if (matchmakerResponse.ok) {
+          await refreshEventMatchExplanations(supabase, eventData.id, {
+            userIds: [userIdToRefresh],
+          })
+        }
 
         if (matchmakerResponse.ok) {
           results.push({

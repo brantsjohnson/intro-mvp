@@ -9,7 +9,7 @@ export interface QRCodeData {
 }
 
 export class QRCodeService {
-  private supabase = createClientComponentClient()
+  private supabase = createClientComponentClient() as any
 
   /**
    * Generate a QR code for a user in a specific event
@@ -113,63 +113,31 @@ export class QRCodeService {
         return false
       }
 
-      // Check if both users are in the same event
-      const { data: scannerEventMember } = await this.supabase
-        .from('attendance')
-        .select('event_id')
-        .eq('user_id', scannerUserId)
-        .eq('event_id', qrData.eventId)
-        .maybeSingle()
+      const response = await fetch('/api/connect-qr', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          scannerUserId,
+          targetUserId: qrData.userId,
+          eventId: qrData.eventId,
+        }),
+      })
 
-      if (!scannerEventMember) {
-        toast.error('You must be in the same event to connect')
+      const payload = await response.json()
+
+      if (!response.ok) {
+        console.error('connect-qr error', payload)
+        toast.error(payload?.error || 'Failed to create connection')
         return false
       }
 
-      // Check if connection already exists
-      // Ensure a_id < b_id for consistent lookup
-      const [aId, bId] = scannerUserId < qrData.userId 
-        ? [scannerUserId, qrData.userId]
-        : [qrData.userId, scannerUserId]
-      
-      const { data: existingConnection } = await this.supabase
-        .from('connections')
-        .select('event_id, a_id, b_id')
-        .eq('event_id', qrData.eventId)
-        .eq('a_id', aId)
-        .eq('b_id', bId)
-        .maybeSingle()
-
-      if (existingConnection) {
+      if (payload.alreadyConnected) {
         toast.info('You are already connected with this person')
-        return false
+        return true
       }
 
-      // Create the connection directly
-      const { data, error } = await this.supabase
-        .from('connections')
-        .insert({
-          event_id: qrData.eventId,
-          a_id: scannerUserId,
-          b_id: qrData.userId,
-          connection_kind: 'user_added',
-          user_add_method: 'qr',
-          created_by_user_id: scannerUserId
-        })
-        .select()
-
-      if (error) {
-        console.error('Error creating connection:', error)
-        // If it's a duplicate key error, that's actually fine
-        if (error.code === '23505') {
-          toast.info('You are already connected with this person')
-          return true
-        }
-        toast.error('Failed to create connection')
-        return false
-      }
-
-      console.log('Connection created successfully:', data)
       toast.success('Connection created successfully!')
       return true
     } catch (error) {

@@ -6,7 +6,6 @@ interface ProfileHeaderProps {
   name: string
   jobTitle: string
   company?: string
-  location?: string
   avatarUrl?: string
   isPresent?: boolean
   className?: string
@@ -16,7 +15,6 @@ export function ProfileHeader({
   name, 
   jobTitle, 
   company,
-  location,
   avatarUrl, 
   isPresent = false,
   className 
@@ -38,11 +36,6 @@ export function ProfileHeader({
           {jobTitle}
           {company && ` at ${company}`}
         </p>
-        {location && (
-          <p className="text-sm text-muted-foreground">
-            {location}
-          </p>
-        )}
       </div>
     </div>
   )

@@ -1,39 +1,195 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { PresenceAvatar } from "@/components/ui/presence-avatar"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { createClientComponentClient } from "@/lib/supabase"
 import { MessageService, ThreadWithDetails } from "@/lib/message-service-simple"
 import { toast } from "sonner"
-import { ArrowLeft, MessageSquare, Search, Users } from "lucide-react"
-import { formatDistanceToNow } from "date-fns"
+import { ArrowLeft, MailPlus, MessageCircle, Search, Users } from "lucide-react"
+import { format, isThisYear, isToday } from "date-fns"
 
-interface AttendeeWithUnread {
+interface EventAttendee {
   id: string
   first_name: string
   last_name: string
-  avatar_url?: string | null
   job_title?: string | null
-  unread_count: number
-  has_thread: boolean
+  avatar_url?: string | null
+  company?: string | null
+}
+
+interface ThreadListItem extends ThreadWithDetails {
+  displayName: string
+  displaySubtitle: string
+  hasNewMessages: boolean
+  unreadCount: number
+}
+
+const formatThreadTimestamp = (timestamp: string | null): string => {
+  if (!timestamp) return ""
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return ""
+
+  if (isToday(date)) {
+    return format(date, "h:mm a")
+  }
+
+  if (isThisYear(date)) {
+    return format(date, "MMM d")
+  }
+
+  return format(date, "MMM d, yyyy")
 }
 
 export function MessagesPage() {
-  const [attendees, setAttendees] = useState<AttendeeWithUnread[]>([])
-  const [filteredAttendees, setFilteredAttendees] = useState<AttendeeWithUnread[]>([])
+  const [threads, setThreads] = useState<ThreadListItem[]>([])
+  const [filteredThreads, setFilteredThreads] = useState<ThreadListItem[]>([])
+  const [attendees, setAttendees] = useState<EventAttendee[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isAttendeeLoading, setIsAttendeeLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [attendeeSearchQuery, setAttendeeSearchQuery] = useState("")
   const [eventName, setEventName] = useState<string>("")
   const [eventEnded, setEventEnded] = useState(false)
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const eventId = searchParams.get('eventId')
-  const messageService = new MessageService()
-  const supabase = createClientComponentClient()
+  const eventId = searchParams.get("eventId")
+  const supabase = useMemo(() => createClientComponentClient(), [])
+  const messageService = useMemo(() => new MessageService(), [])
+
+  const loadEventDetails = useCallback(async () => {
+    if (!eventId) return
+
+    const { data, error } = await supabase
+      .from("events")
+      .select("event_name, event_ends_at")
+      .eq("event_id", eventId)
+      .single()
+
+    if (error) {
+      console.error("Error loading event details:", error)
+      return
+    }
+
+    if (data) {
+      setEventName(data.event_name)
+      const now = new Date()
+      const eventEnd = data.event_ends_at ? new Date(data.event_ends_at) : null
+
+      if (eventEnd) {
+        const oneDayAfterEnd = new Date(eventEnd.getTime() + 24 * 60 * 60 * 1000)
+        setEventEnded(now > oneDayAfterEnd)
+      } else {
+        setEventEnded(false)
+      }
+    }
+  }, [eventId, supabase])
+
+  const decorateThreads = useCallback((items: ThreadWithDetails[]): ThreadListItem[] => {
+    const isBrowser = typeof window !== "undefined"
+    return items.map((thread) => {
+      const displayName = `${thread.other_participant.first_name} ${thread.other_participant.last_name}`.trim()
+      const displaySubtitle = thread.other_participant.job_title || ""
+      const incomingTimestamps = thread.incoming_message_timestamps ?? []
+      let unreadCount = incomingTimestamps.length
+
+      if (isBrowser) {
+        const lastSeenKey = `conversation:lastSeen:${thread.id}`
+        const lastSeen = window.localStorage.getItem(lastSeenKey)
+        if (lastSeen) {
+          const lastSeenDate = new Date(lastSeen)
+          unreadCount = incomingTimestamps.filter((timestamp) => {
+            const ts = new Date(timestamp)
+            return !Number.isNaN(ts.getTime()) && ts > lastSeenDate
+          }).length
+        }
+      }
+
+      return {
+        ...thread,
+        displayName,
+        displaySubtitle,
+        hasNewMessages: unreadCount > 0,
+        unreadCount
+      }
+    })
+  }, [])
+
+  const loadThreads = useCallback(async () => {
+    if (!eventId) return
+
+    try {
+      const data = await messageService.getThreads(eventId)
+      const enriched = decorateThreads(data)
+      setThreads(enriched)
+    } catch (error) {
+      console.error("Error loading threads:", error)
+      toast.error("Failed to load conversations")
+    }
+  }, [decorateThreads, eventId, messageService])
+
+  const loadAttendees = useCallback(async (currentUserId: string) => {
+    if (!eventId) return
+
+    setIsAttendeeLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from("attendance")
+        .select(`
+          user_id,
+          users:user_id (
+            user_id,
+            first_name,
+            last_name,
+            photo_url,
+            career_title,
+            company_name
+          )
+        `)
+        .eq("event_id", eventId)
+        .neq("user_id", currentUserId)
+
+      if (error) {
+        console.error("Error loading event attendees:", error)
+        toast.error("Failed to load attendees")
+        return
+      }
+
+      const formatted: EventAttendee[] = (data || [])
+        .map((row: any) => {
+          const profile = row?.users
+          if (!profile) return null
+
+          return {
+            id: profile.user_id,
+            first_name: profile.first_name || "",
+            last_name: profile.last_name || "",
+            job_title: profile.career_title || null,
+            avatar_url: profile.photo_url || null,
+            company: profile.company_name || null
+          }
+        })
+        .filter(Boolean) as EventAttendee[]
+
+      formatted.sort((a, b) => {
+        const aLast = a.last_name.toLowerCase()
+        const bLast = b.last_name.toLowerCase()
+        if (aLast !== bLast) return aLast.localeCompare(bLast)
+        return a.first_name.toLowerCase().localeCompare(b.first_name.toLowerCase())
+      })
+
+      setAttendees(formatted)
+    } finally {
+      setIsAttendeeLoading(false)
+    }
+  }, [eventId, supabase])
 
   useEffect(() => {
     if (!eventId) {
@@ -42,141 +198,120 @@ export function MessagesPage() {
       return
     }
 
-    const loadAttendees = async () => {
+    let isMounted = true
+
+    const initialize = async () => {
       try {
+        setIsLoading(true)
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
           router.push("/auth")
           return
         }
 
-        // Load event details
-        const { data: eventData } = await supabase
-          .from('events')
-          .select('name, ends_at')
-          .eq('id', eventId)
-          .single()
-        
-        if (eventData) {
-          setEventName(eventData.name)
-          const now = new Date()
-          const eventEnd = new Date(eventData.ends_at)
-          const oneDayAfterEnd = new Date(eventEnd.getTime() + 24 * 60 * 60 * 1000)
-          
-          // Event is considered "ended" only after the grace period (1 day after end)
-          setEventEnded(now > oneDayAfterEnd)
-        }
-
-        // Load all attendees in the event
-        const { data: attendanceData } = await supabase
-          .from('attendance')
-          .select(`
-            user_id,
-            users:user_id (
-              user_id,
-              first_name,
-              last_name,
-              photo_url,
-              career_title
-            )
-          `)
-          .eq('event_id', eventId)
-          .neq('user_id', user.id) // Exclude current user
-
-        if (!attendanceData) return
-
-        // Get existing threads to check for unread counts
-        const threadsData = await messageService.getThreads(eventId)
-        const threadMap = new Map<string, ThreadWithDetails>()
-        threadsData.forEach(thread => {
-          threadMap.set(thread.other_participant.id, thread)
-        })
-
-        // Format attendees with unread counts
-        const attendeesData: AttendeeWithUnread[] = attendanceData
-          .map((member: any) => {
-            const profile = member.users
-            if (!profile) return null
-            
-            const thread = threadMap.get(profile.user_id)
-            return {
-              id: profile.user_id,
-              first_name: profile.first_name || '',
-              last_name: profile.last_name || '',
-              avatar_url: profile.photo_url || null,
-              job_title: profile.career_title || null,
-              unread_count: thread?.unread_count || 0,
-              has_thread: !!thread
-            }
-          })
-          .filter(Boolean) as AttendeeWithUnread[]
-
-        // Sort alphabetically by last name, then first name
-        attendeesData.sort((a, b) => {
-          const aLast = a.last_name.toLowerCase()
-          const bLast = b.last_name.toLowerCase()
-          if (aLast !== bLast) return aLast.localeCompare(bLast)
-          return a.first_name.toLowerCase().localeCompare(b.first_name.toLowerCase())
-        })
-
-        setAttendees(attendeesData)
-        setFilteredAttendees(attendeesData)
+        await Promise.all([
+          loadEventDetails(),
+          loadThreads(),
+          loadAttendees(user.id)
+        ])
       } catch (error) {
-        console.error("Error loading attendees:", error)
-        toast.error("Failed to load attendees")
+        console.error("Error initializing messages page:", error)
+        toast.error("Unable to load messages")
       } finally {
-        setIsLoading(false)
+        if (isMounted) {
+          setIsLoading(false)
+        }
       }
     }
 
-    loadAttendees()
+    initialize()
 
-    // Subscribe to real-time updates
     const messageSubscription = messageService.subscribeToMessages(eventId, () => {
-      loadAttendees() // Reload when messages change
+      loadThreads()
     })
 
-    return () => {
-      messageSubscription.unsubscribe()
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
     }
-  }, [eventId, router, messageService, supabase])
 
-  // Handle search filtering
+    pollingIntervalRef.current = setInterval(() => {
+      if (document.hidden) return
+      loadThreads().catch((error) => {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("Passive messages poll failed:", error)
+        }
+      })
+    }, 5000)
+
+    return () => {
+      isMounted = false
+      messageSubscription.unsubscribe()
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
+    }
+  }, [eventId, router, supabase, loadEventDetails, loadThreads, loadAttendees, messageService])
+
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setFilteredAttendees(attendees)
+      setFilteredThreads(threads)
       return
     }
 
-    const query = searchQuery.toLowerCase()
-    const filtered = attendees.filter(attendee => 
-      attendee.first_name.toLowerCase().includes(query) ||
-      attendee.last_name.toLowerCase().includes(query) ||
-      `${attendee.first_name} ${attendee.last_name}`.toLowerCase().includes(query)
+    const term = searchQuery.toLowerCase()
+    setFilteredThreads(
+      threads.filter((thread) =>
+        thread.displayName.toLowerCase().includes(term) ||
+        thread.displaySubtitle.toLowerCase().includes(term)
+      )
     )
-    setFilteredAttendees(filtered)
-  }, [searchQuery, attendees])
+  }, [threads, searchQuery])
 
-  const handleAttendeeClick = (attendee: AttendeeWithUnread) => {
+  const filteredAttendeesForDialog = useMemo(() => {
+    if (!attendeeSearchQuery.trim()) return attendees
+
+    const query = attendeeSearchQuery.toLowerCase()
+    return attendees.filter((attendee) => {
+      const fullName = `${attendee.first_name} ${attendee.last_name}`.trim().toLowerCase()
+      const job = attendee.job_title?.toLowerCase() || ""
+      const company = attendee.company?.toLowerCase() || ""
+      return (
+        fullName.includes(query) ||
+        job.includes(query) ||
+        company.includes(query)
+      )
+    })
+  }, [attendees, attendeeSearchQuery])
+
+  const handleThreadClick = (thread: ThreadListItem) => {
     if (!eventId) return
-    
-    if (eventEnded) {
-      toast.error("This event has ended. Messages are no longer available.")
-      return
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(`conversation:lastSeen:${thread.id}`, new Date().toISOString())
     }
-    
-    router.push(`/messages/conversation?eventId=${eventId}&userId=${attendee.id}`)
+    setThreads((prev) =>
+      prev.map((item) => (item.id === thread.id ? { ...item, hasNewMessages: false } : item))
+    )
+    setFilteredThreads((prev) =>
+      prev.map((item) => (item.id === thread.id ? { ...item, hasNewMessages: false } : item))
+    )
+    router.push(`/messages/conversation?eventId=${eventId}&threadId=${thread.id}`)
   }
 
-  const getSectionHeader = (attendee: AttendeeWithUnread, index: number) => {
-    if (index === 0) return attendee.last_name[0].toUpperCase()
-    
-    const prevAttendee = filteredAttendees[index - 1]
-    if (prevAttendee.last_name[0].toLowerCase() !== attendee.last_name[0].toLowerCase()) {
-      return attendee.last_name[0].toUpperCase()
+  const handleStartConversation = (attendee: EventAttendee) => {
+    if (!eventId) return
+
+    const existingThread = threads.find(
+      (thread) => thread.other_participant.id === attendee.id
+    )
+
+    if (existingThread) {
+      router.push(`/messages/conversation?eventId=${eventId}&threadId=${existingThread.id}`)
+    } else {
+      router.push(`/messages/conversation?eventId=${eventId}&userId=${attendee.id}`)
     }
-    
-    return null
+
+    setIsDialogOpen(false)
   }
 
   if (isLoading) {
@@ -191,131 +326,184 @@ export function MessagesPage() {
   }
 
   return (
-    <div className="min-h-screen gradient-bg">
+    <div className="min-h-screen gradient-bg flex flex-col">
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <GradientButton
-              onClick={() => router.back()}
-              size="icon"
-            >
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+            <GradientButton onClick={() => router.back()} size="icon">
               <ArrowLeft className="h-4 w-4" />
             </GradientButton>
-            
-            <div className="text-center">
-              <h1 className="text-lg font-semibold text-foreground">
-                Messages
-              </h1>
+
+            <div className="flex-1 text-center">
+              <h1 className="text-lg font-semibold text-foreground">Messages</h1>
               {eventName && (
-                <p className="text-sm text-muted-foreground">
-                  {eventName}
-                </p>
+                <p className="text-sm text-muted-foreground">{eventName}</p>
               )}
             </div>
 
-            <div className="w-9 h-9" /> {/* Spacer for balance */}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <GradientButton asChild>
+                <DialogTrigger className="flex items-center justify-center p-2">
+                  <MailPlus className="h-4 w-4" aria-hidden="true" />
+                  <span className="sr-only">New message</span>
+                </DialogTrigger>
+              </GradientButton>
+
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Start a new conversation</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <Input
+                    placeholder="Search attendees..."
+                    value={attendeeSearchQuery}
+                    onChange={(event) => setAttendeeSearchQuery(event.target.value)}
+                    className="pl-10"
+                  />
+                  {isAttendeeLoading ? (
+                    <div className="py-8 text-center text-muted-foreground text-sm">
+                      Loading attendees...
+                    </div>
+                  ) : filteredAttendeesForDialog.length === 0 ? (
+                    <div className="py-8 text-center text-muted-foreground text-sm">
+                      No attendees found
+                    </div>
+                  ) : (
+                    <div className="max-h-72 overflow-y-auto space-y-2">
+                      {filteredAttendeesForDialog.map((attendee) => {
+                        const fullName = `${attendee.first_name} ${attendee.last_name}`.trim()
+                        const subtitleParts = [attendee.job_title, attendee.company].filter(Boolean)
+
+                        return (
+                          <Card
+                            key={attendee.id}
+                            className="cursor-pointer border-border bg-card hover:bg-card/80 transition-colors"
+                            onClick={() => handleStartConversation(attendee)}
+                          >
+                            <CardContent className="p-3">
+                              <div className="flex items-center space-x-3">
+                                <PresenceAvatar
+                                  src={attendee.avatar_url || undefined}
+                                  fallback={fullName
+                                    .split(" ")
+                                    .map((part) => part[0])
+                                    .join("")}
+                                  isPresent={false}
+                                  size="md"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-medium text-foreground truncate">{fullName}</p>
+                                  {subtitleParts.length > 0 && (
+                                    <p className="text-sm text-muted-foreground truncate">
+                                      {subtitleParts.join(" · ")}
+                                    </p>
+                                  )}
+                                </div>
+                                <Button variant="ghost" size="icon">
+                                  <MessageCircle className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-4">
-        {/* Search Bar */}
-        <div className="mb-6">
+      <main className="container mx-auto px-4 py-6 flex-1 w-full">
+        <div className="max-w-3xl mx-auto space-y-6">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search attendees..."
+              placeholder="Search conversations..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 focus:bg-white focus:text-black focus:placeholder-gray-500"
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="pl-10"
             />
           </div>
-        </div>
 
-        {/* Event Ended Banner */}
-        {eventEnded && (
-          <div className="mb-6 p-4 bg-muted/50 border border-border rounded-lg">
-            <p className="text-sm text-muted-foreground text-center">
-              This event has ended. Messages are no longer available.
-            </p>
-          </div>
-        )}
+          {eventEnded && (
+            <div className="p-4 bg-muted/50 border border-border rounded-lg text-center text-sm text-muted-foreground">
+              This event has ended. Messages are read only.
+            </div>
+          )}
 
-        {/* Attendees List */}
-        {filteredAttendees.length === 0 ? (
-          <div className="text-center py-12">
-            <Users className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-foreground mb-2">
-              {searchQuery ? "No people match your search" : "No attendees found"}
-            </h3>
-            <p className="text-muted-foreground">
-              {searchQuery 
-                ? `No attendees found matching "${searchQuery}"`
-                : "There are no other attendees in this event yet."
-              }
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-0.5">
-            {filteredAttendees.map((attendee, index) => {
-              const sectionHeader = getSectionHeader(attendee, index)
-              
-              return (
-                <div key={attendee.id}>
-                  {/* Section Header */}
-                  {sectionHeader && (
-                    <div className="sticky top-16 bg-transparent py-2 px-4">
-                      <h2 className="text-sm font-semibold text-black uppercase tracking-wide">
-                        {sectionHeader}
-                      </h2>
-                    </div>
-                  )}
-                  
-                  {/* Attendee Row */}
+          {filteredThreads.length === 0 ? (
+            <div className="text-center py-16">
+              <Users className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-foreground mb-2">
+                {searchQuery ? "No conversations found" : "No messages yet"}
+              </h3>
+              <p className="text-muted-foreground">
+                {searchQuery
+                  ? `No conversations match "${searchQuery}"`
+                  : "Start a new conversation to connect with someone at the event."}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filteredThreads.map((thread) => {
+                const { other_participant: participant, last_message: lastMessage, hasNewMessages, unreadCount } = thread
+                const previewText = lastMessage?.body ? lastMessage.body : "Say hello and start planning your meetup."
+                const timestamp = lastMessage?.created_at || thread.updated_at
+                const formattedTime = formatThreadTimestamp(timestamp ?? null)
+
+                return (
                   <Card
-                    className="bg-card border-border cursor-pointer hover:bg-card/80 transition-colors py-.5 gap-0"
-                    onClick={() => handleAttendeeClick(attendee)}
+                    key={thread.id}
+                    className={`bg-card border-border cursor-pointer transition-colors ${
+                      hasNewMessages ? "hover:bg-card/90" : "hover:bg-card/80"
+                    }`}
+                    onClick={() => handleThreadClick(thread)}
                   >
-                    <CardContent className="p-3">
-                      <div className="flex items-center space-x-3">
-                        <div className="relative">
-                          <PresenceAvatar
-                            src={attendee.avatar_url}
-                            fallback={`${attendee.first_name[0]}${attendee.last_name[0]}`}
-                            isPresent={false}
-                            size="md"
-                          />
-                          {attendee.unread_count > 0 && (
-                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#EC874E] rounded-full"></div>
-                          )}
-                        </div>
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <PresenceAvatar
+                          src={participant.avatar_url || undefined}
+                          fallback={`${participant.first_name[0] ?? ""}${participant.last_name[0] ?? ""}`}
+                          isPresent={false}
+                          size="md"
+                        />
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-foreground">
-                            {attendee.first_name} {attendee.last_name}
-                          </h3>
-                          {attendee.job_title && (
-                            <p className="text-sm text-muted-foreground">
-                              {attendee.job_title}
+                          <div className="flex items-center justify-between gap-4">
+                            <p className="font-semibold text-foreground truncate">
+                              {thread.displayName}
+                              {thread.displaySubtitle && (
+                                <span className="font-normal text-muted-foreground"> - {thread.displaySubtitle}</span>
+                              )}
                             </p>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {attendee.unread_count > 0 && (
-                            <span className="bg-[#BF341E] text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
-                              {attendee.unread_count}
-                            </span>
-                          )}
-                          <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                            <div className="flex items-center gap-2">
+                              {formattedTime && (
+                                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                  {formattedTime}
+                                </span>
+                              )}
+                              {unreadCount > 0 && (
+                                <span className="inline-flex items-center justify-center rounded-full bg-[#BF341E] px-2 py-0.5 text-[11px] font-medium text-white">
+                                  {unreadCount > 99 ? "99+" : unreadCount}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+                            {previewText}
+                          </p>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
-                </div>
-              )
-            })}
-          </div>
-        )}
+                )
+              })}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   )

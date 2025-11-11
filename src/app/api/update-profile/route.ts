@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase-server"
+import { createServerComponentClient } from "@/lib/supabase-server"
 
 export const dynamic = "force-dynamic"
 
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = await createClient()
+    const supabase = await createServerComponentClient()
 
     // Verify user has permission to update this profile
     const { data: { user }, error: authError } = await supabase.auth.getUser()

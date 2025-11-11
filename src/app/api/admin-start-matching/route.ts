@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { refreshEventMatchExplanations } from '@/lib/matching/refresh-explanations'
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,6 +47,10 @@ export async function POST(request: NextRequest) {
 
     const matchmakerResult = await matchmakerResponse.json()
 
+    if (matchmakerResponse.ok) {
+      await refreshEventMatchExplanations(supabase, eventId)
+    }
+
     return NextResponse.json({
       success: true,
       event: {
@@ -91,9 +96,10 @@ export async function GET(request: NextRequest) {
 
       // Get match count for this event
       const { count: matchCount, error: countError } = await supabase
-        .from('matches')
+        .from('connections')
         .select('*', { count: 'exact', head: true })
         .eq('event_id', eventData.id)
+        .eq('connection_kind', 'system_match')
 
       return NextResponse.json({
         event_code: eventCode,

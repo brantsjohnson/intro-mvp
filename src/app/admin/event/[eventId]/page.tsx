@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { createClientComponentClient } from "@/lib/supabase"
 import { toast } from "sonner"
-import { ArrowLeft, Save } from "lucide-react"
+import { ArrowLeft, Save, Users, Play } from "lucide-react"
 
 interface Event {
   event_id: string
@@ -29,6 +29,8 @@ export default function AdminEventEditPage() {
   
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [isMatching, setIsMatching] = useState(false)
+  const [matchCount, setMatchCount] = useState<number | null>(null)
   const [event, setEvent] = useState<Event | null>(null)
   const [questionSchema, setQuestionSchema] = useState<string>("")
   
@@ -39,6 +41,12 @@ export default function AdminEventEditPage() {
       loadEvent()
     }
   }, [eventId])
+
+  useEffect(() => {
+    if (event) {
+      loadMatchCount()
+    }
+  }, [event])
 
   const loadEvent = async () => {
     setIsLoading(true)
@@ -68,6 +76,55 @@ export default function AdminEventEditPage() {
       toast.error("An error occurred")
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const loadMatchCount = async () => {
+    if (!event) return
+    try {
+      const response = await fetch(`/api/admin-start-matching?eventCode=${event.event_code}`)
+      const data = await response.json()
+      if (data.match_count !== undefined) {
+        setMatchCount(data.match_count)
+      }
+    } catch (error) {
+      console.error("Error loading match count:", error)
+    }
+  }
+
+  const handleStartMatching = async () => {
+    if (!event) return
+    
+    setIsMatching(true)
+    try {
+      const response = await fetch('/api/admin-start-matching', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          eventCode: event.event_code,
+          force: true
+        })
+      })
+
+      const result = await response.json()
+      
+      if (response.ok) {
+        toast.success(`Matching started! ${result.matchmaker_result?.processed || 0} users processed.`)
+        // Reload match count after a delay
+        setTimeout(() => {
+          loadMatchCount()
+        }, 2000)
+      } else {
+        toast.error(result.error || 'Failed to start matching')
+        console.error('Matching error:', result)
+      }
+    } catch (error) {
+      console.error('Error starting matching:', error)
+      toast.error('Failed to start matching')
+    } finally {
+      setIsMatching(false)
     }
   }
 
@@ -186,6 +243,40 @@ export default function AdminEventEditPage() {
                   <Input value={event.event_location} disabled className="mt-1" />
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Matching Card */}
+          <Card className="bg-card border-border shadow-elevation">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                AI Matching
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Run AI-powered matching for all users in this event
+                  </p>
+                  {matchCount !== null && (
+                    <p className="text-sm font-medium mt-1">
+                      Current matches: {matchCount}
+                    </p>
+                  )}
+                </div>
+                <GradientButton
+                  onClick={handleStartMatching}
+                  disabled={isMatching}
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  {isMatching ? "Running..." : "Start Matching"}
+                </GradientButton>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This will match all users in the event using vector similarity, shared interests, and career proximity.
+              </p>
             </CardContent>
           </Card>
 

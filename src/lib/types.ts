@@ -33,6 +33,7 @@ export interface Event {
   code: string
   starts_at: string | null
   ends_at: string | null
+  location?: string | null
   header_image_url: string | null
   is_active: boolean
   matchmaking_enabled: boolean

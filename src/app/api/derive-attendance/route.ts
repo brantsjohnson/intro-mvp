@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { refreshEventMatchExplanations } from '@/lib/matching/refresh-explanations'
 import OpenAI from 'openai'
 
 export async function POST(request: NextRequest) {
@@ -123,6 +124,51 @@ export async function POST(request: NextRequest) {
       hobbies = userData.hobbies
     }
 
+    const followUpValues = Object.values(followUpResponses || {})
+
+    const normalizedOfferTags = normalizeTags([
+      ...offerTags,
+      ...(user?.career_title ? extractKeywordTags(user.career_title) : []),
+      ...(user?.expertise_summary ? extractKeywordTags(user.expertise_summary) : [])
+    ])
+    const normalizedWantTags = normalizeTags(wantTags)
+    const normalizedGoalsTags = normalizeTags(goalsTags)
+    const normalizedHobbyTags = normalizeTags(
+      (hobbies || []).map((hobby) => hobby.toLowerCase()),
+      15
+    )
+    let normalizedNeedTags = normalizeTags([
+      ...normalizedWantTags,
+      ...extractKeywordTags(attendance.business_need_text),
+      ...extractKeywordTags(attendance.why_attending_text),
+      ...followUpValues.flatMap((value) => extractKeywordTags(value))
+    ])
+
+    if (normalizedNeedTags.length === 0) {
+      const fallbackSeeds = [
+        attendance.business_need_text,
+        attendance.why_attending_text,
+        followUpValues.join(" "),
+        connectionTypes.join(" "),
+        normalizedOfferTags.slice(0, 2).join(" ")
+      ]
+      normalizedNeedTags = normalizeTags(fallbackSeeds)
+    }
+
+    if (normalizedNeedTags.length === 0) {
+      normalizedNeedTags = ["networking"]
+    }
+
+    const normalizedIndustryTags = normalizeTags(
+      extractIndustryTags([
+        user?.career_title || '',
+        user?.company_name || '',
+        user?.expertise_summary || '',
+        (attendance as any).role_title || ''
+      ]),
+      20
+    )
+
     // Determine availability status and role intent
     let availabilityStatus = 'open'
     let roleIntent = 'general'
@@ -141,7 +187,8 @@ export async function POST(request: NextRequest) {
     let wantSummaryText = ''
     let offerEmbedding: number[] | null = null
     let wantEmbedding: number[] | null = null
-    let eventProfileEmbedding: number[] | null = null
+    let needEmbedding: number[] | null = null
+    let profileEmbedding: number[] | null = null
 
     if (openai) {
       try {
@@ -199,13 +246,45 @@ Job: ${user?.career_title || ''}`
           wantEmbedding = wantEmbedResponse.data[0]?.embedding || null
         }
 
-        // Generate event profile embedding (combination of offer + want + event context)
-        const eventProfileText = `Offer: ${offerSummaryText}\nWant: ${wantSummaryText}\nEvent: ${(attendance as any).events?.event_name || ''}`
-        const eventProfileEmbedResponse = await openai.embeddings.create({
-          model: "text-embedding-3-small",
-          input: eventProfileText,
-        })
-        eventProfileEmbedding = eventProfileEmbedResponse.data[0]?.embedding || null
+        const needEmbeddingInput = [
+          attendance.business_need_text || '',
+          wantSummaryText || '',
+          attendance.why_attending_text || '',
+          followUpValues.join('\n')
+        ]
+          .filter(Boolean)
+          .join('\n')
+          .trim()
+
+        if (needEmbeddingInput) {
+          const needEmbedResponse = await openai.embeddings.create({
+            model: "text-embedding-3-small",
+            input: needEmbeddingInput
+          })
+          needEmbedding = needEmbedResponse.data[0]?.embedding || null
+        }
+
+        const profileContext = [
+          `Name: ${user?.first_name || ''} ${user?.last_name || ''}`.trim(),
+          user?.career_title ? `Role: ${user.career_title}` : '',
+          user?.company_name ? `Company: ${user.company_name}` : '',
+          `Offer summary: ${offerSummaryText}`,
+          `Need summary: ${wantSummaryText}`,
+          attendance.business_need_text ? `Business need: ${attendance.business_need_text}` : '',
+          attendance.why_attending_text ? `Why attending: ${attendance.why_attending_text}` : '',
+          normalizedIndustryTags.length ? `Industries: ${normalizedIndustryTags.join(', ')}` : '',
+          normalizedHobbyTags.length ? `Hobbies: ${normalizedHobbyTags.join(', ')}` : ''
+        ]
+          .filter(Boolean)
+          .join('\n')
+
+        if (profileContext.trim()) {
+          const profileEmbedResponse = await openai.embeddings.create({
+            model: "text-embedding-3-small",
+            input: profileContext
+          })
+          profileEmbedding = profileEmbedResponse.data[0]?.embedding || null
+        }
 
       } catch (embeddingError) {
         console.error('Error generating summaries/embeddings:', embeddingError)
@@ -214,11 +293,10 @@ Job: ${user?.career_title || ''}`
     }
 
     // Build career goals tags from connection types and business needs
-    const careerGoalsTags: string[] = [...goalsTags]
-    if (attendance.business_need_text) {
-      const needWords = attendance.business_need_text.toLowerCase().split(/[,\s]+/).filter(w => w.length > 3)
-      careerGoalsTags.push(...needWords.slice(0, 2))
-    }
+    const careerGoalsTags: string[] = normalizeTags([
+      ...normalizedGoalsTags,
+      ...extractKeywordTags(attendance.business_need_text, 5)
+    ])
 
     // Analyze adaptive Q&A transcript to infer personality types
     let personalityData: any = {}
@@ -326,20 +404,25 @@ If confidence is below 50, set the type to null. Only return data you're reasona
     // Update attendance with derived data
     const attendanceUpdate: any = {
       event_profile_summary_text: summary,
-      event_offer_tags: offerTags,
-      event_want_tags: wantTags,
-      event_goals_tags: goalsTags,
+      event_offer_tags: normalizedOfferTags.length ? normalizedOfferTags : null,
+      event_want_tags: normalizedWantTags.length ? normalizedWantTags : null,
+      event_need_tags: normalizedNeedTags.length ? normalizedNeedTags : null,
+      event_industry_tags: normalizedIndustryTags.length ? normalizedIndustryTags : null,
+      event_hobby_tags: normalizedHobbyTags.length ? normalizedHobbyTags : null,
+      event_goals_tags: careerGoalsTags.length ? careerGoalsTags : null,
       event_availability_status: availabilityStatus,
       event_role_intent: roleIntent,
       onboarding_completed: true,
       last_seen_at: new Date().toISOString(),
+      last_profile_change_at: new Date().toISOString(),
       attendee_first_name: user?.first_name || null,
       attendee_last_name: user?.last_name || null,
     }
 
     // Add embeddings if generated (Supabase pgvector expects array directly)
-    if (eventProfileEmbedding && eventProfileEmbedding.length > 0) {
-      attendanceUpdate.event_profile_embedding = eventProfileEmbedding
+    if (profileEmbedding && profileEmbedding.length > 0) {
+      attendanceUpdate.profile_embedding = profileEmbedding
+      attendanceUpdate.event_profile_embedding = profileEmbedding
     }
 
     console.log('Updating attendance:', { eventId, userId, fields: Object.keys(attendanceUpdate) })
@@ -386,14 +469,26 @@ If confidence is below 50, set the type to null. Only return data you're reasona
       // Supabase pgvector expects array directly, not string
       userUpdate.want_embedding = wantEmbedding
     }
-    if (offerTags.length > 0) {
-      userUpdate.offer_tags = offerTags
+    if (needEmbedding && needEmbedding.length > 0) {
+      userUpdate.need_embedding = needEmbedding
     }
-    if (wantTags.length > 0) {
-      userUpdate.want_tags = wantTags
+    if (normalizedOfferTags.length > 0) {
+      userUpdate.offer_tags = normalizedOfferTags
+    }
+    if (normalizedWantTags.length > 0) {
+      userUpdate.want_tags = normalizedWantTags
+    }
+    if (normalizedNeedTags.length > 0) {
+      userUpdate.need_tags = normalizedNeedTags
     }
     if (careerGoalsTags.length > 0) {
       userUpdate.career_goals_tags = careerGoalsTags
+    }
+    if (normalizedIndustryTags.length > 0) {
+      userUpdate.industry_tags = normalizedIndustryTags
+    }
+    if (normalizedHobbyTags.length > 0) {
+      userUpdate.hobby_tags = normalizedHobbyTags
     }
     if (availabilityStatus) {
       userUpdate.engagement_availability_status = availabilityStatus
@@ -444,6 +539,10 @@ If confidence is below 50, set the type to null. Only return data you're reasona
         userUpdate.personality_confidence = confidence
       }
     }
+    const personalityEmbedding = buildPersonalityEmbedding(personalityData)
+    if (personalityEmbedding && personalityEmbedding.length > 0) {
+      userUpdate.personality_embedding = personalityEmbedding
+    }
 
     if (Object.keys(userUpdate).length > 1) { // More than just personality_last_updated
       console.log('Updating users table with:', {
@@ -486,12 +585,42 @@ If confidence is below 50, set the type to null. Only return data you're reasona
       console.log('Skipping users update - no data to save')
     }
 
+    // Trigger matching for this user if embeddings were generated/updated
+    if (offerEmbedding || wantEmbedding || needEmbedding || profileEmbedding) {
+      try {
+        const matchResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/matchmaker`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            event_id: eventId,
+            user_id: userId,
+            mode: 'incremental'
+          })
+        })
+        
+        if (matchResponse.ok) {
+          console.log('Matching triggered after profile update')
+          await refreshEventMatchExplanations(supabase, eventId, {
+            userIds: [userId],
+          })
+        } else {
+          console.warn('Failed to trigger matching after profile update:', await matchResponse.text())
+        }
+      } catch (matchError) {
+        // Don't fail the request if matching fails
+        console.warn('Error triggering matching after profile update:', matchError)
+      }
+    }
+
     return NextResponse.json({ 
       success: true,
       message: 'Attendance derived successfully',
       personality_inferred: personalityData && Object.keys(personalityData).length > 0,
       summaries_generated: !!(offerSummaryText || wantSummaryText),
-      embeddings_generated: !!(offerEmbedding || wantEmbedding || eventProfileEmbedding),
+      embeddings_generated: !!(offerEmbedding || wantEmbedding || needEmbedding || profileEmbedding),
       hobbies_extracted: hobbies.length > 0
     })
 
@@ -532,5 +661,144 @@ function generateBasicSummary(attendance: any): string {
   }
   
   return summary
+}
+
+const CANONICAL_TOKEN_MAP: Record<string, string> = {
+  client: "clients",
+  clients: "clients",
+  customer: "clients",
+  customers: "clients",
+  sales: "clients",
+  leads: "clients",
+  referrals: "clients",
+  revenue: "clients",
+  partnership: "partnerships",
+  partnerships: "partnerships",
+  collaborator: "partnerships",
+  collaboration: "partnerships",
+  integrations: "partnerships",
+  mentor: "mentorship",
+  mentors: "mentorship",
+  mentorship: "mentorship",
+  coaching: "mentorship",
+  guidance: "mentorship",
+  learning: "learning",
+  beta: "beta_users",
+  adopter: "beta_users",
+  adopters: "beta_users",
+  feedback: "beta_users",
+  product: "product",
+  products: "product",
+  "product-management": "product",
+  product_manager: "product",
+  design: "design",
+  designer: "design",
+  designers: "design",
+  ux: "design",
+  ui: "design",
+  engineering: "coding",
+  engineer: "coding",
+  engineers: "coding",
+  developer: "coding",
+  developers: "coding",
+  code: "coding",
+  coding: "coding",
+  technical: "coding",
+  software: "coding",
+  data: "data",
+  analytics: "data",
+  analysis: "data",
+  "data-science": "data",
+  machine: "machine_learning",
+  "machine-learning": "machine_learning",
+  ml: "machine_learning",
+  python: "machine_learning",
+  ai: "machine_learning",
+  hiring: "hiring",
+  recruit: "hiring",
+  recruiting: "hiring",
+  recruitment: "hiring",
+  recruiter: "hiring",
+  talent: "hiring",
+  singing: "music",
+  music: "music",
+  musician: "music",
+  general: "networking",
+  networking: "networking"
+}
+
+function canonicalizeToken(token: string): string | null {
+  if (!token) return null
+  const lower = token.toLowerCase().trim()
+  if (!lower) return null
+  const mapped = CANONICAL_TOKEN_MAP[lower] ?? lower
+  return mapped.replace(/[^a-z0-9_]+/g, '_')
+}
+
+function normalizeTags(
+  tags: (string | null | undefined)[],
+  limit: number = 20
+): string[] {
+  const normalized: string[] = []
+  const seen = new Set<string>()
+
+  for (const tag of tags) {
+    if (!tag) continue
+    const cleaned = tag
+      .toString()
+      .toLowerCase()
+      .replace(/[^a-z0-9\s&/+.-]/g, ' ')
+      .trim()
+    if (!cleaned) continue
+
+    const rawParts = cleaned.split(/[\s/&,+-]+/).filter((part) => part.length > 1)
+    if (rawParts.length === 0) continue
+
+    for (const raw of rawParts) {
+      const canonical = canonicalizeToken(raw)
+      if (!canonical) continue
+      if (!seen.has(canonical)) {
+        seen.add(canonical)
+        normalized.push(canonical)
+        if (normalized.length >= limit) return normalized
+      }
+    }
+  }
+
+  return normalized
+}
+
+function extractKeywordTags(text: string | null | undefined, limit: number = 10): string[] {
+  if (!text) return []
+  const tokens = text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/g)
+    .filter((token) => token.length > 1)
+  return normalizeTags(tokens, limit)
+}
+
+function extractIndustryTags(sources: string[], limit: number = 15): string[] {
+  const combined = sources.filter(Boolean).join(' ')
+  if (!combined) return []
+  return extractKeywordTags(combined, limit)
+}
+
+function buildPersonalityEmbedding(personalityData: any): number[] | null {
+  if (!personalityData || !personalityData.bigfive_scores) return null
+  const traits = personalityData.bigfive_scores
+  const values: number[] = []
+  const traitOrder = ['openness', 'conscientiousness', 'extraversion', 'agreeableness', 'neuroticism']
+
+  for (const trait of traitOrder) {
+    const value = traits?.[trait]
+    if (typeof value === 'number' && !Number.isNaN(value)) {
+      values.push(Math.max(0, Math.min(1, value / 100)))
+    } else {
+      values.push(0.5) // neutral fallback if missing
+    }
+  }
+
+  return values.length ? values : null
 }
 
