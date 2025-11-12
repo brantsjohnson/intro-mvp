@@ -1,223 +1,388 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { ArrowLeft, Loader2 } from "lucide-react"
+import { toast } from "sonner"
+
+import { createClientComponentClient } from "@/lib/supabase"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { GradientButton } from "@/components/ui/gradient-button"
 import { PresenceAvatar } from "@/components/ui/presence-avatar"
-import { createClientComponentClient } from "@/lib/supabase"
-import { Profile, Event } from "@/lib/types"
-import { toast } from "sonner"
-import { ArrowLeft, Edit3, Plus, ChevronDown } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 
+interface UserProfileSummary {
+  firstName: string
+  lastName: string
+  company: string | null
+  jobTitle: string | null
+  avatarUrl: string | null
+}
+
+interface AttendanceRecord {
+  eventId: string
+  eventName: string
+  businessNeed: string
+  originalBusinessNeed: string
+  checkedInAt: string | null
+}
+
 export function SettingsPage() {
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [currentEvent, setCurrentEvent] = useState<Event | null>(null)
-  const [userEvents, setUserEvents] = useState<Event[]>([])
-  const [expertiseSummary, setExpertiseSummary] = useState("")
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
-  const [showEventDropdown, setShowEventDropdown] = useState(false)
-  const [isPresent, setIsPresent] = useState(false)
-  
-  // Form fields
-  const [jobTitle, setJobTitle] = useState("")
-  const [company, setCompany] = useState("")
-  const [location, setLocation] = useState("")
-  
   const router = useRouter()
-  const supabase = createClientComponentClient()
+  const supabase = useMemo(() => createClientComponentClient(), [])
+
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [isSavingBusinessNeed, setIsSavingBusinessNeed] = useState(false)
+  const [isPresenceUpdating, setIsPresenceUpdating] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [profile, setProfile] = useState<UserProfileSummary | null>(null)
+  const [profileDraft, setProfileDraft] = useState<{ company: string; jobTitle: string }>({
+    company: "",
+    jobTitle: "",
+  })
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+
+  const selectedAttendance = useMemo(() => {
+    return attendanceRecords.find((record) => record.eventId === selectedEventId) ?? null
+  }, [attendanceRecords, selectedEventId])
+
+  const isBusinessNeedDirty = Boolean(
+    selectedAttendance &&
+      selectedAttendance.businessNeed.trim() !== selectedAttendance.originalBusinessNeed.trim()
+  )
+
+  const isProfileDirty = profile
+    ? (profile.company ?? "") !== profileDraft.company.trim() ||
+      (profile.jobTitle ?? "") !== profileDraft.jobTitle.trim()
+    : false
 
   useEffect(() => {
-    loadUserData()
-  }, [])
+    const loadSettings = async () => {
+      setIsLoading(true)
 
-  const loadUserData = async () => {
-    try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser()
+
+      if (authError) {
+        console.error("Failed to load auth user:", authError)
+        toast.error("We couldn’t load your profile. Please refresh and try again.")
+        setIsLoading(false)
+        return
+      }
+
       if (!user) {
         router.push("/auth")
         return
       }
 
-      // Load profile from users table
-      const { data: person, error: profileError } = await supabase
-        .from("users")
-        .select("user_id, first_name, last_name, email, photo_url, career_title, company_name, expertise_summary, mbti_type, enneagram_type")
-        .eq("user_id", user.id)
-        .single()
+      setUserId(user.id)
 
-      if (profileError) {
-        console.error("Error loading profile:", profileError)
-        toast.error("Failed to load profile")
-        return
-      }
-
-      const mapped: Profile = {
-        id: person.user_id,
-        first_name: person.first_name || "",
-        last_name: person.last_name || "",
-        email: person.email || "",
-        avatar_url: person.photo_url || null,
-        job_title: person.career_title || null,
-        company: person.company_name || null,
-        what_do_you_do: null,
-        location: null,
-        linkedin_url: null,
-        mbti: person.mbti_type || null,
-        enneagram: person.enneagram_type || null,
-        networking_goals: null,
-        hobbies: null,
-        expertise_tags: null,
-        consent: true,
-      }
-      setProfile(mapped)
-      setJobTitle(person.career_title || "")
-      setCompany(person.company_name || "")
-      setLocation("") // Location not in users table currently
-      setExpertiseSummary(person.expertise_summary || "")
-
-      // Load user's events from attendance
-      const { data: eventData, error: eventError } = await supabase
-        .from("attendance")
-        .select("events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)")
-        .eq("user_id", user.id)
-
-      if (eventError) {
-        console.error("Error loading events:", eventError)
-      } else if (eventData) {
-        const events = eventData
-          .map((item: any) => item.events)
-          .filter(Boolean)
-          .map((e: any) => ({
-            id: e.event_id,
-            name: e.event_name,
-            code: e.event_code,
-            starts_at: e.event_starts_at,
-            ends_at: e.event_ends_at,
-            location: e.event_location,
-            header_image_url: null,
-            is_active: true,
-            matchmaking_enabled: true,
-          }))
-        setUserEvents(events)
-        
-        // Set current event (most recent)
-        if (events.length > 0) {
-          setCurrentEvent(events[0])
-          
-          // Load presence status for current event
-          const { data: presenceData, error: presenceError } = await supabase
-            .from("attendance")
-            .select("checked_in_at")
+      const [{ data: userRow, error: userError }, { data: attendanceRows, error: attendanceError }] =
+        await Promise.all([
+          supabase
+            .from("users")
+            .select("user_id, first_name, last_name, career_title, company_name, photo_url")
             .eq("user_id", user.id)
-            .eq("event_id", events[0].id)
-            .maybeSingle()
-          
-          if (!presenceError && presenceData) {
-            setIsPresent(!!presenceData.checked_in_at)
-          }
+            .maybeSingle(),
+          supabase
+            .from("attendance")
+            .select(
+              `
+                event_id,
+                business_need_text,
+                checked_in_at,
+                events:event_id (
+                  event_id,
+                  event_name
+                )
+              `
+            )
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false }),
+        ])
+
+      if (userError) {
+        console.error("Failed to load profile row:", userError)
+        toast.error("We couldn’t load your profile details. Please try again.")
+      } else if (userRow) {
+        setProfile({
+          firstName: userRow.first_name || "",
+          lastName: userRow.last_name || "",
+          company: userRow.company_name,
+          jobTitle: userRow.career_title,
+          avatarUrl: userRow.photo_url,
+        })
+
+        setProfileDraft({
+          company: userRow.company_name ?? "",
+          jobTitle: userRow.career_title ?? "",
+        })
+      }
+
+      if (attendanceError) {
+        console.error("Failed to load attendance rows:", attendanceError)
+        toast.error("We couldn’t load your event preferences right now.")
+        setAttendanceRecords([])
+        setSelectedEventId(null)
+      } else {
+        const mapped: AttendanceRecord[] =
+          (attendanceRows ?? []).map((row: any) => ({
+            eventId: row.event_id,
+            eventName: row.events?.event_name ?? "Unnamed event",
+            businessNeed: row.business_need_text ?? "",
+            originalBusinessNeed: row.business_need_text ?? "",
+            checkedInAt: row.checked_in_at,
+          })) ?? []
+
+        setAttendanceRecords(mapped)
+
+        if (mapped.length === 0) {
+          setSelectedEventId(null)
+        } else {
+          setSelectedEventId((prev) => {
+            if (prev && mapped.some((record) => record.eventId === prev)) {
+              return prev
+            }
+            return mapped[0].eventId
+          })
         }
       }
-    } catch (error) {
-      console.error("Error loading user data:", error)
-      toast.error("Failed to load profile data")
-    } finally {
+
       setIsLoading(false)
     }
-  }
 
-  const handleSaveChanges = async () => {
-    if (!profile) return
+    void loadSettings()
+  }, [router, supabase])
 
+  const handleSaveProfile = async () => {
+    if (!userId || !profile) return
+    if (!isProfileDirty) {
+      toast.info("No profile changes to save.")
+      return
+    }
+
+    const trimmedCompany = profileDraft.company.trim()
+    const trimmedJobTitle = profileDraft.jobTitle.trim()
+
+    setIsSavingProfile(true)
     try {
-      setIsSaving(true)
-
-      // Update users table with basic info
-      const { error: profileError } = await supabase
+      const { error } = await supabase
         .from("users")
         .update({
-          career_title: jobTitle,
-          company_name: company,
-          expertise_summary: expertiseSummary.trim() || null,
+          company_name: trimmedCompany.length > 0 ? trimmedCompany : null,
+          career_title: trimmedJobTitle.length > 0 ? trimmedJobTitle : null,
         })
-        .eq("user_id", profile.id)
+        .eq("user_id", userId)
 
-      if (profileError) {
-        console.error("Error updating profile:", profileError)
-        toast.error("Failed to update profile")
+      if (error) {
+        console.error("Failed to update profile:", error)
+        toast.error("We couldn’t update your profile. Please try again.")
         return
       }
 
-      // Reload profile data
-      await loadUserData()
-      toast.success("Profile updated successfully")
-      setIsEditing(false)
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              company: trimmedCompany.length > 0 ? trimmedCompany : null,
+              jobTitle: trimmedJobTitle.length > 0 ? trimmedJobTitle : null,
+            }
+          : prev
+      )
+
+      setProfileDraft({
+        company: trimmedCompany,
+        jobTitle: trimmedJobTitle,
+      })
+
+      toast.success("Profile saved.")
     } catch (error) {
-      console.error("Error saving changes:", error)
-      toast.error("Failed to save changes")
+      console.error("Unexpected error updating profile:", error)
+      toast.error("Something went wrong while saving. Please try again.")
     } finally {
-      setIsSaving(false)
+      setIsSavingProfile(false)
     }
   }
 
-  const handleEventSwitch = async (event: Event) => {
-    setCurrentEvent(event)
-    setShowEventDropdown(false)
-    
-    // Update presence status for the switched event
-    if (profile) {
-      const { data: presenceData } = await supabase
+  const handleTogglePresence = async () => {
+    if (!userId || !selectedAttendance) return
+
+    const nextCheckedInAt = selectedAttendance.checkedInAt ? null : new Date().toISOString()
+
+    setIsPresenceUpdating(true)
+    try {
+      const { error } = await supabase
         .from("attendance")
-        .select("checked_in_at")
-        .eq("user_id", profile.id)
-        .eq("event_id", event.id)
-        .maybeSingle()
-      
-      setIsPresent(!!presenceData?.checked_in_at)
+        .update({
+          checked_in_at: nextCheckedInAt,
+          last_seen_at: nextCheckedInAt,
+        })
+        .eq("user_id", userId)
+        .eq("event_id", selectedAttendance.eventId)
+
+      if (error) {
+        console.error("Failed to toggle presence:", error)
+        toast.error("We couldn’t update your presence. Please try again.")
+        return
+      }
+
+      setAttendanceRecords((records) =>
+        records.map((record) =>
+          record.eventId === selectedAttendance.eventId
+            ? { ...record, checkedInAt: nextCheckedInAt }
+            : record
+        )
+      )
+
+      toast.success(
+        nextCheckedInAt ? "You’re now marked as here." : "You’re no longer marked as here."
+      )
+    } catch (error) {
+      console.error("Unexpected error toggling presence:", error)
+      toast.error("Something went wrong while updating presence.")
+    } finally {
+      setIsPresenceUpdating(false)
     }
-    
-    toast.success(`Switched to ${event.name}`)
+  }
+
+  const handleBusinessNeedChange = (value: string) => {
+    if (!selectedAttendance) return
+
+    setAttendanceRecords((records) =>
+      records.map((record) =>
+        record.eventId === selectedAttendance.eventId
+          ? { ...record, businessNeed: value }
+          : record
+      )
+    )
+  }
+
+  const handleResetBusinessNeed = () => {
+    if (!selectedAttendance) return
+
+    setAttendanceRecords((records) =>
+      records.map((record) =>
+        record.eventId === selectedAttendance.eventId
+          ? { ...record, businessNeed: record.originalBusinessNeed }
+          : record
+      )
+    )
+  }
+
+  const handleSaveBusinessNeed = async () => {
+    if (!userId || !selectedAttendance) return
+    if (!isBusinessNeedDirty) {
+      toast.info("No changes to save.")
+      return
+    }
+
+    const trimmedNeed = selectedAttendance.businessNeed.trim()
+
+    setIsSavingBusinessNeed(true)
+    try {
+      const { error } = await supabase
+        .from("attendance")
+        .update({
+          business_need_text: trimmedNeed.length > 0 ? trimmedNeed : null,
+          last_profile_change_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId)
+        .eq("event_id", selectedAttendance.eventId)
+
+      if (error) {
+        console.error("Failed to update business need:", error)
+        toast.error("We couldn’t update your business need. Please try again.")
+        return
+      }
+
+      setAttendanceRecords((records) =>
+        records.map((record) =>
+          record.eventId === selectedAttendance.eventId
+            ? {
+                ...record,
+                businessNeed: trimmedNeed,
+                originalBusinessNeed: trimmedNeed,
+              }
+            : record
+        )
+      )
+
+      toast.success("Business need saved.")
+
+      if (selectedAttendance.eventId && userId) {
+        void toast.promise(
+          (async () => {
+            const deriveResponse = await fetch("/api/derive-attendance", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                eventId: selectedAttendance.eventId,
+                userId,
+              }),
+            })
+
+            if (!deriveResponse.ok) {
+              const details = await deriveResponse.text()
+              throw new Error(`derive failed: ${details}`)
+            }
+
+            const refreshResponse = await fetch("/api/refresh-matches", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                eventId: selectedAttendance.eventId,
+                newUserId: userId,
+              }),
+            })
+
+            if (!refreshResponse.ok) {
+              const details = await refreshResponse.text()
+              throw new Error(`refresh failed: ${details}`)
+            }
+          })(),
+          {
+            loading: "Refreshing matches with your updated info…",
+            success: "Your matches will reflect the new business need shortly.",
+            error:
+              "Saved your update, but we couldn’t refresh matches automatically. We’ll try again soon.",
+          }
+        )
+      }
+    } catch (updateError) {
+      console.error("Unexpected error updating business need:", updateError)
+      toast.error("Something went wrong while saving. Please try again.")
+    } finally {
+      setIsSavingBusinessNeed(false)
+    }
   }
 
   const handleAddEvent = () => {
     router.push("/event/join")
   }
 
-  const handlePresenceToggle = async () => {
-    if (!currentEvent || !profile) return
-
-    try {
-      const { error } = await supabase
-        .from("attendance")
-        .update({ checked_in_at: !isPresent ? new Date().toISOString() : null })
-        .eq("user_id", profile.id)
-        .eq("event_id", currentEvent.id)
-
-      if (error) {
-        toast.error("Failed to update presence status")
-        return
-      }
-
-      setIsPresent(!isPresent)
-      toast.success(`You are now ${!isPresent ? 'present' : 'not present'} at the event`)
-    } catch (error) {
-      console.error("Error toggling presence:", error)
-      toast.error("Failed to update presence status")
-    }
-  }
-
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
+      <div className="flex min-h-screen items-center justify-center bg-[#411E14] px-4">
+        <div className="flex flex-col items-center gap-3 text-white/70">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <p>Loading your settings…</p>
         </div>
       </div>
     )
@@ -225,275 +390,232 @@ export function SettingsPage() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-muted-foreground mb-4">Profile not found</p>
-          <GradientButton onClick={() => router.push("/onboarding")}>
-            Complete Setup
-          </GradientButton>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-[#411E14] px-4">
+        <Card className="w-full max-w-md border-none bg-black/60 text-center text-white shadow-lg">
+          <CardHeader>
+            <CardTitle>Profile not found</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-white/70">
+            <p>We couldn’t find your profile details. Please complete onboarding to continue.</p>
+            <Button onClick={() => router.push("/onboarding")}>Go to onboarding</Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen gradient-bg">
-      {/* Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <GradientButton
-              onClick={() => !isEditing && router.back()}
-              variant={isEditing ? "outline" : "default"}
-              size="icon"
-              disabled={isEditing}
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </GradientButton>
-            
-            <h1 className="text-lg font-semibold text-foreground">
-              Profile Settings
-            </h1>
-
-            <div className="flex items-center space-x-2">
-              {isEditing && (
-                <GradientButton
-                  onClick={handleSaveChanges}
-                  disabled={isSaving}
-                  size="sm"
-                >
-                  {isSaving ? "Saving..." : "Save Changes"}
-                </GradientButton>
-              )}
-              <button
-                onClick={() => setIsEditing(!isEditing)}
-                className="p-2 hover:bg-muted rounded-lg transition-colors"
-              >
-                <Edit3 className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </div>
-          </div>
+    <div className="min-h-screen gradient-bg pb-16">
+      <header className="sticky top-0 z-10 border-b border-border bg-card/50 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
+          <button
+            aria-label="Go back"
+            onClick={() => router.back()}
+            className="flex h-10 w-10 items-center justify-center rounded-full shadow-elevation transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+            style={{ background: "linear-gradient(135deg, #EC874E 0%, #BF341E 100%)" }}
+          >
+            <ArrowLeft className="h-5 w-5 text-white" />
+          </button>
+          <h1 className="text-lg font-semibold text-foreground sm:text-xl">Profile Settings</h1>
+          <div className="h-10 w-10" />
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-4">
-        <div className="max-w-2xl mx-auto space-y-2">
-          {/* Profile Block */}
-          <Card className="bg-card border-border shadow-elevation">
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-3">
-                <div className="flex flex-col items-center space-y-2">
-                  <PresenceAvatar
-                    src={profile.avatar_url || undefined}
-                    fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
-                    isPresent={isPresent}
-                    size="xl"
-                  />
-                  {currentEvent && (
-                    <div className="flex flex-col items-center space-y-1">
-                      <button
-                        onClick={handlePresenceToggle}
-                        className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                          isPresent ? 'bg-gradient-to-r from-[#4B915A] to-[#0B3E16]' : 'bg-gray-300'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                            isPresent ? 'translate-x-4' : 'translate-x-0.5'
-                          }`}
-                        />
-                      </button>
-                      <span className="text-xs text-muted-foreground">
-                        {isPresent ? 'Here' : 'Away'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-xl font-semibold text-foreground">
-                    {profile.first_name} {profile.last_name}
-                  </h2>
-                  <p className="text-muted-foreground text-sm">
-                    {jobTitle} {company && `| ${company}`}
-                  </p>
-                  {currentEvent && (
-                    <p className="text-primary text-xs mt-0.5">
-                      Attended: {currentEvent.name}
-                    </p>
-                  )}
-                </div>
+      <main className="mx-auto mt-4 flex max-w-4xl flex-col gap-6 px-4">
+        <Card className="bg-card border-border shadow-elevation">
+          <CardContent className="flex flex-col gap-6 p-6 lg:flex-row lg:items-center">
+            <PresenceAvatar
+              src={profile.avatarUrl || undefined}
+              fallback={`${profile.firstName?.[0] ?? ""}${profile.lastName?.[0] ?? ""}`}
+              isPresent={Boolean(selectedAttendance?.checkedInAt)}
+              size="lg"
+            />
+            <div className="flex-1 space-y-2">
+              <h2 className="text-2xl font-semibold text-foreground">
+                {profile.firstName} {profile.lastName}
+              </h2>
+              <div className="space-y-1 text-sm text-muted-foreground">
+                <p>{profile.jobTitle ?? "Job title not set"}</p>
+                <p>{profile.company ?? "Company not set"}</p>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Event Switching */}
-          <Card className="bg-card border-border shadow-elevation">
-            <CardHeader className="pb-1">
-              <CardTitle className="text-primary">Change event</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 pt-0">
-              {/* Current Event Dropdown */}
-              <div className="relative">
+              {selectedAttendance && (
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                  Attending: {selectedAttendance.eventName}
+                </p>
+              )}
+            </div>
+            {selectedAttendance && (
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Presence
+                </span>
                 <button
-                  onClick={() => setShowEventDropdown(!showEventDropdown)}
-                  className="w-full p-3 bg-muted border border-border rounded-lg flex items-center justify-between text-left"
+                  onClick={handleTogglePresence}
+                  disabled={isPresenceUpdating}
+                  className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-elevation transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4B915A]"
+                  style={{
+                    background: selectedAttendance.checkedInAt
+                      ? "linear-gradient(135deg, #4B915A 0%, #0B3E16 100%)"
+                      : "linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 100%)",
+                  }}
                 >
-                  <span className="text-foreground">
-                    Current Event: {currentEvent?.name || "No event selected"}
+                  <span className="flex h-2.5 w-2.5 items-center justify-center rounded-full bg-black/20">
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{
+                        backgroundColor: selectedAttendance.checkedInAt ? "#90E29D" : "#D1D1D1",
+                      }}
+                    />
                   </span>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  {isPresenceUpdating
+                    ? "Updating…"
+                    : selectedAttendance.checkedInAt
+                      ? "Here"
+                    : "Mark as here"}
                 </button>
-                
-                {showEventDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
-                    {userEvents.map((event) => (
-                      <button
-                        key={event.id}
-                        onClick={() => handleEventSwitch(event)}
-                        className="w-full p-3 text-left hover:bg-muted border-b border-border last:border-b-0"
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border shadow-elevation">
+          <CardHeader className="pb-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <CardTitle className="text-base font-semibold text-foreground">About</CardTitle>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Keep your headline up to date
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleSaveProfile}
+                disabled={!isProfileDirty || isSavingProfile}
+                className="bg-gradient-to-r from-[#EC874E] to-[#BF341E] text-white hover:from-[#F59561] hover:to-[#C4452F]"
+              >
+                {isSavingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save profile
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <label className="flex flex-col gap-2 text-sm text-foreground">
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">Company</span>
+              <Input
+                value={profileDraft.company}
+                onChange={(event) =>
+                  setProfileDraft((draft) => ({ ...draft, company: event.target.value }))
+                }
+                placeholder="Where do you work?"
+              />
+            </label>
+            <label className="flex flex-col gap-2 text-sm text-foreground">
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">Job Title</span>
+              <Input
+                value={profileDraft.jobTitle}
+                onChange={(event) =>
+                  setProfileDraft((draft) => ({ ...draft, jobTitle: event.target.value }))
+                }
+                placeholder="What’s your role?"
+              />
+            </label>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border shadow-elevation">
+          <CardHeader className="pb-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-base font-semibold text-foreground">
+                Current event
+              </CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-[#EC874E]/40 bg-transparent text-[#EC874E] hover:bg-[#EC874E]/10"
+                onClick={handleAddEvent}
+              >
+                + Add an event
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-0">
+            {attendanceRecords.length === 0 ? (
+              <p className="rounded-md border border-dashed border-border bg-card/60 p-4 text-sm text-muted-foreground">
+                You haven’t joined any events yet. Add an event to share what you’re looking for so
+                we can start matching you.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Change event
+                  </label>
+                  <Select
+                    value={selectedEventId ?? undefined}
+                    onValueChange={(value) => setSelectedEventId(value)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select an event" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {attendanceRecords.map((record) => (
+                        <SelectItem value={record.eventId} key={record.eventId}>
+                          {record.eventName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {selectedAttendance && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium text-foreground">
+                        Business need for this event
+                      </h3>
+                      {isBusinessNeedDirty && (
+                        <span className="text-xs font-medium text-primary">Unsaved changes</span>
+                      )}
+                    </div>
+                    <Textarea
+                      value={selectedAttendance.businessNeed}
+                      onChange={(event) => handleBusinessNeedChange(event.target.value)}
+                      placeholder="Tell attendees what business need you’re focused on right now…"
+                      rows={6}
+                    />
+                    <div className="flex items-center justify-end gap-3">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={!isBusinessNeedDirty || isSavingBusinessNeed}
+                        onClick={handleResetBusinessNeed}
                       >
-                        <div className="text-foreground">{event.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {event.starts_at ? new Date(event.starts_at).toLocaleDateString() : 'TBD'}
-                        </div>
-                      </button>
-                    ))}
+                        Reset
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveBusinessNeed}
+                        disabled={!isBusinessNeedDirty || isSavingBusinessNeed}
+                        className="bg-gradient-to-r from-[#EC874E] to-[#BF341E] text-white hover:from-[#F59561] hover:to-[#C4452F]"
+                      >
+                        {isSavingBusinessNeed ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving…
+                          </>
+                        ) : (
+                          "Save changes"
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
-
-              {/* Add Event Button */}
-              <button
-                onClick={handleAddEvent}
-                className="w-full p-3 rounded-lg text-white font-medium flex items-center justify-center space-x-2"
-                style={{
-                  background: 'linear-gradient(135deg, #EC874E 0%, #BF341E 100%)',
-                  border: 'none'
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add an event</span>
-              </button>
-            </CardContent>
-          </Card>
-
-          {/* About Section */}
-          <Card className="bg-card border-border shadow-elevation">
-            <CardHeader className="pb-1">
-              <CardTitle className="text-primary">About</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {isEditing ? (
-                <div className="grid grid-cols-1 gap-3">
-                  <div>
-                    <Label htmlFor="company">Company</Label>
-                    <Input
-                      id="company"
-                      value={company}
-                      onChange={(e) => setCompany(e.target.value)}
-                      className="border-primary/20 focus:border-primary focus:ring-primary text-black"
-                      style={{ backgroundColor: '#DDDDDD', color: 'black' }}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="jobTitle">Job Title</Label>
-                    <Input
-                      id="jobTitle"
-                      value={jobTitle}
-                      onChange={(e) => setJobTitle(e.target.value)}
-                      className="border-primary/20 focus:border-primary focus:ring-primary text-black"
-                      style={{ backgroundColor: '#DDDDDD', color: 'black' }}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="location">Location</Label>
-                    <Input
-                      id="location"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      className="border-primary/20 focus:border-primary focus:ring-primary text-black"
-                      style={{ backgroundColor: '#DDDDDD', color: 'black' }}
-                      placeholder="City, State"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center py-2 border-b border-border">
-                    <span className="text-muted-foreground">Company</span>
-                    <span className="text-foreground">{company || "—"}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-border">
-                    <span className="text-muted-foreground">Job Title</span>
-                    <span className="text-foreground">{jobTitle || "—"}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-border">
-                    <span className="text-muted-foreground">Location</span>
-                    <span className="text-foreground">{location || "—"}</span>
-                  </div>
-                  {profile?.enneagram && (
-                    <div className="flex justify-between items-center py-2 border-b border-border">
-                      <span className="text-muted-foreground">Enneagram type</span>
-                      <span className="text-foreground">{profile.enneagram}</span>
-                    </div>
-                  )}
-                  {profile?.mbti && (
-                    <div className="flex justify-between items-center py-2 border-b border-border">
-                      <span className="text-muted-foreground">Myers-Briggs type</span>
-                      <span className="text-foreground">{profile.mbti}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Expertise Section */}
-          <Card className="bg-card border-border shadow-elevation">
-            <CardHeader className="pb-1">
-              <CardTitle className="text-primary">Expertise</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {isEditing ? (
-                <div>
-                  <Label htmlFor="expertiseSummary">Areas of Expertise</Label>
-                  <Textarea
-                    id="expertiseSummary"
-                    value={expertiseSummary}
-                    onChange={(e) => setExpertiseSummary(e.target.value)}
-                    placeholder="e.g., Machine Learning, Sales Strategy, Product Design"
-                    className="border-primary/20 focus:border-primary focus:ring-primary text-black mt-2"
-                    style={{ backgroundColor: '#DDDDDD', color: 'black' }}
-                    rows={3}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Enter your areas of expertise separated by commas
-                  </p>
-                </div>
-              ) : (
-                <div className="py-2">
-                  {expertiseSummary ? (
-                    <div className="flex flex-wrap gap-2">
-                      {expertiseSummary.split(',').map((expertise, idx) => (
-                        <span
-                          key={idx}
-                          className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm"
-                        >
-                          {expertise.trim()}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground">No expertise listed</span>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+            )}
+          </CardContent>
+        </Card>
       </main>
     </div>
   )
 }
+

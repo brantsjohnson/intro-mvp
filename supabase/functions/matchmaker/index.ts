@@ -333,7 +333,9 @@ function toViewerProfile(record: ViewerRecord): ViewerProfile {
     whyAttending: attendance.why_attending_text ?? null,
     roleIntent: attendance.event_role_intent ?? null,
     availabilityStatus: attendance.event_availability_status ?? null,
-    personalityEmbedding: user.personality_embedding ?? null
+    personalityEmbedding: user.personality_embedding ?? null,
+    connectionTypes: attendance.connection_types_selected ?? null,
+    followUps: (attendance.connection_followups_json as Record<string, string> | null) ?? null
   }
 }
 
@@ -504,13 +506,110 @@ const BUYER_FUNCTION_KEYWORDS = [
   "revenue"
 ]
 
+const JOB_SEEKING_PATTERNS: RegExp[] = [
+  /find(ing)? (a )?(new )?(job|role|position)/i,
+  /looking for (my )?(next )?(role|job|position)/i,
+  /job (search|hunt)/i,
+  /open to (new )?(roles|opportunities)/i,
+  /get(ting)? hired/i,
+  /join( a| the)? (team|company)/i,
+  /career (pivot|change|transition)/i,
+  /switch(ing)? careers?/i,
+  /land(ing)? (a )?(role|job|position)/i,
+  /explor(ing)? (new )?roles?/i,
+  /find(ing)? work/i,
+  /full[- ]?time role/i,
+  /part[- ]?time role/i
+]
+
+const COMMERCIAL_CLIENT_KEYWORDS = [
+  "client",
+  "clients",
+  "customer",
+  "customers",
+  "buyer",
+  "buyers",
+  "prospect",
+  "prospects",
+  "lead",
+  "leads",
+  "sales",
+  "sell",
+  "selling",
+  "revenue",
+  "deal",
+  "pipeline",
+  "business opportunity",
+  "business opportunities",
+  "biz dev",
+  "bizdev",
+  "business development"
+]
+
+const COMMERCIAL_BUY_KEYWORDS = [
+  "buy",
+  "purchas",
+  "vendor",
+  "supplier",
+  "tool",
+  "software",
+  "platform",
+  "evaluation",
+  "evaluate",
+  "procure",
+  "procurement",
+  "solution",
+  "solutioning"
+]
+
+const COMMERCIAL_COFUNDER_KEYWORDS = [
+  "cofounder",
+  "co-founder",
+  "co founder",
+  "founding team",
+  "start a company",
+  "starting a company",
+  "build a startup",
+  "launch a startup",
+  "build a company",
+  "cofounder search"
+]
+
+const HIRING_KEYWORDS = [
+  "hire",
+  "hiring",
+  "headcount",
+  "talent",
+  "staff",
+  "staffing",
+  "fill this role",
+  "fill roles",
+  "fill positions",
+  "grow the team",
+  "building the team",
+  "team members"
+]
+
+const matchesAnyPattern = (text: string, patterns: RegExp[]) => {
+  if (!text) return false
+  return patterns.some((pattern) => pattern.test(text))
+}
+
 const INTENT_TOKEN_OVERRIDES: Record<string, string> = {
   find_a_mentor: "mentorship",
   be_a_mentor: "mentorship_mentor",
-  find_a_job: "hiring",
+  find_a_job: "job_seeking",
+  find_job: "job_seeking",
+  job_seeker: "job_seeking",
+  job_seeking: "job_seeking",
   recruit: "recruiter",
-  discover_business_opportunities: "clients",
-  general_connections: "general"
+  recruiting: "recruiter",
+  discover_business_opportunities: "commercial",
+  business_opportunities: "commercial",
+  biz_opps: "commercial",
+  general_connections: "general",
+  general_connection: "general",
+  general: "general"
 }
 
 const containsAny = (text: string, keywords: string[]) => {
@@ -523,58 +622,90 @@ function detectPrimaryIntent(record: ViewerRecord) {
   const user = record.user
 
   const checkboxTokens = (attendance.connection_types_selected ?? [])
-    .map((token: string) => canon(INTENT_TOKEN_OVERRIDES[token] ?? token))
+    .map((token: string) => {
+      const override = INTENT_TOKEN_OVERRIDES[token] ?? token
+      return canon(override)
+    })
     .filter(Boolean)
 
-  if (checkboxTokens.includes("mentorship_mentor")) return { intent: "mentorship", mode: "mentor" as const }
-  if (checkboxTokens.includes("mentorship")) return { intent: "mentorship", mode: "mentee" as const }
-  if (checkboxTokens.includes("hiring")) return { intent: "hiring" as const }
-  if (checkboxTokens.includes("recruiter")) return { intent: "recruiting" as const }
-  if (checkboxTokens.includes("clients")) return { intent: "clients" as const }
-  if (checkboxTokens.includes("beta_users")) return { intent: "beta_users" as const }
-  if (checkboxTokens.includes("general")) return { intent: "general" as const }
+  const preferGeneral = checkboxTokens.includes("general")
+  const hasMentorOffer = checkboxTokens.includes("mentorship_mentor")
+  const hasMentorNeed = checkboxTokens.includes("mentorship")
+  const hasJobSeeker = checkboxTokens.includes("job_seeking")
+  const hasRecruiter = checkboxTokens.includes("recruiter")
+  const hasHiring = checkboxTokens.includes("hiring")
+  const hasCommercial = checkboxTokens.includes("commercial") || checkboxTokens.includes("clients")
+  const hasBeta = checkboxTokens.includes("beta_users")
 
-  const combined = `${attendance.business_need_text ?? ""} ${attendance.why_attending_text ?? ""} ${
+  if (hasMentorOffer) return { intent: "mentorship", mode: "mentor" as const }
+  if (hasMentorNeed) return { intent: "mentorship", mode: "mentee" as const }
+  if (hasJobSeeker) return { intent: "job_seeking" as const }
+  if (hasRecruiter) return { intent: "recruiting" as const }
+  if (hasHiring && !hasJobSeeker) return { intent: "hiring" as const }
+  if (hasCommercial) return { intent: "commercial" as const }
+  if (hasBeta) return { intent: "beta_users" as const }
+
+  const combinedParts = [
+    attendance.business_need_text ?? "",
+    attendance.why_attending_text ?? "",
     user.want_summary_text ?? ""
-  }`
-    .toLowerCase()
-    .trim()
+  ]
+  const combinedText = combinedParts.filter(Boolean).join(" ").trim()
+  const needTokens = canonicalizeList(attendance.event_need_tags ?? user.need_tags)
+
+  const jobSeekerFromText = matchesAnyPattern(combinedText, JOB_SEEKING_PATTERNS)
+  if (jobSeekerFromText) return { intent: "job_seeking" as const }
 
   if (
-    containsAny(combined, ["invest", "fundraise", "raise", "capital", "vc", "venture", "angel"]) ||
-    canonicalizeList(attendance.event_need_tags ?? user.need_tags).includes("investment")
+    containsAny(combinedText, ["invest", "fundraise", "raise", "capital", "vc", "venture", "angel"]) ||
+    needTokens.includes("investment")
   ) {
     return { intent: "investment" as const }
   }
 
-  if (containsAny(combined, ["hire", "hiring", "recruit", "talent", "headcount", "staff"])) {
+  const recruitingFromText = containsAny(combinedText, RECRUITER_KEYWORDS)
+  if (recruitingFromText) return { intent: "recruiting" as const }
+
+  const hiringFromText = containsAny(combinedText, HIRING_KEYWORDS)
+  if ((hasHiring || hiringFromText) && !jobSeekerFromText) {
     return { intent: "hiring" as const }
   }
 
+  const commercialFromText =
+    containsAny(combinedText, COMMERCIAL_CLIENT_KEYWORDS) ||
+    containsAny(combinedText, PARTNERSHIP_KEYWORDS) ||
+    containsAny(combinedText, COMMERCIAL_BUY_KEYWORDS) ||
+    containsAny(combinedText, COMMERCIAL_COFUNDER_KEYWORDS)
+  if (commercialFromText) {
+    return { intent: "commercial" as const }
+  }
+
   if (
-    containsAny(combined, ["partner", "partnership", "alliances", "channel", "co-sell", "cosell"]) ||
-    canonicalizeList(attendance.event_need_tags ?? user.need_tags).includes("partnerships")
+    containsAny(combinedText, ["partner", "partnership", "alliances", "channel", "co-sell", "cosell"]) ||
+    needTokens.includes("partnerships")
   ) {
     return { intent: "partnerships" as const }
   }
 
-  if (containsAny(combined, ["mentor", "mentorship", "guidance", "coach", "coaching"])) {
+  if (containsAny(combinedText, ["mentor", "mentorship", "guidance", "coach", "coaching"])) {
     return { intent: "mentorship", mode: "mentee" as const }
   }
 
   if (
-    containsAny(combined, ["beta", "pilot", "adopter", "feedback", "early user", "user research"]) ||
-    canonicalizeList(attendance.event_need_tags ?? user.need_tags).includes("beta_users")
+    containsAny(combinedText, ["beta", "pilot", "adopter", "feedback", "early user", "user research"]) ||
+    needTokens.includes("beta_users")
   ) {
     return { intent: "beta_users" as const }
   }
 
   if (
-    containsAny(combined, ["press", "media", "journalist", "interview", "pr", "publicity", "podcast", "speaking"]) ||
-    canonicalizeList(attendance.event_need_tags ?? user.need_tags).includes("press")
+    containsAny(combinedText, ["press", "media", "journalist", "interview", "pr", "publicity", "podcast", "speaking"]) ||
+    needTokens.includes("press")
   ) {
     return { intent: "press" as const }
   }
+
+  if (preferGeneral) return { intent: "general" as const }
 
   return { intent: "general" as const }
 }
@@ -663,22 +794,69 @@ function buildSummaryAndReasons(
 
   let summary = ""
   let reasonTag = "strong_overlap"
+  const intentFocus = match.meta.intentFocus ?? ""
+  const intentToken = match.meta.intentToken ?? ""
+  const humanizeToken = (token?: string) => (token ? token.replace(/_/g, " ") : undefined)
+  const intentTokenLabel = humanizeToken(intentToken)
 
   switch (viewerIntent.intent) {
+    case "commercial":
     case "clients": {
-      if (isBuyerProspect && !isSalesRole) {
-        summary = `You need buyers; they’re a ${candidate.jobTitle ?? "leader"} at ${
+      const focusDetail = intentFocus.startsWith("commercial:")
+        ? intentFocus.split(":")[1]
+        : intentFocus || (viewerIntent.intent === "clients" ? "clients" : "")
+      if (focusDetail === "partners") {
+        summary = `You want partners; ${candidate.jobTitle ?? "they"} at ${
           candidate.company ?? "their company"
-        }—promising prospect.`
+        } can co-sell${intentTokenLabel ? ` in ${intentTokenLabel}` : ""}.`
+        reasonTag = "partner"
+      } else if (focusDetail === "buy") {
+        summary = `You’re evaluating solutions; ${candidate.jobTitle ?? "they"} buys for ${
+          candidate.company ?? "their team"
+        }${intentTokenLabel ? ` in ${intentTokenLabel}` : ""}.`
+        reasonTag = "buyer"
+      } else if (focusDetail === "cofounder") {
+        summary = `You’re exploring co-founders; ${candidate.jobTitle ?? "they"} brings ${
+          intentTokenLabel ?? "complementary"
+        } strengths.`
+        reasonTag = "cofounder"
+      } else if (isBuyerProspect && !isSalesRole) {
+        summary = `You need customers${intentTokenLabel ? ` in ${intentTokenLabel}` : ""}; they’re a ${
+          candidate.jobTitle ?? "leader"
+        } at ${candidate.company ?? "their company"}—promising prospect.`
         reasonTag = "potential_client"
       } else if (isSalesRole) {
-        summary = `You need new deals; ${candidate.jobTitle ?? "they"} open referral paths.`
+        summary = `You need new deals${intentTokenLabel ? ` in ${intentTokenLabel}` : ""}; ${
+          candidate.jobTitle ?? "they"
+        } open referral paths.`
         reasonTag = "referrer"
       } else {
-        summary = `You need clients; ${candidate.jobTitle ?? "they"} at ${
-          candidate.company ?? "their company"
-        } is worth an intro.`
+        summary = `You need clients${intentTokenLabel ? ` in ${intentTokenLabel}` : ""}; ${
+          candidate.jobTitle ?? "they"
+        } at ${candidate.company ?? "their company"} is worth an intro.`
         reasonTag = "potential_client"
+      }
+      break
+    }
+    case "job_seeking": {
+      const focus =
+        intentFocus ||
+        (isRecruiter ? "recruiter" : candidateNeedTokens.includes("hiring") ? "hiring_manager" : "peer_role")
+      if (focus === "recruiter") {
+        summary = `You’re job hunting; ${candidate.firstName ?? candidate.jobTitle ?? "they"} recruits for ${
+          intentTokenLabel ?? "roles like yours"
+        }.`
+        reasonTag = "recruiter_referrer"
+      } else if (focus === "hiring_manager") {
+        summary = `You’re job hunting; ${candidate.jobTitle ?? "they"} at ${
+          candidate.company ?? "their company"
+        } is hiring${intentTokenLabel ? ` for ${intentTokenLabel}` : ""}.`
+        reasonTag = "hiring_manager"
+      } else {
+        summary = `You’re job hunting; ${candidate.jobTitle ?? "they"} can share how they broke into${
+          intentTokenLabel ? ` ${intentTokenLabel}` : " this role"
+        }.`
+        reasonTag = "peer_role"
       }
       break
     }
@@ -726,14 +904,19 @@ function buildSummaryAndReasons(
       break
     }
     case "mentorship": {
+      const topicText = intentTokenLabel ? ` in ${intentTokenLabel}` : ""
       if (viewerIntent.mode === "mentor" && candidateNeedsMentor) {
-        summary = `You want to mentor; they’re asking for mentorship in your area.`
+        summary = `You want to mentor; they’re asking for mentorship${topicText || " in your area"}.`
         reasonTag = "mentee"
       } else if (candidateMentorSignals || candidateExperience >= viewerExperience + 3) {
-        summary = `You asked for mentorship; ${candidate.jobTitle ?? "they"} has deeper experience to guide you.`
+        summary = `You asked for mentorship; ${candidate.jobTitle ?? "they"} has deeper experience${
+          topicText || ""
+        } to guide you.`
         reasonTag = "mentor"
       } else {
-        summary = `You want mentorship; ${candidate.jobTitle ?? "they"} can trade insights on career growth.`
+        summary = `You want mentorship; ${candidate.jobTitle ?? "they"} can trade insights on career growth${
+          topicText ? `, especially around ${intentTokenLabel}` : ""
+        }.`
         reasonTag = "mentor"
       }
       break
@@ -768,6 +951,14 @@ function buildSummaryAndReasons(
   }
 
   const reasons = new Set<string>([reasonTag])
+  if (viewerIntent.intent === "job_seeking" && intentToken) {
+    reasons.add(`job_focus:${canon(intentToken)}`)
+  }
+  if ((viewerIntent.intent === "commercial" || viewerIntent.intent === "clients") && intentFocus) {
+    const focusDetail = intentFocus.includes(":") ? intentFocus.split(":")[1] : intentFocus
+    if (focusDetail) reasons.add(`commercial_focus:${canon(focusDetail)}`)
+    if (intentToken) reasons.add(`business_need:${canon(intentToken)}`)
+  }
   for (const interest of sharedInterests) {
     reasons.add(`shared_interest:${interest}`)
   }
@@ -787,14 +978,42 @@ function buildSummaryAndReasons(
 
 function computePillars(scored: ScoredCandidate, viewerIntent: ReturnType<typeof detectPrimaryIntent>) {
   const { breakdown, meta, candidate } = scored
-  const mutual = Math.min(breakdown.s_need, breakdown.s_supply)
-  let business = 0.72 * breakdown.s_need + 0.2 * breakdown.s_supply + 0.08 * mutual
-  if (meta.needToken) business += 0.03
-  if (viewerIntent.intent === "clients" && meta.needToken) business += 0.04
-  if (viewerIntent.intent === "investment" && containsAny((candidate.offerSummary ?? "") + (candidate.businessNeed ?? ""), INVESTOR_KEYWORDS)) {
-    business += 0.04
+  // Business pillar: 0.70 * need→offer + 0.25 * offer→need + 0.05 * connectionTypeBoost
+  const connectionTypeBoost = clamp(meta.connectionBoost ?? 0) // normalized 0..1
+  const businessCore = 0.70 * breakdown.s_need + 0.25 * breakdown.s_supply + 0.05 * connectionTypeBoost
+
+  // Intent micro-boosts: sum then clamp ≤ 0.08, then add and clamp(0..1)
+  let boostSum = 0
+
+  if (viewerIntent.intent === "job_seeking") {
+    if (meta.intentFocus === "recruiter" || meta.intentFocus === "hiring_manager") {
+      boostSum += 0.06
+    } else if (meta.intentFocus === "peer_role") {
+      boostSum += 0.04
+    }
   }
-  business = clamp(business)
+
+  if (viewerIntent.intent === "commercial" || viewerIntent.intent === "clients") {
+    const focus = meta.intentFocus?.includes(":") ? meta.intentFocus.split(":")[1] : meta.intentFocus
+    if (focus === "clients") boostSum += 0.05
+    if (focus === "partners") boostSum += 0.05
+    if (focus === "buy") boostSum += 0.05
+    if (focus === "cofounder") boostSum += 0.05
+    if (!focus && meta.intentToken) boostSum += 0.03
+  }
+
+  if (viewerIntent.intent === "mentorship") {
+    if (meta.intentFocus === "mentor" || meta.intentFocus === "mentee") {
+      boostSum += 0.05
+    }
+  }
+
+  if (viewerIntent.intent === "general" || viewerIntent.intent === "other") {
+    if (meta.sharedHobby) boostSum += 0.02
+  }
+
+  boostSum = Math.min(boostSum, 0.08)
+  const business = clamp(businessCore + boostSum)
 
   const interests = clamp(Math.max(breakdown.s_common, breakdown.s_career * 0.4))
   const personality = clamp(0.6 * breakdown.s_personality + 0.4 * breakdown.s_vibe)
@@ -904,6 +1123,166 @@ function prioritizePreserved(matches: ScoredCandidate[], preservedIds: Set<strin
 }
 
 // -----------------------------------------------------------------------------
+// AI Review helpers
+// -----------------------------------------------------------------------------
+
+async function sha256Hex(input: string): Promise<string> {
+  try {
+    const data = new TextEncoder().encode(input)
+    // @ts-ignore
+    const digest = await crypto.subtle.digest("SHA-256", data)
+    const bytes = Array.from(new Uint8Array(digest))
+    return bytes.map((b) => b.toString(16).padStart(2, "0")).join("")
+  } catch {
+    let hash = 0
+    for (let i = 0; i < input.length; i++) {
+      hash = (hash << 5) - hash + input.charCodeAt(i)
+      hash |= 0
+    }
+    return String(hash >>> 0)
+  }
+}
+
+function buildFingerprint(viewer: ViewerProfile, top3: ScoredCandidate[], shortlist: ScoredCandidate[]): string {
+  const viewerStr = [
+    viewer.businessNeed ?? "",
+    viewer.whyAttending ?? "",
+    (viewer.connectionTypes ?? []).join("|")
+  ].join("\n")
+  const candStr = top3
+    .map((m) => {
+      const c = m.candidate
+      const parts = [
+        c.id,
+        c.offerSummary ?? "",
+        (c.offerTags ?? []).join(","),
+        JSON.stringify(c.followUps ?? {}),
+        c.jobTitle ?? "",
+        c.company ?? ""
+      ]
+      return parts.join("|")
+    })
+    .join("\n")
+  const shortlistIds = shortlist.map((m) => m.candidate.id).join(",")
+  return [viewerStr, candStr, shortlistIds].join("\n---\n")
+}
+
+type AIVerdict = {
+  candidate_id: string
+  verdict: "strong_fit" | "close_fit" | "marginal" | "not_close"
+  biz_alignment_score: number
+  confidence: number
+  justification: string
+  reason_tags?: string[]
+  proposed_action?: string
+}
+
+async function reviewTopWithAI(
+  openai: any,
+  viewer: ViewerProfile,
+  top3: ScoredCandidate[],
+  shortlist: ScoredCandidate[]
+): Promise<{ ordered: ScoredCandidate[]; ai: { ran: boolean; fingerprint: string; verdicts: AIVerdict[]; applied_changes: any[]; rationale: string } }> {
+  const fingerprintRaw = buildFingerprint(viewer, top3, shortlist)
+  const fingerprint = await sha256Hex(fingerprintRaw)
+  const verdicts: AIVerdict[] = []
+  let applied_changes: any[] = []
+  let rationale = ""
+
+  if (!openai) {
+    return { ordered: top3, ai: { ran: false, fingerprint, verdicts, applied_changes, rationale } }
+  }
+
+  const prompt = [
+    "Rank and justify the top three people who most directly help the viewer achieve their business need.",
+    "Provide a short justification for each slot, referencing their need explicitly.",
+    "You may reorder or replace a person if business alignment is significantly stronger (≥ 0.08).",
+    "Use secondary factors (interests, personality) only for tie-breaking.",
+    "Return strict JSON array of objects with keys:",
+    "{candidate_id, verdict: 'strong_fit'|'close_fit'|'marginal'|'not_close', biz_alignment_score: 0-1, confidence: 0-1, justification, reason_tags: string[], proposed_action}",
+    "",
+    `Viewer need: ${viewer.businessNeed ?? "(none)"} | Why attending: ${viewer.whyAttending ?? "(none)"}`,
+    "",
+    "Candidates:",
+    ...top3.map((m, i) => {
+      const c = m.candidate
+      return `${i + 1}. id=${c.id}, role=${c.jobTitle ?? ""} @ ${c.company ?? ""}, offerSummary=${c.offerSummary ?? ""}`
+    })
+  ].join("\n")
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini",
+      temperature: 0,
+      max_tokens: 800,
+      messages: [
+        { role: "system", content: "Respond with JSON only. No prose outside of JSON." },
+        { role: "user", content: prompt }
+      ]
+    })
+    const raw = response.choices[0]?.message?.content?.trim() ?? ""
+    const cleaned = raw.replace(/```[a-z]*\s*/gi, "").replace(/```/g, "").trim()
+    const parsed = JSON.parse(cleaned)
+    if (Array.isArray(parsed)) {
+      for (const v of parsed) {
+        const verdict = (v.verdict || "close_fit") as AIVerdict["verdict"]
+        const biz_alignment_score = Math.max(0, Math.min(1, Number(v.biz_alignment_score ?? 0)))
+        const confidence = Math.max(0, Math.min(1, Number(v.confidence ?? 0)))
+        verdicts.push({
+          candidate_id: String(v.candidate_id ?? ""),
+          verdict,
+          biz_alignment_score,
+          confidence,
+          justification: String(v.justification ?? ""),
+          reason_tags: Array.isArray(v.reason_tags) ? v.reason_tags.map(String) : [],
+          proposed_action: v.proposed_action ? String(v.proposed_action) : undefined
+        })
+      }
+    }
+  } catch (err) {
+    console.warn("ai_review_failed", String(err))
+    return { ordered: top3, ai: { ran: false, fingerprint, verdicts, applied_changes, rationale: "ai_error" } }
+  }
+
+  // Ensure we have three verdicts and order covers all three
+  const byId = new Map(top3.map((m) => [m.candidate.id, m]))
+  const order: ScoredCandidate[] = []
+  for (const v of verdicts) {
+    const m = byId.get(v.candidate_id)
+    if (m) order.push(m)
+  }
+  for (const m of top3) if (!order.includes(m)) order.push(m)
+
+  // Bump rules
+  const getScore = (id: string) => verdicts.find((v) => v.candidate_id === id)?.biz_alignment_score ?? 0
+  if (verdicts.length >= 2 && order.length >= 2) {
+    const v1 = verdicts.find((v) => v.candidate_id === order[0].candidate.id)
+    if (v1 && (v1.verdict === "marginal" || v1.verdict === "not_close")) {
+      const better = order.slice(1).find((m) => getScore(m.candidate.id) >= (v1.biz_alignment_score + 0.08))
+      if (better) {
+        applied_changes.push({ action: "demote_slot1", from: order[0].candidate.id, to: better.candidate.id })
+        order.splice(order.indexOf(better), 1)
+        order.unshift(better)
+      }
+    }
+  }
+  if (order.length >= 3) {
+    const v2 = getScore(order[1].candidate.id)
+    const v3 = getScore(order[2].candidate.id)
+    if (v3 - v2 >= 0.03) {
+      applied_changes.push({ action: "swap_2_3", a: order[1].candidate.id, b: order[2].candidate.id })
+      const tmp = order[1]
+      order[1] = order[2]
+      order[2] = tmp
+    }
+  }
+
+  return {
+    ordered: order.slice(0, 3),
+    ai: { ran: true, fingerprint, verdicts, applied_changes, rationale }
+  }
+}
+// -----------------------------------------------------------------------------
 // Match persistence
 // -----------------------------------------------------------------------------
 
@@ -913,7 +1292,8 @@ async function upsertMatches(
   viewerRecord: ViewerRecord,
   viewerProfile: ViewerProfile,
   matches: ScoredCandidate[],
-  thresholds: { business: number; interests: number; personality: number }
+  thresholds: { business: number; interests: number; personality: number },
+  extras?: { ai_review?: any; selection_rule_version?: string }
 ) {
   const viewerId = viewerRecord.user.user_id
 
@@ -928,12 +1308,26 @@ async function upsertMatches(
     return { inserted: [], planned: [] }
   }
 
-  const rows = matches.map((match) => {
+  const rows = matches.map((match, idx) => {
     const pair = viewerId < match.candidate.id
       ? { a: viewerId, b: match.candidate.id }
       : { a: match.candidate.id, b: viewerId }
 
     const { explanation, panel } = buildDeterministicExplanation(viewerProfile, match)
+
+    const businessComponents = {
+      needOffer: Number((match.breakdown?.s_need ?? 0).toFixed(4)),
+      offerNeed: Number((match.breakdown?.s_supply ?? 0).toFixed(4)),
+      connectionTypeBoost: Number((match.meta?.connectionBoost ?? 0).toFixed(4)),
+      intentBoosts: {
+        focus: match.meta?.intentFocus ?? null,
+        token: match.meta?.intentToken ?? null
+      }
+    }
+
+    const totalForSelection = Number(
+      (((match.pillars?.business ?? 0) + (match.pillars?.interests ?? 0) + (match.pillars?.personality ?? 0))).toFixed(4)
+    )
 
     const payload = {
       score: Number(match.score.toFixed(4)),
@@ -943,7 +1337,11 @@ async function upsertMatches(
       bases: match.bases,
       meta: match.meta,
       panel,
-      thresholds
+      thresholds,
+      total_for_selection: totalForSelection,
+      business_components: businessComponents,
+      ai_review: extras?.ai_review ?? null,
+      selection_rule_version: extras?.selection_rule_version ?? "business_pool_ai_v2"
     }
 
     return {
@@ -957,7 +1355,7 @@ async function upsertMatches(
       match_pillars_json: match.pillars,
       match_score_breakdown_json: payload,
       match_explanation_text: match.meta.summary ?? explanation,
-      match_algorithm_version: "tiered-v2"
+      match_algorithm_version: extras?.selection_rule_version ?? "business_pool_ai_v2"
     }
   })
 
@@ -1072,7 +1470,7 @@ async function processUser(eventId: string, userId: string) {
     return { processed: 0, reason: "no_candidates" }
   }
 
-  const scored = scoreCandidates(viewerProfile, candidatePool.candidates, matchConfig.weights)
+  const scored = scoreCandidates(viewerProfile, candidatePool.candidates, matchConfig.weights, viewerIntent)
     .filter((match) => {
       if (match.candidate.id === userId) return false
       return true
@@ -1100,14 +1498,6 @@ async function processUser(eventId: string, userId: string) {
   const samples: { business: number; interests: number; personality: number }[] = []
   for (const match of scored) {
     const pillars = computePillars(match, viewerIntent)
-    if (
-      pillars.business < SOFT_FLOORS.business &&
-      pillars.interests < SOFT_FLOORS.interests &&
-      pillars.personality < SOFT_FLOORS.personality
-    ) {
-      match.meta = { ...match.meta, droppedFloor: true }
-      continue
-    }
     match.pillars = pillars
     samples.push(pillars)
     withPillars.push(match)
@@ -1139,16 +1529,56 @@ async function processUser(eventId: string, userId: string) {
 
   const prioritized = prioritizePreserved(withPillars, preservedIds)
 
-  let shortlist = prioritized.slice(0, Math.max(SHORTLIST_SIZE, SUGGESTIONS_PER_USER * 3))
-  if (openai && USE_AI_RERANK !== "off" && shortlist.length > 1) {
-    shortlist = await rerankWithAI(openai, viewerProfile, shortlist, shortlist.length)
+  // Business-first selection (no thresholds)
+  const byBusiness = [...prioritized].sort((a, b) => (b.pillars?.business ?? 0) - (a.pillars?.business ?? 0))
+  let shortlist = byBusiness.slice(0, 4)
+
+  const stableCompare = (a: ScoredCandidate, b: ScoredCandidate) => {
+    // Deterministic tie-breakers
+    const ai = a.pillars?.interests ?? 0
+    const bi = b.pillars?.interests ?? 0
+    if (bi !== ai) return bi - ai
+    const ap = a.pillars?.personality ?? 0
+    const bp = b.pillars?.personality ?? 0
+    if (bp !== ap) return bp - ap
+    // Mentorship seniority gap (larger absolute diff preferred when mentorship intent)
+    if (viewerIntent.intent === "mentorship") {
+      const viewerYears = viewerProfile.careerYears ?? 0
+      const agap = Math.abs((a.candidate.careerYears ?? viewerYears) - viewerYears)
+      const bgap = Math.abs((b.candidate.careerYears ?? viewerYears) - viewerYears)
+      if (bgap !== agap) return bgap - agap
+    }
+    // Availability (fewer current matches first) - not available; skip
+    // Prefer preserved IDs on exact ties
+    const aPres = preservedIds.has(a.candidate.id) ? 1 : 0
+    const bPres = preservedIds.has(b.candidate.id) ? 1 : 0
+    if (bPres !== aPres) return bPres - aPres
+    // Stable ID
+    return String(a.candidate.id).localeCompare(String(b.candidate.id))
   }
 
-  let finalMatches = selectByTier(shortlist, matchConfig.limits.suggestionsPerUser ?? SUGGESTIONS_PER_USER)
+  // Lock Slot #1 by business
+  const slot1 = shortlist[0]
+  const remaining = shortlist.slice(1)
+  // Compute totals for selection
+  for (const m of remaining) {
+    const p = m.pillars!
+    ;(m as any).totalForSelection = (p.business ?? 0) + (p.interests ?? 0) + (p.personality ?? 0)
+  }
+  remaining.sort((a, b) => {
+    const at = (a as any).totalForSelection ?? 0
+    const bt = (b as any).totalForSelection ?? 0
+    if (bt !== at) return bt - at
+    return stableCompare(a, b)
+  })
+  const slot2 = remaining[0]
+  const slot3 = remaining[1]
+
+  let finalMatches = [slot1, slot2, slot3].filter(Boolean) as ScoredCandidate[]
 
   if (!finalMatches.length) {
     const limit = matchConfig.limits.suggestionsPerUser ?? SUGGESTIONS_PER_USER
-    const businessFallback = [...shortlist]
+    const businessFallback = [...byBusiness]
       .sort((a, b) => (b.pillars?.business ?? 0) - (a.pillars?.business ?? 0))
       .slice(0, limit)
     const uniqueBusiness = businessFallback.filter(
@@ -1186,13 +1616,24 @@ async function processUser(eventId: string, userId: string) {
     finalMatches = fallbackMatches
   }
 
+  // AI review and potential reordering
+  let aiReviewResult: { ran: boolean; fingerprint: string; verdicts: any[]; applied_changes: any[]; rationale: string } | null = null
+  if (openai && finalMatches.length >= 2) {
+    const review = await reviewTopWithAI(openai, viewerProfile, finalMatches, shortlist)
+    aiReviewResult = review.ai
+    finalMatches = review.ordered
+  }
+
   for (const match of finalMatches) {
     const { summary, reasons } = buildSummaryAndReasons(viewerRecord, match.candidate, match, viewerIntent)
     match.meta.summary = summary
     match.meta.reasons = reasons
   }
 
-  const upsertResult = await upsertMatches(supabase, eventId, viewerRecord, viewerProfile, finalMatches, thresholds)
+  const upsertResult = await upsertMatches(supabase, eventId, viewerRecord, viewerProfile, finalMatches, thresholds, {
+    ai_review: aiReviewResult,
+    selection_rule_version: "business_pool_ai_v2"
+  })
 
   console.log("matches_final", {
     eventId,

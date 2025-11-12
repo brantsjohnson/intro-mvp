@@ -1126,22 +1126,24 @@ export function HomePage() {
             </div>
             
             {/* Right: Message icon with gradient and unread badge */}
-            <div className="ml-auto relative">
+            <div className="ml-auto">
               <button
+                type="button"
                 onClick={() => router.push(`/messages?eventId=${currentEvent?.id || ''}`)}
-                className="w-10 h-10 rounded-full flex items-center justify-center"
+                className="relative w-10 h-10 rounded-full flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20"
                 style={{
                   background: 'linear-gradient(135deg, #EC874E 0%, #BF341E 100%)',
                   border: 'none'
                 }}
+                aria-label="Open messages"
               >
-                <MessageSquare className="h-5 w-5 text-white" />
+                <MessageSquare className="h-5 w-5 text-white pointer-events-none" />
+                {unreadMessageCount > 0 && (
+                  <span className="pointer-events-none absolute -top-1 -right-1 bg-[#BF341E] text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                    {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
+                  </span>
+                )}
               </button>
-              {unreadMessageCount > 0 && (
-                <div className="absolute -top-1 -right-1 bg-[#BF341E] text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
-                  {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
-                </div>
-              )}
             </div>
           </div>
         </div>

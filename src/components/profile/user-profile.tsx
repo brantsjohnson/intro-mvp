@@ -11,11 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { createClientComponentClient } from "@/lib/supabase"
 import { Profile } from "@/lib/types"
 import { toast } from "sonner"
-import { ArrowLeft, MessageSquare, Edit3, Loader2, X } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
+import { ArrowLeft, MessageSquare } from "lucide-react"
 
 interface UserProfileProps {
   userId: string
@@ -240,50 +236,6 @@ export function UserProfile({ userId }: UserProfileProps) {
   const [matchExplanation, setMatchExplanation] = useState<string | null>(null)
   const [currentEvent, setCurrentEvent] = useState<{event_id: string, event_name: string} | null>(null)
   const [matchBreakdown, setMatchBreakdown] = useState<MatchBreakdown | null>(null)
-  
-  // Edit mode state
-  const [isEditing, setIsEditing] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [editedProfile, setEditedProfile] = useState<{
-    // Users table fields
-    career_title: string
-    company_name: string
-    career_years_experience: string
-    offer_summary_text: string
-    want_summary_text: string
-    offer_tags: string[]
-    need_tags: string[]
-    industry_tags: string[]
-    hobby_tags: string[]
-    hobbies: string[]
-    
-    // Attendance table fields
-    business_need_text: string
-    why_attending_text: string
-    connection_types_selected: string[]
-    event_offer_tags: string[]
-    event_need_tags: string[]
-    event_industry_tags: string[]
-    event_hobby_tags: string[]
-  }>({
-    career_title: "",
-    company_name: "",
-    career_years_experience: "",
-    offer_summary_text: "",
-    want_summary_text: "",
-    offer_tags: [],
-    need_tags: [],
-    industry_tags: [],
-    hobby_tags: [],
-    hobbies: [],
-    business_need_text: "",
-    why_attending_text: "",
-    connection_types_selected: [],
-    event_offer_tags: [],
-    event_need_tags: [],
-    event_industry_tags: [],
-    event_hobby_tags: []
-  })
   const candidateStrengths = (matchBreakdown?.candidate_strengths ?? [])
     .map((item) => item.trim())
     .filter((item) => item.length > 0)
@@ -546,7 +498,7 @@ export function UserProfile({ userId }: UserProfileProps) {
                 })
               }
 
-                      setProfile((prev) =>
+              setProfile((prev) =>
                 prev
                   ? {
                       ...prev,
@@ -562,19 +514,6 @@ export function UserProfile({ userId }: UserProfileProps) {
                     }
                   : prev
               )
-              
-              // Initialize edit form with attendance data if viewing own profile
-              if (user.id === userId) {
-                setEditedProfile(prev => ({
-                  ...prev,
-                  business_need_text: attendanceData.business_need_text || "",
-                  why_attending_text: attendanceData.why_attending_text || "",
-                  connection_types_selected: (attendanceData.connection_types_selected as string[] | null) || [],
-                  event_offer_tags: (attendanceData.event_offer_tags as string[] | null) || [],
-                  event_need_tags: (attendanceData.event_need_tags as string[] | null) || [],
-                  event_industry_tags: (attendanceData.event_industry_tags as string[] | null) || [],
-                  event_hobby_tags: (attendanceData.event_hobby_tags as string[] | null) || []
-                }))
             }
 
             try {
@@ -595,23 +534,6 @@ export function UserProfile({ userId }: UserProfileProps) {
             }
           }
         }
-        
-        // Initialize edit form with user data if viewing own profile
-        if (user.id === userId) {
-          setEditedProfile(prev => ({
-            ...prev,
-            career_title: profileData.career_title || "",
-            company_name: profileData.company_name || "",
-            career_years_experience: String(profileData.career_years_experience || ""),
-            offer_summary_text: profileData.offer_summary_text || "",
-            want_summary_text: profileData.want_summary_text || "",
-            offer_tags: (profileData.offer_tags as string[] | null) || [],
-            need_tags: (profileData.need_tags as string[] | null) || [],
-            industry_tags: (profileData.industry_tags as string[] | null) || [],
-            hobby_tags: (profileData.hobby_tags as string[] | null) || [],
-            hobbies: (profileData.hobbies as string[] | null) || []
-          }))
-        }
       } catch (error) {
         console.error("Error loading profile:", error)
         toast.error("Failed to load profile")
@@ -631,89 +553,6 @@ export function UserProfile({ userId }: UserProfileProps) {
       return
     }
     router.push(`/messages/conversation?eventId=${eventId}&userId=${userId}`)
-  }
-  
-  // Helper function to parse comma-separated tags
-  const parseTagsInput = (value: string): string[] => {
-    return value
-      .split(',')
-      .map(tag => tag.trim())
-      .filter(tag => tag.length > 0)
-  }
-  
-  // Helper function to format tags for display
-  const formatTagsDisplay = (tags: string[]): string => {
-    return tags.join(', ')
-  }
-  
-  // Connection type options (same as onboarding flow)
-  const connectionTypes = [
-    { id: "general", label: "General Connections" },
-    { id: "biz_opps", label: "Discover Business Opportunities" },
-    { id: "find_mentor", label: "Find a Mentor" },
-    { id: "be_mentor", label: "Be a Mentor" },
-    { id: "find_job", label: "Find a Job" },
-    { id: "recruit", label: "Recruit" },
-    { id: "other", label: "Other" }
-  ]
-  
-  const handleSaveProfile = async () => {
-    if (!currentEvent) {
-      toast.error("No event selected")
-      return
-    }
-    
-    setIsSaving(true)
-    
-    try {
-      const response = await fetch('/api/update-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event_id: currentEvent.event_id,
-          user_id: userId,
-          users_update: {
-            career_title: editedProfile.career_title,
-            company_name: editedProfile.company_name,
-            career_years_experience: editedProfile.career_years_experience ? parseInt(editedProfile.career_years_experience) : null,
-            offer_summary_text: editedProfile.offer_summary_text,
-            want_summary_text: editedProfile.want_summary_text,
-            offer_tags: editedProfile.offer_tags,
-            need_tags: editedProfile.need_tags,
-            industry_tags: editedProfile.industry_tags,
-            hobby_tags: editedProfile.hobby_tags,
-            hobbies: editedProfile.hobbies
-          },
-          attendance_update: {
-            business_need_text: editedProfile.business_need_text,
-            why_attending_text: editedProfile.why_attending_text,
-            connection_types_selected: editedProfile.connection_types_selected,
-            event_offer_tags: editedProfile.event_offer_tags,
-            event_need_tags: editedProfile.event_need_tags,
-            event_industry_tags: editedProfile.event_industry_tags,
-            event_hobby_tags: editedProfile.event_hobby_tags
-          }
-        })
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to update profile')
-      }
-      
-      toast.success("Profile updated! Refreshing your matches...")
-      setIsEditing(false)
-      
-      // Reload the profile data to show updates
-      setTimeout(() => {
-        window.location.reload()
-      }, 2000)
-      
-    } catch (error) {
-      console.error('Error saving profile:', error)
-      toast.error("Failed to save profile")
-    } finally {
-      setIsSaving(false)
-    }
   }
 
   const handleBack = () => {
@@ -853,229 +692,19 @@ export function UserProfile({ userId }: UserProfileProps) {
               </p>
             </div>
 
-            <div className="flex gap-2">
-              {isOwnProfile && (
-                <GradientButton
-                  onClick={() => setIsEditing(!isEditing)}
-                  variant="filled"
-                  size="icon"
-                >
-                  {isEditing ? <X className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
-                </GradientButton>
-              )}
-              <GradientButton
-                onClick={handleMessage}
-                variant="filled"
-                size="icon"
-              >
-                <MessageSquare className="h-4 w-4" />
-              </GradientButton>
-            </div>
+            <GradientButton
+              onClick={handleMessage}
+              variant="filled"
+              size="icon"
+            >
+              <MessageSquare className="h-4 w-4" />
+            </GradientButton>
           </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-4">
         <div className="max-w-2xl mx-auto space-y-6">
-          {/* Edit form */}
-          {isEditing && isOwnProfile && (
-            <Card className="bg-card border-border shadow-elevation">
-              <CardHeader>
-                <CardTitle>Edit Profile</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* User profile fields */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Basic Information</h3>
-                  <div className="grid gap-4">
-                    <div>
-                      <Label>Job Title</Label>
-                      <Input
-                        value={editedProfile.career_title}
-                        onChange={(e) => setEditedProfile(prev => ({ ...prev, career_title: e.target.value }))}
-                        placeholder="e.g., Product Manager"
-                      />
-                    </div>
-                    <div>
-                      <Label>Company</Label>
-                      <Input
-                        value={editedProfile.company_name}
-                        onChange={(e) => setEditedProfile(prev => ({ ...prev, company_name: e.target.value }))}
-                        placeholder="e.g., TechCorp"
-                      />
-                    </div>
-                    <div>
-                      <Label>Years of Experience</Label>
-                      <Input
-                        value={editedProfile.career_years_experience}
-                        onChange={(e) => setEditedProfile(prev => ({ ...prev, career_years_experience: e.target.value }))}
-                        placeholder="e.g., 5"
-                        type="number"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Offer and Want summaries */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">What I Offer & What I'm Looking For</h3>
-                  <div className="grid gap-4">
-                    <div>
-                      <Label>What I Can Offer</Label>
-                      <Textarea
-                        value={editedProfile.offer_summary_text}
-                        onChange={(e) => setEditedProfile(prev => ({ ...prev, offer_summary_text: e.target.value }))}
-                        placeholder="Describe what you can offer to others..."
-                        rows={3}
-                      />
-                    </div>
-                    <div>
-                      <Label>What I'm Looking For</Label>
-                      <Textarea
-                        value={editedProfile.want_summary_text}
-                        onChange={(e) => setEditedProfile(prev => ({ ...prev, want_summary_text: e.target.value }))}
-                        placeholder="Describe what you're looking for..."
-                        rows={3}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Tags */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Skills & Interests</h3>
-                  <div className="grid gap-4">
-                    <div>
-                      <Label>Skills I Offer (comma-separated)</Label>
-                      <Input
-                        value={formatTagsDisplay(editedProfile.offer_tags)}
-                        onChange={(e) => setEditedProfile(prev => ({ ...prev, offer_tags: parseTagsInput(e.target.value) }))}
-                        placeholder="e.g., mentoring, product strategy, fundraising"
-                      />
-                    </div>
-                    <div>
-                      <Label>Skills I Need (comma-separated)</Label>
-                      <Input
-                        value={formatTagsDisplay(editedProfile.need_tags)}
-                        onChange={(e) => setEditedProfile(prev => ({ ...prev, need_tags: parseTagsInput(e.target.value) }))}
-                        placeholder="e.g., marketing, sales, hiring"
-                      />
-                    </div>
-                    <div>
-                      <Label>Industries (comma-separated)</Label>
-                      <Input
-                        value={formatTagsDisplay(editedProfile.industry_tags)}
-                        onChange={(e) => setEditedProfile(prev => ({ ...prev, industry_tags: parseTagsInput(e.target.value) }))}
-                        placeholder="e.g., SaaS, FinTech, Healthcare"
-                      />
-                    </div>
-                    <div>
-                      <Label>Hobbies & Interests (comma-separated)</Label>
-                      <Input
-                        value={formatTagsDisplay(editedProfile.hobby_tags)}
-                        onChange={(e) => setEditedProfile(prev => ({ ...prev, hobby_tags: parseTagsInput(e.target.value) }))}
-                        placeholder="e.g., hiking, photography, cooking"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Event-specific fields */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Event-Specific Information</h3>
-                  <div className="grid gap-4">
-                    <div>
-                      <Label>Why I'm Attending This Event</Label>
-                      <Textarea
-                        value={editedProfile.why_attending_text}
-                        onChange={(e) => setEditedProfile(prev => ({ ...prev, why_attending_text: e.target.value }))}
-                        placeholder="What brings you to this event?"
-                        rows={3}
-                      />
-                    </div>
-                    <div>
-                      <Label>My Business Needs</Label>
-                      <Textarea
-                        value={editedProfile.business_need_text}
-                        onChange={(e) => setEditedProfile(prev => ({ ...prev, business_need_text: e.target.value }))}
-                        placeholder="What are your current business needs?"
-                        rows={3}
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label>Connection Types I'm Looking For</Label>
-                      <div className="space-y-2 mt-2">
-                        {connectionTypes.map((type) => (
-                          <label key={type.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              checked={editedProfile.connection_types_selected.includes(type.id)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setEditedProfile(prev => ({
-                                    ...prev,
-                                    connection_types_selected: [...prev.connection_types_selected, type.id]
-                                  }))
-                                } else {
-                                  setEditedProfile(prev => ({
-                                    ...prev,
-                                    connection_types_selected: prev.connection_types_selected.filter(t => t !== type.id)
-                                  }))
-                                }
-                              }}
-                            />
-                            <span className="text-sm">{type.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label>Event-Specific Offers (comma-separated)</Label>
-                      <Input
-                        value={formatTagsDisplay(editedProfile.event_offer_tags)}
-                        onChange={(e) => setEditedProfile(prev => ({ ...prev, event_offer_tags: parseTagsInput(e.target.value) }))}
-                        placeholder="Skills you can offer at this event"
-                      />
-                    </div>
-                    <div>
-                      <Label>Event-Specific Needs (comma-separated)</Label>
-                      <Input
-                        value={formatTagsDisplay(editedProfile.event_need_tags)}
-                        onChange={(e) => setEditedProfile(prev => ({ ...prev, event_need_tags: parseTagsInput(e.target.value) }))}
-                        placeholder="What you need at this event"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Save button */}
-                <div className="flex gap-4 pt-4">
-                  <GradientButton
-                    onClick={handleSaveProfile}
-                    disabled={isSaving}
-                    className="flex-1"
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Saving...
-                      </>
-                    ) : (
-                      "Save Changes"
-                    )}
-                  </GradientButton>
-                  <GradientButton
-                    onClick={() => setIsEditing(false)}
-                    variant="ghost"
-                    className="flex-1"
-                  >
-                    Cancel
-                  </GradientButton>
-                </div>
-              </CardContent>
-            </Card>
-          )}
           {/* Profile Header */}
           <Card className="bg-card border-border shadow-elevation">
             <CardContent className="p-6">
