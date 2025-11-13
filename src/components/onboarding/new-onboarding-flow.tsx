@@ -2301,6 +2301,22 @@ export function NewOnboardingFlow() {
     }
   }
 
+  // Handle back step - must be defined before eventSteps
+  const handleBack = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1)
+    }
+  }
+
+  // Handle next step - must be defined before eventSteps
+  const handleNext = () => {
+    // Move to next step (validation happens in the component render)
+    setCurrentStep(prev => prev + 1)
+    // Reset chat state when moving to a new step
+    setChatMessages([])
+    setCurrentAnswer("")
+  }
+
   const handleScrollBack = () => {
     if (qaPairs.length > 1) {
       // Save current scroll position before going back
@@ -2542,53 +2558,6 @@ export function NewOnboardingFlow() {
     return true
   }
 
-  // Handle next step
-  const handleNext = () => {
-    if (!currentStepData) return
-    
-    const stepId = currentStepData.id
-    if (stepId === "profile" && !validateForm()) {
-      toast.error("Please complete the required fields")
-      return
-    } else if (stepId === "professional" && !validateProfessionalForm()) {
-      toast.error("Please complete all required fields")
-      return
-    } else if (stepId === "connection-types") {
-      if (connectionTypesSelected.length === 0) {
-        toast.error("Please select at least one connection type")
-        return
-      }
-      // Reset follow-up state when entering follow-ups step
-      setCurrentFollowUpIndex(0)
-      setChatMessages([])
-      setCurrentAnswer("")
-    } else if (stepId === "why-attending") {
-      // For chat-style questions, handleNext is called automatically after sending
-      // This validation is just a safety check
-      if (!whyAttending.trim()) {
-        toast.error("Please tell us why you're attending")
-        return
-      }
-    } else if (stepId === "follow-ups") {
-      // Ensure all follow-up questions are answered
-      const followUpQuestions = connectionTypesSelected
-        .map(typeId => ({ typeId, question: getFollowUpQuestion(typeId) }))
-        .filter(item => item.question)
-      const allAnswered = followUpQuestions.every(item => followUpResponses[item.typeId]?.trim())
-      if (!allAnswered) {
-        toast.error("Please answer all questions before continuing")
-        return
-      }
-    }
-    setCurrentStep(currentStep + 1)
-  }
-
-  // Handle back step
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1)
-    }
-  }
 
   if (!user) {
     return (
