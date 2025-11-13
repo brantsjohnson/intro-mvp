@@ -127,7 +127,7 @@ function UnifiedScrollContainer({
   const currentQuestion = qaPairs.find(qa => qa.id === currentQuestionId)
 
   return (
-    <div className="flex flex-col h-full min-h-[calc(100vh-200px)] relative">
+    <div className="flex flex-col h-full min-h-[calc(100vh-200px)] relative max-w-lg mx-auto w-full">
       {/* Back Button - Top Left */}
       {canGoBack && (
         <button
@@ -160,11 +160,13 @@ function UnifiedScrollContainer({
                   : ''
               }`}
             >
-              {/* Question */}
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Question:</p>
-                <p className="text-lg font-medium text-foreground">{qa.question}</p>
-              </div>
+              {/* Question - Only show if it's answered (not if it's the current unanswered question) */}
+              {qa.answer && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Question:</p>
+                  <p className="text-lg font-medium text-foreground">{qa.question}</p>
+                </div>
+              )}
 
               {/* Answer or Checkbox Selection */}
               {qa.answer && (
@@ -195,8 +197,8 @@ function UnifiedScrollContainer({
           )
         })}
 
-        {/* Current Question - Rising from bottom with enhanced animation */}
-        {currentQuestion && !currentQuestion.answer && (
+        {/* Current Question - Rising from bottom with enhanced animation (only if not already in qaPairs) */}
+        {currentQuestion && !currentQuestion.answer && !qaPairs.some(qa => qa.id === currentQuestionId) && (
           <div className="space-y-3 animate-in fade-in slide-in-from-bottom-8 duration-1000">
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Question:</p>
@@ -229,7 +231,7 @@ function UnifiedScrollContainer({
       </div>
 
       {/* Input Area - Fixed at bottom with transform animation */}
-      <div className="pt-4 pb-4 px-4 flex-shrink-0 border-t border-border bg-card">
+      <div className="pt-4 pb-4 px-4 flex-shrink-0 border-t border-border bg-card mt-auto">
         {currentQuestion && !currentQuestion.answer && !showContinueButton ? (
           currentQuestion.type === 'checkbox' ? (
             // For checkbox questions, show Continue button when at least one is selected
@@ -849,6 +851,11 @@ export function NewOnboardingFlow() {
         return newResponses
       })
     }
+  }
+
+  // Handle connection types checkbox change for scroll container
+  const handleConnectionTypesCheckboxChange = (id: string, checked: boolean) => {
+    handleConnectionTypeChange(id, checked)
   }
 
   const handleJoinEvent = async (eventCode: string) => {
@@ -2511,8 +2518,8 @@ export function NewOnboardingFlow() {
       )}
 
       {/* Main Content Area - Centered with max 512px */}
-      <div className={`flex-1 flex ${currentStepData?.id === "why-attending" || currentStepData?.id === "follow-ups" ? 'items-stretch' : 'items-center justify-center'} px-6 ${currentStep === 0 ? '' : 'md:items-center items-start pt-8 md:pt-0'} ${currentStepData?.id === "why-attending" || currentStepData?.id === "follow-ups" ? 'pb-0' : 'pb-48'}`}>
-        <div className={`w-full max-w-lg transition-all duration-300 animate-fade-up ${currentStepData?.id === "why-attending" || currentStepData?.id === "follow-ups" ? 'h-full flex flex-col' : ''}`}>
+      <div className={`flex-1 flex items-center justify-center px-6 ${currentStep === 0 ? '' : 'md:items-center items-start pt-8 md:pt-0'} ${currentQuestionId ? 'pb-0' : 'pb-48'}`}>
+        <div className={`w-full max-w-lg transition-all duration-300 animate-fade-up ${currentQuestionId ? 'h-full flex flex-col' : ''}`}>
           {/* Adaptive Q&A Content */}
           {showAdaptiveQnA ? (
             <div className="space-y-6">
