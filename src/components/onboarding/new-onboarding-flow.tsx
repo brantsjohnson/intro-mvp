@@ -150,11 +150,10 @@ function ChatFollowUpQuestions({
         {chatMessages.map((message, index) => (
           <div
             key={message.id}
-            className={`flex ${message.type === 'question' ? 'justify-start' : 'justify-end'} animate-in slide-in-from-bottom-4 duration-500`}
-            style={{ animationDelay: `${index * 100}ms` }}
+            className={`flex ${message.type === 'question' ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-4 duration-700`}
           >
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+              className={`max-w-[85%] rounded-2xl px-4 py-3 transition-all ${
                 message.type === 'question'
                   ? 'bg-muted text-foreground'
                   : 'bg-primary text-white'
@@ -165,9 +164,9 @@ function ChatFollowUpQuestions({
           </div>
         ))}
         
-        {/* Current question (if not yet added to messages) */}
+        {/* Current question (if not yet added to messages) - slides in from bottom */}
         {currentQuestion && !chatMessages.some(m => m.text === currentQuestion.question && m.type === 'question') && (
-          <div className="flex justify-start animate-in slide-in-from-bottom-4 duration-500">
+          <div className="flex justify-start animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-muted text-foreground">
               <p className="text-sm">{currentQuestion.question}</p>
             </div>
