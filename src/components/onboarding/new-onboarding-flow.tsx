@@ -326,7 +326,7 @@ export function NewOnboardingFlow() {
         return "What industries have you worked in or topics you know about?"
       case "business-opportunities":
       case "biz_opps":
-        return "What opportunities are you looking for?"
+        return "What types of business opportunities are you looking for?"
       case "general":
         return "What are your hobbies or interests?"
       case "other":
