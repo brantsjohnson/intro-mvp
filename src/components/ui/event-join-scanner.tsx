@@ -271,29 +271,31 @@ export function EventJoinScanner({
           ))}
         </div>
         
-        <GradientButton 
-          type="submit"
-          disabled={!isCodeComplete || isLoading}
-          className="w-full max-w-xs mx-auto rounded-full py-3 text-base font-medium"
-        >
-          {isLoading ? (
-            "Joining..."
-          ) : (
-            <>
-              Join Event
-              <ArrowRight className="h-5 w-5 ml-2" />
-            </>
-          )}
-        </GradientButton>
+        <div className="flex justify-center">
+          <GradientButton 
+            type="submit"
+            disabled={!isCodeComplete || isLoading}
+            className="max-w-xs rounded-full py-3 text-base font-medium"
+          >
+            {isLoading ? (
+              "Joining..."
+            ) : (
+              <>
+                Join Event
+                <ArrowRight className="h-5 w-5 ml-2" />
+              </>
+            )}
+          </GradientButton>
+        </div>
       </form>
 
       {/* Divider with OR */}
       <div className="relative">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-border"></div>
+          <div className="w-full border-t-2 border-border"></div>
         </div>
-        <div className="relative flex justify-center text-sm">
-          <span className="bg-background px-3 text-foreground">OR</span>
+        <div className="relative flex justify-center">
+          <span className="bg-background px-4 text-foreground text-3xl font-semibold">OR</span>
         </div>
       </div>
 
