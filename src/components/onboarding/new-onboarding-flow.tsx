@@ -148,6 +148,7 @@ function UnifiedScrollContainer({
         {qaPairs.map((qa, index) => {
           const isLastAnswered = index === qaPairs.length - 1 && qa.answer
           const isScrollingUp = isLastAnswered && showContinueButton
+          const isCurrentUnanswered = qa.id === currentQuestionId && !qa.answer
           
           return (
             <div
@@ -157,11 +158,13 @@ function UnifiedScrollContainer({
                   ? 'transform translate-y-[-100px] opacity-50' 
                   : isLastAnswered
                   ? 'animate-in fade-in slide-in-from-bottom-4 duration-700'
+                  : isCurrentUnanswered
+                  ? 'animate-in fade-in slide-in-from-bottom-8 duration-1000'
                   : ''
               }`}
             >
-              {/* Question - Only show if it's answered (not if it's the current unanswered question) */}
-              {qa.answer && (
+              {/* Question - Show if answered OR if it's the current unanswered question */}
+              {(qa.answer || isCurrentUnanswered) && (
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground">Question:</p>
                   <p className="text-lg font-medium text-foreground">{qa.question}</p>
@@ -181,17 +184,45 @@ function UnifiedScrollContainer({
                 </div>
               )}
 
-              {qa.type === 'checkbox' && qa.checkboxSelected && qa.checkboxSelected.length > 0 && (
-                <div className="mt-2 space-y-2">
-                  {qa.checkboxSelected.map((selectedId) => {
-                    const option = qa.checkboxOptions?.find(opt => opt.id === selectedId)
-                    return option ? (
-                      <div key={selectedId} className="max-w-[85%] rounded-2xl px-4 py-2 bg-primary/20 text-primary border border-primary/30">
-                        <p className="text-sm">{option.label}</p>
-                      </div>
-                    ) : null
-                  })}
+              {/* Checkbox options for current unanswered checkbox question */}
+              {isCurrentUnanswered && qa.type === 'checkbox' && checkboxOptions && (
+                <div className="mt-4 space-y-2">
+                  {checkboxOptions.map((option) => (
+                    <div key={option.id} className="flex items-center space-x-3 rounded-xl p-3 transition-colors hover:bg-muted/50">
+                      <Checkbox
+                        id={`scroll-checkbox-${option.id}`}
+                        checked={checkboxSelected?.includes(option.id) || false}
+                        onCheckedChange={(checked) => onCheckboxChange?.(option.id, checked as boolean)}
+                        className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                      />
+                      <label
+                        htmlFor={`scroll-checkbox-${option.id}`}
+                        className="text-sm font-medium cursor-pointer flex-1"
+                      >
+                        {option.label}
+                      </label>
+                    </div>
+                  ))}
                 </div>
+              )}
+
+              {qa.type === 'checkbox' && qa.checkboxSelected && qa.checkboxSelected.length > 0 && !isCurrentUnanswered && (
+                <>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Question:</p>
+                    <p className="text-lg font-medium text-foreground">{qa.question}</p>
+                  </div>
+                  <div className="mt-2 space-y-2">
+                    {qa.checkboxSelected.map((selectedId) => {
+                      const option = qa.checkboxOptions?.find(opt => opt.id === selectedId)
+                      return option ? (
+                        <div key={selectedId} className="max-w-[85%] rounded-2xl px-4 py-2 bg-primary/20 text-primary border border-primary/30">
+                          <p className="text-sm">{option.label}</p>
+                        </div>
+                      ) : null
+                    })}
+                  </div>
+                </>
               )}
             </div>
           )
@@ -232,7 +263,7 @@ function UnifiedScrollContainer({
 
       {/* Input Area - Fixed at bottom with transform animation */}
       <div className="pt-4 pb-4 px-4 flex-shrink-0 border-t border-border bg-card mt-auto">
-        {currentQuestion && !currentQuestion.answer && !showContinueButton ? (
+        {currentQuestionId && currentQuestion && !currentQuestion.answer && !showContinueButton ? (
           currentQuestion.type === 'checkbox' ? (
             // For checkbox questions, show Continue button when at least one is selected
             <GradientButton
