@@ -1517,7 +1517,8 @@ export function NewOnboardingFlow() {
   }, [visibleSteps.length, currentStep])
 
   // Show adaptive Q&A if we have a current question or are loading one
-  const showAdaptiveQnA = currentAdaptiveQuestion || isLoadingQuestion || adaptiveQnAComplete
+  // DISABLED: Adaptive Q&A is dormant for now
+  const showAdaptiveQnA = false // currentAdaptiveQuestion || isLoadingQuestion || adaptiveQnAComplete
 
   // Calculate progress percentage
   const getProgressPercentage = () => {
