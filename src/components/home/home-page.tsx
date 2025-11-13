@@ -980,6 +980,7 @@ export function HomePage() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
+        setIsJoiningEvent(false)
         toast.error("Please sign in first")
         return
       }
@@ -993,11 +994,13 @@ export function HomePage() {
 
       if (eventError) {
         console.error("Event query error:", eventError)
+        setIsJoiningEvent(false)
         toast.error("Failed to check event. Please try again.")
         return
       }
 
       if (!event) {
+        setIsJoiningEvent(false)
         toast.error("Event not found or inactive")
         return
       }
@@ -1012,11 +1015,13 @@ export function HomePage() {
 
       if (memberCheckError) {
         console.error("Error checking membership:", memberCheckError)
+        setIsJoiningEvent(false)
         toast.error("Failed to check membership. Please try again.")
         return
       }
 
       if (existingMember) {
+        setIsJoiningEvent(false)
         toast.error("You're already a member of this event")
         return
       }
