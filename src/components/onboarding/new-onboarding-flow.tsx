@@ -10,17 +10,201 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { createClientComponentClient } from "@/lib/supabase"
 import { User } from "@/lib/types"
 import { toast } from "sonner"
-import { ArrowRight, ChevronLeft, Loader2, Camera, X, Upload } from "lucide-react"
+import { ArrowRight, ChevronLeft, Loader2, Camera, X, Upload, Send } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ImageCropModal } from "@/components/ui/image-crop-modal"
 import { CameraCapture } from "@/components/ui/camera-capture"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 
 interface OnboardingStep {
   id: string
   title: string
   description: string
   component: React.ReactNode
+}
+
+interface ChatFollowUpQuestionsProps {
+  connectionTypesSelected: string[]
+  followUpResponses: Record<string, string>
+  setFollowUpResponses: (updater: (prev: Record<string, string>) => Record<string, string>) => void
+  getFollowUpQuestion: (typeId: string) => string
+  currentFollowUpIndex: number
+  setCurrentFollowUpIndex: (index: number) => void
+  chatMessages: Array<{ type: 'question' | 'answer', text: string, id: string }>
+  setChatMessages: (messages: Array<{ type: 'question' | 'answer', text: string, id: string }>) => void
+  currentAnswer: string
+  setCurrentAnswer: (answer: string) => void
+  followUpInputRef: React.RefObject<HTMLTextAreaElement>
+  chatContainerRef: React.RefObject<HTMLDivElement>
+}
+
+function ChatFollowUpQuestions({
+  connectionTypesSelected,
+  followUpResponses,
+  setFollowUpResponses,
+  getFollowUpQuestion,
+  currentFollowUpIndex,
+  setCurrentFollowUpIndex,
+  chatMessages,
+  setChatMessages,
+  currentAnswer,
+  setCurrentAnswer,
+  followUpInputRef,
+  chatContainerRef
+}: ChatFollowUpQuestionsProps) {
+  // Get questions that need answers
+  const followUpQuestions = connectionTypesSelected
+    .map(typeId => ({
+      typeId,
+      question: getFollowUpQuestion(typeId)
+    }))
+    .filter(item => item.question)
+
+  const currentQuestion = followUpQuestions[currentFollowUpIndex]
+  const isLastQuestion = currentFollowUpIndex >= followUpQuestions.length - 1
+
+  // Initialize chat messages when component mounts or questions change
+  useEffect(() => {
+    if (followUpQuestions.length > 0 && chatMessages.length === 0 && currentFollowUpIndex === 0) {
+      // Add first question
+      setChatMessages([{
+        type: 'question',
+        text: followUpQuestions[0].question,
+        id: `q-${Date.now()}`
+      }])
+      // Auto-focus input after a short delay to trigger mobile keyboard
+      setTimeout(() => {
+        followUpInputRef.current?.focus()
+      }, 300)
+    }
+  }, [followUpQuestions.length])
+
+  // Scroll to bottom when new messages are added
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    }
+  }, [chatMessages, currentAnswer])
+
+  const handleSendAnswer = () => {
+    if (!currentAnswer.trim() || !currentQuestion) return
+
+    // Save the answer
+    setFollowUpResponses(prev => ({
+      ...prev,
+      [currentQuestion.typeId]: currentAnswer.trim()
+    }))
+
+    // Add answer to chat
+    const answerId = `a-${Date.now()}`
+    setChatMessages(prev => [...prev, {
+      type: 'answer',
+      text: currentAnswer.trim(),
+      id: answerId
+    }])
+
+    // Clear input
+    setCurrentAnswer("")
+
+    // Move to next question after a short delay
+    if (!isLastQuestion) {
+      setTimeout(() => {
+        const nextIndex = currentFollowUpIndex + 1
+        setCurrentFollowUpIndex(nextIndex)
+        const nextQuestion = followUpQuestions[nextIndex]
+        if (nextQuestion) {
+          setChatMessages(prev => [...prev, {
+            type: 'question',
+            text: nextQuestion.question,
+            id: `q-${Date.now()}`
+          }])
+          // Auto-focus input for next question
+          setTimeout(() => {
+            followUpInputRef.current?.focus()
+          }, 100)
+        }
+      }, 500) // Delay to show answer animation
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendAnswer()
+    }
+  }
+
+  if (followUpQuestions.length === 0) {
+    return <div className="text-center text-muted-foreground py-8">No follow-up questions needed.</div>
+  }
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-200px)] max-h-[600px]">
+      {/* Chat Messages Container */}
+      <div 
+        ref={chatContainerRef}
+        className="flex-1 overflow-y-auto space-y-4 pb-4 px-1"
+        style={{ scrollBehavior: 'smooth' }}
+      >
+        {chatMessages.map((message, index) => (
+          <div
+            key={message.id}
+            className={`flex ${message.type === 'question' ? 'justify-start' : 'justify-end'} animate-in slide-in-from-bottom-4 duration-500`}
+            style={{ animationDelay: `${index * 100}ms` }}
+          >
+            <div
+              className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                message.type === 'question'
+                  ? 'bg-muted text-foreground'
+                  : 'bg-primary text-white'
+              }`}
+            >
+              <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+            </div>
+          </div>
+        ))}
+        
+        {/* Current question (if not yet added to messages) */}
+        {currentQuestion && !chatMessages.some(m => m.text === currentQuestion.question && m.type === 'question') && (
+          <div className="flex justify-start animate-in slide-in-from-bottom-4 duration-500">
+            <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-muted text-foreground">
+              <p className="text-sm">{currentQuestion.question}</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Input Area */}
+      <div className="border-t border-border pt-4 mt-auto">
+        <div className="flex gap-2 items-end">
+          <Textarea
+            ref={followUpInputRef}
+            value={currentAnswer}
+            onChange={(e) => setCurrentAnswer(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder={currentQuestion?.question || "Type your answer..."}
+            className="flex-1 rounded-xl min-h-[44px] max-h-[120px] resize-none bg-muted/40"
+            rows={1}
+            autoFocus
+          />
+          <Button
+            onClick={handleSendAnswer}
+            disabled={!currentAnswer.trim() || !currentQuestion}
+            size="icon"
+            className="h-11 w-11 rounded-xl shrink-0"
+          >
+            <Send className="h-5 w-5" />
+          </Button>
+        </div>
+        {isLastQuestion && followUpResponses[currentQuestion?.typeId || ''] && (
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            All questions answered! Click continue to proceed.
+          </p>
+        )}
+      </div>
+    </div>
+  )
 }
 
 // Connection type options
@@ -86,6 +270,11 @@ export function NewOnboardingFlow() {
   const [whyAttending, setWhyAttending] = useState("")
   const [connectionTypesSelected, setConnectionTypesSelected] = useState<string[]>([])
   const [followUpResponses, setFollowUpResponses] = useState<Record<string, string>>({})
+  const [currentFollowUpIndex, setCurrentFollowUpIndex] = useState(0)
+  const [chatMessages, setChatMessages] = useState<Array<{ type: 'question' | 'answer', text: string, id: string }>>([])
+  const [currentAnswer, setCurrentAnswer] = useState("")
+  const followUpInputRef = useRef<HTMLTextAreaElement>(null)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
   const [businessNeed, setBusinessNeed] = useState("")
   
   // Adaptive Q&A state
@@ -1455,30 +1644,20 @@ export function NewOnboardingFlow() {
       title: "Tell us more",
       description: "Help us find the right connections",
       component: (
-        <div className="space-y-4">
-          {connectionTypesSelected.map((typeId) => {
-            const question = getFollowUpQuestion(typeId)
-            if (!question) return null
-            
-            return (
-              <div key={typeId}>
-                <Label className="text-sm font-medium text-foreground mb-2 block">
-                  {question}
-                </Label>
-                <Textarea
-                  value={followUpResponses[typeId] || ""}
-                  onChange={(e) => setFollowUpResponses(prev => ({
-                    ...prev,
-                    [typeId]: e.target.value
-                  }))}
-                  placeholder={question}
-                  className="rounded-xl min-h-[100px]"
-                  rows={4}
-                />
-              </div>
-            )
-          })}
-        </div>
+        <ChatFollowUpQuestions
+          connectionTypesSelected={connectionTypesSelected}
+          followUpResponses={followUpResponses}
+          setFollowUpResponses={setFollowUpResponses}
+          getFollowUpQuestion={getFollowUpQuestion}
+          currentFollowUpIndex={currentFollowUpIndex}
+          setCurrentFollowUpIndex={setCurrentFollowUpIndex}
+          chatMessages={chatMessages}
+          setChatMessages={setChatMessages}
+          currentAnswer={currentAnswer}
+          setCurrentAnswer={setCurrentAnswer}
+          followUpInputRef={followUpInputRef}
+          chatContainerRef={chatContainerRef}
+        />
       )
     },
     ...(shouldShowBusinessNeed() ? [{
@@ -1525,6 +1704,13 @@ export function NewOnboardingFlow() {
     if (currentStepData.id === "professional") return jobTitle && company && yearsExperience && areasOfExpertise.length > 0
     if (currentStepData.id === "connection-types") return connectionTypesSelected.length > 0
     if (currentStepData.id === "why-attending") return whyAttending.trim().length > 0
+    if (currentStepData.id === "follow-ups") {
+      // Check if all follow-up questions have been answered
+      const followUpQuestions = connectionTypesSelected
+        .map(typeId => ({ typeId, question: getFollowUpQuestion(typeId) }))
+        .filter(item => item.question)
+      return followUpQuestions.every(item => followUpResponses[item.typeId]?.trim())
+    }
     return true
   }
 
@@ -1542,6 +1728,20 @@ export function NewOnboardingFlow() {
     } else if (stepId === "connection-types") {
       if (connectionTypesSelected.length === 0) {
         toast.error("Please select at least one connection type")
+        return
+      }
+      // Reset follow-up state when entering follow-ups step
+      setCurrentFollowUpIndex(0)
+      setChatMessages([])
+      setCurrentAnswer("")
+    } else if (stepId === "follow-ups") {
+      // Ensure all follow-up questions are answered
+      const followUpQuestions = connectionTypesSelected
+        .map(typeId => ({ typeId, question: getFollowUpQuestion(typeId) }))
+        .filter(item => item.question)
+      const allAnswered = followUpQuestions.every(item => followUpResponses[item.typeId]?.trim())
+      if (!allAnswered) {
+        toast.error("Please answer all questions before continuing")
         return
       }
     }
