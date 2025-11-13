@@ -1472,14 +1472,14 @@ export function NewOnboardingFlow() {
     ...followUpSteps,
     ...(shouldShowBusinessNeed() ? [{
       id: "business-need",
-      title: "Business Need",
-      description: "What is your business looking for?",
+      title: "What is something your business is in need of right now?",
+      description: "",
       component: (
         <div className="space-y-4">
           <Textarea
             value={businessNeed}
             onChange={(e) => setBusinessNeed(e.target.value)}
-            placeholder="What is something your business is in need of right now?"
+            placeholder="Type your answer here..."
             className="rounded-xl min-h-[120px]"
             rows={5}
           />
@@ -1757,15 +1757,6 @@ export function NewOnboardingFlow() {
               )}
             </GradientButton>
           </div>
-          
-          {/* Footer */}
-          {currentStep >= 3 && (
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">
-                Service provided by <a href="https://www.linkedin.com/company/intro-event" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">INTRO</a>
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>
