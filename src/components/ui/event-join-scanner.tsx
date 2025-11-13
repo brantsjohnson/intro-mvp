@@ -1,5 +1,4 @@
 import * as React from "react"
-import { Input } from "@/components/ui/input"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { Camera, ArrowRight, X } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -19,7 +18,7 @@ export function EventJoinScanner({
   isLoading = false,
   className 
 }: EventJoinScannerProps) {
-  const [eventCode, setEventCode] = React.useState("")
+  const [eventCode, setEventCode] = React.useState<string[]>(["", "", "", "", "", ""])
   const [isScanning, setIsScanning] = React.useState(false)
   const [scanError, setScanError] = React.useState<string | null>(null)
   const [isProcessing, setIsProcessing] = React.useState(false)
@@ -29,18 +28,69 @@ export function EventJoinScanner({
   const eventQRService = React.useRef(new EventQRCodeService())
   const lastScanTime = React.useRef<number>(0)
   const scanCooldown = 1000 // 1 second cooldown between scans
+  const inputRefs = React.useRef<(HTMLInputElement | null)[]>([])
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (eventCode.trim().length === 6) {
-      onJoinEvent(eventCode.trim().toUpperCase())
+  const handleDigitChange = (index: number, value: string) => {
+    // Only allow alphanumeric characters
+    const sanitized = value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+    if (sanitized.length > 1) {
+      // If pasting multiple characters, distribute them
+      const chars = sanitized.split('').slice(0, 6)
+      const newCode = [...eventCode]
+      chars.forEach((char, i) => {
+        if (index + i < 6) {
+          newCode[index + i] = char
+        }
+      })
+      setEventCode(newCode)
+      // Focus the next empty input or the last one
+      const nextIndex = Math.min(index + chars.length, 5)
+      inputRefs.current[nextIndex]?.focus()
+    } else {
+      const newCode = [...eventCode]
+      newCode[index] = sanitized
+      setEventCode(newCode)
+      
+      // Auto-focus next input
+      if (sanitized && index < 5) {
+        inputRefs.current[index + 1]?.focus()
+      }
     }
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
-    if (value.length <= 6) {
-      setEventCode(value)
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !eventCode[index] && index > 0) {
+      // Move to previous input on backspace if current is empty
+      inputRefs.current[index - 1]?.focus()
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      inputRefs.current[index - 1]?.focus()
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      inputRefs.current[index + 1]?.focus()
+    }
+  }
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault()
+    const pasted = e.clipboardData.getData('text').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)
+    const newCode = [...eventCode]
+    pasted.split('').forEach((char, i) => {
+      if (i < 6) {
+        newCode[i] = char
+      }
+    })
+    setEventCode(newCode)
+    // Focus the last filled input or the last one
+    const lastFilledIndex = Math.min(pasted.length - 1, 5)
+    inputRefs.current[lastFilledIndex]?.focus()
+  }
+
+  const fullEventCode = eventCode.join('')
+  const isCodeComplete = fullEventCode.length === 6
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (isCodeComplete) {
+      onJoinEvent(fullEventCode)
     }
   }
 
@@ -49,9 +99,6 @@ export function EventJoinScanner({
       setScanError(null)
       setIsScanning(true)
       console.log('Starting QR scanner...')
-      
-      // The actual scanning logic is handled in the useEffect hook
-      // This function just sets the state to trigger the scanning
     } catch (error) {
       console.error('Error starting QR scanner:', error)
       setScanError('Failed to start camera. Please check permissions.')
@@ -187,15 +234,74 @@ export function EventJoinScanner({
       didCancel = true
       stopScanning()
     }
-  }, [isScanning])
+  }, [isScanning, onJoinEvent])
 
   return (
     <div className={cn("space-y-6", className)}>
-      {/* QR Scanner Option */}
-      <div className="text-center space-y-4">
+      {/* Title and Subtitle */}
+      <div className="text-center space-y-2">
+        <h2 className="text-2xl font-semibold text-foreground">Join an Event</h2>
+        <p className="text-sm text-muted-foreground">Let us analyse who you should meet while you're here.</p>
+      </div>
+
+      {/* 6-Digit Code Input */}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex justify-center gap-2">
+          {eventCode.map((digit, index) => (
+            <input
+              key={index}
+              ref={(el) => {
+                inputRefs.current[index] = el
+              }}
+              type="text"
+              inputMode="text"
+              maxLength={1}
+              value={digit}
+              onChange={(e) => handleDigitChange(index, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(index, e)}
+              onPaste={handlePaste}
+              className={cn(
+                "w-12 h-14 text-center text-xl font-semibold rounded-lg border-2 bg-muted/40 text-foreground",
+                "focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                "transition-all",
+                digit ? "border-primary" : "border-border"
+              )}
+              disabled={isLoading}
+            />
+          ))}
+        </div>
+        
+        <GradientButton 
+          type="submit"
+          disabled={!isCodeComplete || isLoading}
+          className="w-full max-w-xs mx-auto rounded-full py-3 text-base font-medium"
+        >
+          {isLoading ? (
+            "Joining..."
+          ) : (
+            <>
+              Join Event
+              <ArrowRight className="h-5 w-5 ml-2" />
+            </>
+          )}
+        </GradientButton>
+      </form>
+
+      {/* Divider with OR */}
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-border"></div>
+        </div>
+        <div className="relative flex justify-center text-sm">
+          <span className="bg-background px-3 text-muted-foreground">OR</span>
+        </div>
+      </div>
+
+      {/* QR Scanner Box */}
+      <div className="space-y-3">
         {isScanning ? (
           <div className="space-y-3">
-            <div className="relative w-64 h-64 bg-black rounded-2xl mx-auto overflow-hidden">
+            <div className="relative w-full aspect-square max-w-sm mx-auto bg-black rounded-2xl overflow-hidden">
               <video
                 ref={videoRef}
                 className="w-full h-full object-cover"
@@ -212,7 +318,7 @@ export function EventJoinScanner({
                 </div>
               </div>
             </div>
-            <p className="text-muted-foreground text-sm">Position the QR code within the frame</p>
+            <p className="text-muted-foreground text-sm text-center">Position the QR code within the frame</p>
             {isProcessing && (
               <div className="flex items-center justify-center space-x-2 text-primary">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
@@ -220,12 +326,12 @@ export function EventJoinScanner({
               </div>
             )}
             {scanError && (
-              <p className="text-destructive text-sm">{scanError}</p>
+              <p className="text-destructive text-sm text-center">{scanError}</p>
             )}
             <GradientButton 
               onClick={stopScanning}
               variant="outline"
-              className="w-full rounded-full py-3 text-base font-medium"
+              className="w-full max-w-xs mx-auto rounded-full py-3 text-base font-medium"
             >
               <X className="h-5 w-5 mr-2" />
               Stop Scanning
@@ -233,67 +339,19 @@ export function EventJoinScanner({
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="w-24 h-24 bg-muted/50 rounded-2xl mx-auto flex items-center justify-center">
-              <div className="w-16 h-16 bg-muted-foreground/20 rounded-xl flex items-center justify-center">
-                <div className="w-12 h-12 bg-muted-foreground/30 rounded-lg"></div>
-              </div>
+            <div className="relative w-full aspect-square max-w-sm mx-auto bg-muted/30 rounded-2xl flex items-center justify-center border-2 border-border">
+              <GradientButton 
+                onClick={startScanning}
+                disabled={isLoading}
+                className="rounded-full py-3 px-6 text-base font-medium"
+              >
+                <Camera className="h-5 w-5 mr-2" />
+                Scan QR Code
+              </GradientButton>
             </div>
-            
-            <GradientButton 
-              onClick={startScanning}
-              disabled={isLoading}
-              className="w-full rounded-full py-3 text-base font-medium"
-            >
-              <Camera className="h-5 w-5 mr-2" />
-              Scan QR Code
-            </GradientButton>
           </div>
         )}
       </div>
-
-      {/* Divider */}
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-border"></div>
-        </div>
-        <div className="relative flex justify-center text-sm">
-          <span className="bg-card px-3 text-muted-foreground">OR</span>
-        </div>
-      </div>
-
-      {/* Manual Code Input */}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="event-code" className="block text-sm font-medium text-foreground mb-2">
-            Enter 6-character event code
-          </label>
-          <Input
-            id="event-code"
-            type="text"
-            value={eventCode}
-            onChange={handleInputChange}
-            placeholder="ABC123"
-            maxLength={6}
-            className="text-center text-lg font-mono tracking-wider"
-            disabled={isLoading}
-          />
-        </div>
-        
-        <GradientButton 
-          type="submit"
-          disabled={eventCode.length !== 6 || isLoading}
-          className="w-full rounded-full py-3 text-base font-medium"
-        >
-          {isLoading ? (
-            "Joining..."
-          ) : (
-            <>
-              Join Event
-              <ArrowRight className="h-5 w-5 ml-2" />
-            </>
-          )}
-        </GradientButton>
-      </form>
     </div>
   )
 }

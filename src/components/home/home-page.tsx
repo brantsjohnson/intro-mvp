@@ -1155,18 +1155,13 @@ export function HomePage() {
 
           {/* JOIN EVENT Section - Show when no event is selected */}
           {!currentEvent && (
-            <Card className="bg-card border-border shadow-elevation">
-              <CardHeader className="text-center">
-                <CardTitle className="text-xl">JOIN AN EVENT</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <EventJoinScanner
-                  onJoinEvent={handleJoinEvent}
-                  onScanQR={() => {}} // QR scanning is handled internally by EventJoinScanner
-                  isLoading={isJoiningEvent}
-                />
-              </CardContent>
-            </Card>
+            <div className="max-w-md mx-auto">
+              <EventJoinScanner
+                onJoinEvent={handleJoinEvent}
+                onScanQR={() => {}} // QR scanning is handled internally by EventJoinScanner
+                isLoading={isJoiningEvent}
+              />
+            </div>
           )}
 
           {/* Event Title and Presence Section */}
@@ -1504,104 +1499,6 @@ export function HomePage() {
               </Card>
             )}
 
-            {/* If no current event, show home dashboard */}
-        {!currentEvent && (
-          <div className="space-y-4">
-            {/* Welcome Section */}
-            <Card className="bg-card border-border shadow-elevation">
-              <CardContent className="p-6 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                  <Users className="h-8 w-8 text-primary" />
-                </div>
-                <h2 className="text-xl font-semibold text-foreground mb-2">
-                  Welcome back, {profile.first_name}!
-                </h2>
-                <p className="text-muted-foreground mb-4">
-                  Ready to network? Join an event to start connecting with amazing people.
-                </p>
-                <GradientButton 
-                  onClick={() => router.push('/event/join')}
-                  className="px-6 py-3"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Join an Event
-                </GradientButton>
-              </CardContent>
-            </Card>
-
-            {/* Quick Actions */}
-            <Card className="bg-card border-border shadow-elevation">
-              <CardHeader>
-                <CardTitle className="text-lg">Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <button
-                  onClick={() => router.push('/settings')}
-                  className="w-full flex items-center justify-between p-4 rounded-lg border border-border hover:bg-card/50 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                      <UserPlus className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="text-left">
-                      <h3 className="font-medium text-foreground">Profile Settings</h3>
-                      <p className="text-sm text-muted-foreground">Update your profile and preferences</p>
-                    </div>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                </button>
-
-                <button
-                  onClick={() => router.push('/messages')}
-                  className="w-full flex items-center justify-between p-4 rounded-lg border border-border hover:bg-card/50 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                      <MessageSquare className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="text-left">
-                      <h3 className="font-medium text-foreground">Messages</h3>
-                      <p className="text-sm text-muted-foreground">View your conversations</p>
-                    </div>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                </button>
-
-                <button
-                  onClick={() => router.push('/event/join')}
-                  className="w-full flex items-center justify-between p-4 rounded-lg border border-border hover:bg-card/50 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                      <QrCode className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="text-left">
-                      <h3 className="font-medium text-foreground">Join Event</h3>
-                      <p className="text-sm text-muted-foreground">Scan QR code or enter event code</p>
-                    </div>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                </button>
-
-                <button
-                  onClick={() => router.push('/admin/create-event')}
-                  className="w-full flex items-center justify-between p-4 rounded-lg border border-border hover:bg-card/50 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-                      <Plus className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="text-left">
-                      <h3 className="font-medium text-foreground">Create Event</h3>
-                      <p className="text-sm text-muted-foreground">Create a new event with a unique code</p>
-                    </div>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                </button>
-              </CardContent>
-            </Card>
-          </div>
-        )}
         </div>
       </main>
 
