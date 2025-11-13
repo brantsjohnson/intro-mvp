@@ -154,15 +154,18 @@ function UnifiedScrollContainer({
 
   return (
     <div className="flex flex-col h-full min-h-[calc(100vh-200px)] relative max-w-lg mx-auto w-full">
-      {/* Back Button - Top Left */}
-      {canGoBack && (
-        <button
-          onClick={onBack}
-          className="absolute top-4 left-4 z-10 p-2 rounded-lg hover:bg-muted/50 transition-colors"
-        >
-          <ChevronLeft className="w-6 h-6" />
-        </button>
-      )}
+      {/* Back Button - Top Left - Always visible */}
+      <button
+        onClick={onBack}
+        disabled={!canGoBack}
+        className={`absolute top-4 left-4 z-10 p-2 rounded-lg transition-colors ${
+          canGoBack 
+            ? 'hover:bg-muted/50 cursor-pointer' 
+            : 'opacity-30 cursor-not-allowed'
+        }`}
+      >
+        <ChevronLeft className="w-6 h-6" />
+      </button>
 
       {/* Scroll Container - Holds all Q&A pairs */}
       <div 
