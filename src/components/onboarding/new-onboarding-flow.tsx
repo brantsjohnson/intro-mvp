@@ -1043,7 +1043,7 @@ export function NewOnboardingFlow() {
           connection_types_selected: dbConnectionTypes,
           connection_followups_json: dbFollowUpResponses,
           business_need_text: businessNeed,
-          onboarding_completed: false // Will be set to true after adaptive Q&A
+          onboarding_completed: true // Adaptive Q&A is dormant, mark as complete
         }, { onConflict: 'event_id,user_id' })
         .select()
 
@@ -1084,18 +1084,44 @@ export function NewOnboardingFlow() {
         // Don't block - continue with adaptive Q&A
       }
       
-      // Event questions saved, now start adaptive Q&A
-      toast.success("Saved! Let's continue...")
+      // Adaptive Q&A is dormant for now - skip it and complete onboarding
+      // Event questions saved, mark onboarding as complete and redirect to home
+      console.log('Skipping adaptive Q&A (dormant), completing onboarding')
       
-      // Load first adaptive question, but allow progression if it fails
-      const adaptiveQnASuccess = await loadNextAdaptiveQuestion(undefined, true)
-      
-      // If adaptive Q&A is not available or fails, complete onboarding anyway
-      // The user has already provided all necessary information
-      if (!adaptiveQnASuccess) {
-        console.log('Adaptive Q&A not available, completing onboarding without it')
-        await completeAdaptiveQnA()
+      // Trigger match refresh for the new user (in background)
+      try {
+        await fetch('/api/refresh-matches', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            eventId: eventId, 
+            newUserId: user.id 
+          }),
+        })
+      } catch (error) {
+        console.error('Failed to refresh matches for new user:', error)
+        // Don't show error to user, this is a background process
       }
+
+      // Trigger incremental matching
+      try {
+        await fetch('/api/match-incremental', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ eventId, userId: user.id })
+        })
+      } catch (error) {
+        console.error('Failed to trigger incremental matching:', error)
+        // Don't block - continue anyway
+      }
+
+      toast.success('Profile complete! Redirecting to your event...')
+      setIsRedirecting(true)
+      setTimeout(() => {
+        router.push('/home')
+      }, 1500)
       
     } catch (error: any) {
       console.error("Error completing event onboarding:", {
