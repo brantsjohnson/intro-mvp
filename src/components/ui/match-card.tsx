@@ -80,15 +80,7 @@ export function MatchCard({
               </p>
             </div>
             
-            {/* Match Badge */}
-            <div className="mb-2">
-              <span className={cn(
-                "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border",
-                getMatchBasisColor(matchBases[0])
-              )}>
-                Matches: {formatMatchBases(matchBases)}
-              </span>
-            </div>
+            {/* Match Badge omitted per product feedback */}
             
             {/* Summary - limited to two lines */}
             <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">

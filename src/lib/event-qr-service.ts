@@ -20,7 +20,7 @@ export class EventQRCodeService {
           url = window.location.origin
         } else {
           // Fallback for server-side rendering
-          url = process.env.NEXT_PUBLIC_APP_URL || 'https://intro-au217wail-brant-johnsons-projects.vercel.app'
+          url = process.env.NEXT_PUBLIC_APP_URL || 'https://www.introevent.site'
         }
       }
       const eventUrl = `${url}/event/join?code=${eventCode.toUpperCase()}`

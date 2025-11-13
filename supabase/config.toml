@@ -9,3 +9,8 @@ entrypoint = "./functions/my-function/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/my-function/*.html" ]
+
+[functions.fetch-company-metadata]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/fetch-company-metadata/index.ts"

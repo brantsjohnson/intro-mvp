@@ -4,6 +4,7 @@ import { useState, useEffect, MouseEvent, useCallback, useMemo, useRef } from "r
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GradientButton } from "@/components/ui/gradient-button"
+import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { Button } from "@/components/ui/button"
 import { PresenceAvatar } from "@/components/ui/presence-avatar"
 import { MatchCard } from "@/components/ui/match-card"
@@ -1151,6 +1152,22 @@ export function HomePage() {
 
       <main className="container mx-auto px-4 py-4">
         <div className="max-w-2xl mx-auto space-y-4">
+
+          {/* JOIN EVENT Section - Show when no event is selected */}
+          {!currentEvent && (
+            <Card className="bg-card border-border shadow-elevation">
+              <CardHeader className="text-center">
+                <CardTitle className="text-xl">JOIN AN EVENT</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <EventJoinScanner
+                  onJoinEvent={handleJoinEvent}
+                  onScanQR={() => {}} // QR scanning is handled internally by EventJoinScanner
+                  isLoading={isJoiningEvent}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           {/* Event Title and Presence Section */}
           {currentEvent && (

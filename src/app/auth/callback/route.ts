@@ -23,9 +23,67 @@ export async function GET(request: NextRequest) {
       console.error('OAuth callback error:', exchangeError)
       return NextResponse.redirect(`${origin}/auth?error=oauth_error`)
     }
-    
-    // Profile will be automatically created by the database trigger
-    console.log('OAuth successful, user:', data.user?.id, 'email:', data.user?.email)
+
+    // Upsert latest profile metadata for Google/LinkedIn sign-ins
+    const authUser = data.user
+    if (authUser) {
+      const metadata: Record<string, any> = authUser.user_metadata ?? {}
+      const firstName =
+        metadata.first_name ??
+        metadata.given_name ??
+        (metadata.full_name ? metadata.full_name.split(' ')[0] : undefined)
+      const lastName =
+        metadata.last_name ??
+        metadata.family_name ??
+        (metadata.full_name
+          ? metadata.full_name.split(' ').slice(1).join(' ') || undefined
+          : undefined)
+      const photoUrl = metadata.avatar_url ?? metadata.picture ?? null
+      const linkedinProfile =
+        metadata.profile ??
+        metadata.url ??
+        metadata.public_profile_url ??
+        null
+
+      const upsertPayload: Record<string, any> = {
+        user_id: authUser.id,
+      }
+
+      if (authUser.email) {
+        upsertPayload.email = authUser.email
+      }
+      if (firstName) {
+        upsertPayload.first_name = firstName
+      }
+      if (lastName) {
+        upsertPayload.last_name = lastName
+      }
+      if (photoUrl) {
+        upsertPayload.photo_url = photoUrl
+      }
+      if (linkedinProfile) {
+        upsertPayload.linkedin_raw_json = {
+          profile_url: linkedinProfile,
+          provider: 'linkedin'
+        }
+      }
+
+      try {
+        if (Object.keys(upsertPayload).length > 1) {
+          const { error: upsertError } = await supabase
+            .from('users')
+            .upsert(upsertPayload, { onConflict: 'user_id' })
+
+          if (upsertError) {
+            console.error('Failed to upsert user metadata in callback:', upsertError)
+          }
+        }
+      } catch (metadataError) {
+        console.error('Exception upserting user metadata:', metadataError)
+      }
+    }
+
+    console.log('OAuth successful, user:', authUser?.id, 'email:', authUser?.email)
     console.log('Session established:', !!data.session)
   }
 

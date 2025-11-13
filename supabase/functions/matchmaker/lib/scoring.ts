@@ -1,5 +1,6 @@
 import { CandidateProfile, ScoredCandidate, ViewerProfile, ScoreBreakdown } from "./types.ts"
 import { clamp, cosineSimilarity, jaccard, tokenize } from "./math.ts"
+import { canonicalizeRole, deriveBuyerPersona, isLeadershipTitle, normalizeCompanyInput } from "./personas.ts"
 
 export type CommercialFocus = "clients" | "partners" | "buy" | "cofounder"
 
@@ -686,6 +687,15 @@ export function scoreCandidates(
       : undefined)
 
   return candidates.map((candidate) => {
+    // Canonicalize roles once per candidate and viewer
+    const viewerRole = canonicalizeRole(viewer.jobTitle)
+    const candidateRole = canonicalizeRole(candidate.jobTitle)
+  const viewerTextForSector = [
+      viewer.businessNeed ?? "",
+    normalizeCompanyInput(viewer.company) ?? "",
+      (viewer.needTags ?? []).join(",")
+    ].join(" ")
+    const viewerPersona = deriveBuyerPersona(viewerTextForSector, viewerRole, resolvedViewerIntent ?? "general")
     const candidateFollowUps = candidate.followUps ?? null
     const candidateExtraTexts = [candidate.offerSummary ?? "", candidate.wantSummary ?? ""].filter(Boolean) as string[]
     const candidateConnectionSet = new Set((candidate.connectionTypes ?? []).map(canonicalizeKey))
@@ -721,6 +731,7 @@ export function scoreCandidates(
     const candidateJobTitleTokens = tokenizeLoose(candidate.jobTitle)
     const candidateBusinessNeedLower = (candidateBusinessNeed ?? "").toLowerCase()
     const candidateOfferSummaryLower = (candidate.offerSummary ?? "").toLowerCase()
+    const candidateCompanyLower = normalizeCompanyInput(candidate.company ?? "").toLowerCase()
 
     const needEmbeddingScore = cosineSimilarity(viewer.needEmbedding, candidate.offerEmbedding)
     const needTokenOverlap = overlapTokens(viewer.needTags, candidate.offerTags)
@@ -776,6 +787,9 @@ export function scoreCandidates(
       const shared = findSharedToken(viewerHobbyTokens, candidateHobbyTokens)
       if (shared) meta.sharedHobby = shared
     }
+    meta.viewerRole = viewerRole
+    meta.candidateRole = candidateRole
+    meta.viewerPersona = viewerPersona
 
     const candidateIsRecruiter =
       candidateConnectionSet.has("recruit") ||
@@ -946,6 +960,17 @@ export function scoreCandidates(
 
     if (intentBoost > 0) {
       composite = clamp(composite + intentBoost)
+    }
+
+    // Company targeting bonus for commercial viewers
+    if ((viewerPersona?.target_companies?.length ?? 0) > 0 && candidateCompanyLower) {
+      const setTargets = new Set((viewerPersona!.target_companies ?? []).map((c) => c.toLowerCase()))
+      for (const t of setTargets) {
+        if (t && candidateCompanyLower.includes(t)) {
+          composite = clamp(composite + 0.03)
+          break
+        }
+      }
     }
 
     composite = clamp(composite)

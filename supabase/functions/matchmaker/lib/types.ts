@@ -58,6 +58,9 @@ export interface ScoredCandidate {
     intentFocus?: string
     intentToken?: string
     connectionBoost?: number
+    viewerRole?: { role_function: string; role_seniority: string; confidence: number } | null
+    candidateRole?: { role_function: string; role_seniority: string; confidence: number } | null
+    viewerPersona?: { sector: string; buyer_functions: string[]; leader_required: boolean } | null
   }
 }
 

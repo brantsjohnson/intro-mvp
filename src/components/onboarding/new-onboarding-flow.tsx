@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,8 +10,11 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { createClientComponentClient } from "@/lib/supabase"
 import { User } from "@/lib/types"
 import { toast } from "sonner"
-import { ArrowRight, ChevronLeft, Loader2 } from "lucide-react"
+import { ArrowRight, ChevronLeft, Loader2, Camera, X } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ImageCropModal } from "@/components/ui/image-crop-modal"
+import { CameraCapture } from "@/components/ui/camera-capture"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 
 interface OnboardingStep {
   id: string
@@ -53,6 +56,7 @@ export function NewOnboardingFlow() {
   const [user, setUser] = useState<User | null>(null)
   const [profileCompleted, setProfileCompleted] = useState(false)
   const [profileExists, setProfileExists] = useState(false)
+  const [eventName, setEventName] = useState<string>("")
   
   // Profile data (one-time)
   const [firstName, setFirstName] = useState("")
@@ -60,7 +64,18 @@ export function NewOnboardingFlow() {
   const [jobTitle, setJobTitle] = useState("")
   const [company, setCompany] = useState("")
   const [yearsExperience, setYearsExperience] = useState("")
-  const [areasOfExpertise, setAreasOfExpertise] = useState("")
+  const [areasOfExpertise, setAreasOfExpertise] = useState<string[]>([])
+  const [expertiseInput, setExpertiseInput] = useState("")
+  const [suggestedExpertise, setSuggestedExpertise] = useState<string[]>([])
+  const [companyName, setCompanyName] = useState("")
+  const [isEnrichingCompany, setIsEnrichingCompany] = useState(false)
+  const expertiseInputRef = useRef<HTMLInputElement>(null)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false)
+  const [isCameraOpen, setIsCameraOpen] = useState(false)
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   
   // Event-specific data
   const [whyAttending, setWhyAttending] = useState("")
@@ -89,24 +104,42 @@ export function NewOnboardingFlow() {
       if (user) {
         setUser(user)
         
-        // Pre-fill from Google OAuth
+        // Pre-fill from OAuth (Google/LinkedIn)
         if (user.user_metadata) {
           const metadata = user.user_metadata
           if (metadata.first_name) setFirstName(metadata.first_name)
           if (metadata.last_name) setLastName(metadata.last_name)
+          if (metadata.given_name && !metadata.first_name) setFirstName(metadata.given_name)
+          if (metadata.family_name && !metadata.last_name) setLastName(metadata.family_name)
           if (metadata.full_name) {
             const nameParts = metadata.full_name.split(' ')
             if (nameParts.length >= 2) {
-              setFirstName(nameParts[0])
-              setLastName(nameParts.slice(1).join(' '))
+              if (!firstName) setFirstName(nameParts[0])
+              if (!lastName) setLastName(nameParts.slice(1).join(' '))
             }
+          }
+          // Pre-fill photo from OAuth
+          const oauthPhoto = metadata.avatar_url || metadata.picture || null
+          if (oauthPhoto) setPhotoUrl(oauthPhoto)
+        }
+        
+        // Load event name if eventId is present
+        if (eventId) {
+          const { data: eventData } = await supabase
+            .from("events")
+            .select("event_name")
+            .eq("event_id", eventId)
+            .single()
+          
+          if (eventData?.event_name) {
+            setEventName(eventData.event_name)
           }
         }
         
         // Check if profile exists and is complete
         const { data: person } = await supabase
           .from("users")
-          .select("first_name, last_name, career_title, company_name, photo_url")
+          .select("first_name, last_name, career_title, company_name, company_url, photo_url, expertise_summary")
           .eq("user_id", user.id)
           .single()
         
@@ -115,20 +148,65 @@ export function NewOnboardingFlow() {
           setFirstName(person.first_name || "")
           setLastName(person.last_name || "")
           setJobTitle(person.career_title || "")
-          setCompany(person.company_name || "")
+          // Load company URL and name from users table
+          setCompany((person as any).company_url || "")
+          setCompanyName(person.company_name || "")
+          if (person.photo_url) setPhotoUrl(person.photo_url)
           
-          // Profile is complete if has required fields
-          const isComplete = person.first_name && person.last_name && person.career_title && person.company_name
+          // Parse expertise summary if exists
+          if (person.expertise_summary) {
+            const expertiseList = person.expertise_summary.split(',').map(e => e.trim()).filter(Boolean)
+            setAreasOfExpertise(expertiseList)
+          }
+          
+          // Extract company from email if not a common email provider and no company URL exists
+          // This happens AFTER loading person data so we can check if company_url is already set
+          if (user.email && !(person as any).company_url && !person.company_name) {
+            const emailDomain = user.email.split('@')[1]?.toLowerCase()
+            const commonEmailProviders = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com', 'me.com', 'protonmail.com', 'aol.com']
+            
+            if (emailDomain && !commonEmailProviders.includes(emailDomain)) {
+              // Try to construct company URL
+              const companyUrl = `https://${emailDomain}`
+              setCompany(companyUrl)
+              // Trigger enrichment immediately for email-extracted URLs
+              // Use a small delay to ensure state is updated
+              setTimeout(() => {
+                enrichCompany(companyUrl)
+              }, 1000)
+            }
+          }
+          
+          // Profile is complete if has required fields (company_name OR company_url)
+          const hasCompany = person.company_name || ((person as any).company_url)
+          const isComplete = person.first_name && person.last_name && person.career_title && hasCompany
           setProfileCompleted(isComplete)
           
           if (isComplete) {
-            // Skip profile steps if complete
-            if (fromEventJoin) {
-              // Jump to event-specific questions
-              setCurrentStep(0) // Will be adjusted based on visible steps
+            // Profile is complete
+            // If eventId is present, show event-specific steps
+            // Otherwise, redirect to home (user can join events from there)
+            if (eventId) {
+              setCurrentStep(0) // Start with event-specific questions
             } else {
-              // User wants to join an event
-              setCurrentStep(0) // Will show event code entry
+              // No event, redirect to home where they can join an event
+              router.push("/home")
+            }
+          }
+        } else {
+          // No existing profile - extract company from email for new users
+          if (user.email) {
+            const emailDomain = user.email.split('@')[1]?.toLowerCase()
+            const commonEmailProviders = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com', 'me.com', 'protonmail.com', 'aol.com']
+            
+            if (emailDomain && !commonEmailProviders.includes(emailDomain)) {
+              // Try to construct company URL
+              const companyUrl = `https://${emailDomain}`
+              setCompany(companyUrl)
+              // Trigger enrichment immediately for email-extracted URLs
+              setTimeout(() => {
+                enrichCompany(companyUrl)
+              }, 1000)
             }
           }
         }
@@ -262,6 +340,268 @@ export function NewOnboardingFlow() {
     return connectionTypesSelected.length > 0 && !connectionTypesSelected.includes("find-job")
   }
 
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast.error("Please select an image file")
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size must be less than 5MB")
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const imageUrl = e.target?.result as string
+      setPreviewImageUrl(imageUrl)
+      setIsCropModalOpen(true)
+    }
+    reader.onerror = () => {
+      toast.error("Failed to read image file")
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleCameraCapture = () => {
+    setIsCameraOpen(true)
+  }
+
+  const handleCameraPhoto = (imageUrl: string) => {
+    // Convert blob URL to file
+    fetch(imageUrl)
+      .then(res => res.blob())
+      .then(blob => {
+        const file = new File([blob], `camera-${Date.now()}.jpg`, { type: 'image/jpeg' })
+        setPhotoFile(file)
+        setPreviewImageUrl(imageUrl)
+        setIsCropModalOpen(true)
+      })
+      .catch(error => {
+        console.error('Error processing camera photo:', error)
+        toast.error("Failed to process camera photo")
+      })
+  }
+
+  const handleCropSave = async (croppedImageUrl: string) => {
+    try {
+      // Convert data URL to blob
+      const response = await fetch(croppedImageUrl)
+      const blob = await response.blob()
+      const file = new File([blob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      
+      setPhotoFile(file)
+      setPhotoUrl(croppedImageUrl)
+      setPreviewImageUrl(null)
+      setIsCropModalOpen(false)
+    } catch (error) {
+      console.error('Error processing cropped image:', error)
+      toast.error("Failed to process image")
+    }
+  }
+
+  const handleRemovePhoto = () => {
+    setPhotoUrl(null)
+    setPhotoFile(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  // Extract company domain from email
+  const extractCompanyFromEmail = (email: string): string | null => {
+    const emailDomain = email.split('@')[1]?.toLowerCase()
+    if (!emailDomain) return null
+    
+    const commonEmailProviders = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com', 'me.com', 'protonmail.com', 'aol.com']
+    if (commonEmailProviders.includes(emailDomain)) return null
+    
+    return `https://${emailDomain}`
+  }
+
+  // Enrich company information (runs silently in background, no loading state)
+  const enrichCompany = async (companyUrl: string) => {
+    if (!companyUrl || !/[.]/.test(companyUrl)) return
+    
+    // Run silently - don't show loading message
+    try {
+      const { data: session } = await supabase.auth.getSession()
+      const token = session.session?.access_token
+      const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/company-enrich`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ url: companyUrl })
+      })
+      
+      if (res.ok) {
+        const enriched = await res.json()
+        if (enriched.company_name) {
+          setCompanyName(enriched.company_name)
+        }
+      }
+    } catch (e) {
+      console.warn("company_enrich_failed", e)
+    }
+  }
+
+  // Generate AI-suggested expertise based on job title
+  const generateExpertiseSuggestions = async (title: string) => {
+    if (!title.trim()) {
+      setSuggestedExpertise([])
+      return
+    }
+
+    try {
+      // Simple keyword-based suggestions (can be replaced with AI later)
+      const suggestions: Record<string, string[]> = {
+        'vp': ['Leadership', 'Strategy', 'Roadmaps', 'Product Vision', 'Team Management', 'Stakeholder Management'],
+        'vice president': ['Leadership', 'Strategy', 'Roadmaps', 'Product Vision', 'Team Management', 'Stakeholder Management'],
+        'director': ['Leadership', 'Strategy', 'Planning', 'Team Management', 'Execution', 'Cross-functional Collaboration'],
+        'professor': ['Research', 'Communication', 'Teaching', 'Academic Writing', 'Curriculum Development', 'Mentoring'],
+        'adjunct': ['Research', 'Communication', 'Teaching', 'Academic Writing', 'Curriculum Development', 'Mentoring'],
+        'engineer': ['Software Development', 'Problem Solving', 'Code Review', 'System Design', 'Testing', 'Documentation'],
+        'developer': ['Software Development', 'Problem Solving', 'Code Review', 'System Design', 'Testing', 'Documentation'],
+        'designer': ['User Experience', 'Visual Design', 'Prototyping', 'User Research', 'Design Systems', 'Collaboration'],
+        'product': ['Product Management', 'Roadmaps', 'User Research', 'Stakeholder Management', 'Agile', 'Analytics'],
+        'manager': ['Team Leadership', 'Project Management', 'Stakeholder Management', 'Process Improvement', 'Communication', 'Planning'],
+        'founder': ['Leadership', 'Strategy', 'Fundraising', 'Product Vision', 'Team Building', 'Business Development'],
+        'ceo': ['Leadership', 'Strategy', 'Vision', 'Team Building', 'Fundraising', 'Business Development'],
+        'cto': ['Technical Leadership', 'Architecture', 'Team Building', 'Innovation', 'Strategy', 'Engineering'],
+        'cfo': ['Financial Planning', 'Analysis', 'Strategy', 'Risk Management', 'Reporting', 'Leadership'],
+        'marketing': ['Brand Strategy', 'Content Creation', 'Analytics', 'Campaign Management', 'Social Media', 'SEO'],
+        'sales': ['Relationship Building', 'Negotiation', 'CRM', 'Pipeline Management', 'Communication', 'Closing'],
+      }
+
+      const titleLower = title.toLowerCase()
+      const matchedSuggestions: string[] = []
+      
+      for (const [key, values] of Object.entries(suggestions)) {
+        if (titleLower.includes(key)) {
+          matchedSuggestions.push(...values)
+          break
+        }
+      }
+
+      // Default suggestions if no match
+      if (matchedSuggestions.length === 0) {
+        matchedSuggestions.push('Communication', 'Problem Solving', 'Collaboration', 'Planning', 'Execution', 'Leadership')
+      }
+
+      setSuggestedExpertise(matchedSuggestions.slice(0, 6))
+    } catch (error) {
+      console.error('Error generating expertise suggestions:', error)
+      setSuggestedExpertise([])
+    }
+  }
+
+  // Handle expertise input
+  const handleExpertiseKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && expertiseInput.trim()) {
+      e.preventDefault()
+      const newExpertise = expertiseInput.trim()
+      if (!areasOfExpertise.includes(newExpertise)) {
+        setAreasOfExpertise([...areasOfExpertise, newExpertise])
+      }
+      setExpertiseInput("")
+      // Keep focus on input for next entry
+      setTimeout(() => {
+        expertiseInputRef.current?.focus()
+      }, 0)
+    }
+  }
+
+  const removeExpertise = (expertise: string) => {
+    setAreasOfExpertise(areasOfExpertise.filter(e => e !== expertise))
+  }
+
+  const addSuggestedExpertise = (expertise: string) => {
+    // Toggle: if already selected, remove it; otherwise add it
+    if (areasOfExpertise.includes(expertise)) {
+      removeExpertise(expertise)
+    } else {
+      setAreasOfExpertise([...areasOfExpertise, expertise])
+    }
+  }
+
+  const addCustomExpertise = () => {
+    if (expertiseInput.trim()) {
+      const newExpertise = expertiseInput.trim()
+      if (!areasOfExpertise.includes(newExpertise)) {
+        setAreasOfExpertise([...areasOfExpertise, newExpertise])
+      }
+      setExpertiseInput("")
+      // Keep focus on input for next entry
+      setTimeout(() => {
+        expertiseInputRef.current?.focus()
+      }, 0)
+    }
+  }
+
+  // Watch job title changes to generate suggestions
+  useEffect(() => {
+    if (jobTitle) {
+      generateExpertiseSuggestions(jobTitle)
+    } else {
+      setSuggestedExpertise([])
+    }
+  }, [jobTitle])
+
+  // Watch company URL changes to enrich (debounced)
+  useEffect(() => {
+    if (!company || !/[.]/.test(company)) {
+      return
+    }
+
+    // Debounce: wait 1 second after user stops typing before enriching
+    // Run silently in background (no loading message)
+    const timeoutId = setTimeout(() => {
+      enrichCompany(company)
+    }, 1000)
+
+    return () => {
+      clearTimeout(timeoutId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company])
+
+  const uploadPhotoToStorage = async (): Promise<string | null> => {
+    if (!photoFile || !user) return photoUrl
+
+    try {
+      const fileName = `${user.id}/avatar-${Date.now()}.jpg`
+      
+      const { data, error } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, photoFile, {
+          contentType: 'image/jpeg',
+          upsert: true
+        })
+
+      if (error) {
+        console.error('Error uploading photo:', error)
+        toast.error("Failed to upload photo. Using existing photo.")
+        return photoUrl
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName)
+
+      return urlData.publicUrl
+    } catch (error) {
+      console.error('Error uploading photo to storage:', error)
+      toast.error("Failed to upload photo")
+      return photoUrl
+    }
+  }
+
   const validateForm = () => {
     const errors: Record<string, string> = {}
     
@@ -282,14 +622,15 @@ export function NewOnboardingFlow() {
     if (!jobTitle.trim()) {
       errors.jobTitle = "Please enter your job title"
     }
-    if (!company.trim()) {
-      errors.company = "Please enter your company"
+    // Company: either company_name OR company URL is required
+    if (!companyName.trim() && !company.trim()) {
+      errors.company = "Please enter your company name or company website URL"
     }
     if (!yearsExperience) {
-      errors.yearsExperience = "Please select years of experience"
+      errors.yearsExperience = "Please select years in your career field"
     }
-    if (!areasOfExpertise.trim()) {
-      errors.areasOfExpertise = "Please enter areas of expertise"
+    if (areasOfExpertise.length === 0) {
+      errors.areasOfExpertise = "Please select at least one area of expertise"
     }
     
     setValidationErrors(errors)
@@ -309,13 +650,52 @@ export function NewOnboardingFlow() {
 
     setIsLoading(true)
     try {
-      // Use Google OAuth photo if available
-      const avatarUrl = user.user_metadata?.avatar_url || null
+      // Upload photo if a new one was selected
+      let finalPhotoUrl = photoUrl
+      if (photoFile) {
+        const uploadedUrl = await uploadPhotoToStorage()
+        if (uploadedUrl) {
+          finalPhotoUrl = uploadedUrl
+        }
+      }
 
-      const expertiseArray = [areasOfExpertise]
+      const expertiseArray = areasOfExpertise
 
       // Parse years of experience to integer
       const yearsExpInt = parseInt(yearsExperience) || null
+
+      // Enrich company name from URL if URL is provided but name is not
+      let companyNameToSave = companyName
+      let companySummary: string | null = null
+      
+      // If we have a URL but no company name, try to enrich
+      if (!companyName && company && /[.]/.test(company)) {
+        try {
+          const { data: session } = await supabase.auth.getSession()
+          const token = session.session?.access_token
+          const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/company-enrich`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ url: company })
+          })
+          if (res.ok) {
+            const enriched = await res.json()
+            companyNameToSave = enriched.company_name || null
+            companySummary = enriched.company_description || null
+          }
+        } catch (e) {
+          console.warn("company_enrich_failed", e)
+        }
+      }
+
+      // Validation: must have either company_name OR company URL
+      if (!companyNameToSave && !company) {
+        toast.error("Please enter your company name or company website URL")
+        return
+      }
 
       const { error: profileError } = await supabase
         .from("users")
@@ -324,11 +704,12 @@ export function NewOnboardingFlow() {
           first_name: firstName,
           last_name: lastName,
           email: user.email || "",
-          photo_url: avatarUrl,
+          photo_url: finalPhotoUrl,
           career_title: jobTitle,
-          company_name: company,
+          company_name: companyNameToSave || null,
+          company_url: company || null,
           career_years_experience: yearsExpInt,
-          expertise_summary: expertiseArray.join(", ")
+          expertise_summary: expertiseArray.join(", "),
         }, {
           onConflict: 'user_id'
         })
@@ -342,16 +723,12 @@ export function NewOnboardingFlow() {
       toast.success("Profile completed!")
       setProfileCompleted(true)
       
-      // If event code exists, move to event questions
-      if (eventCode) {
-        await handleJoinEvent(eventCode)
-      } else if (!fromEventJoin) {
-        // Otherwise, go to event join page
-        router.push("/event/join")
-      } else {
-        // Already in event join flow, move to next step
-        setCurrentStep(0) // Will show event questions
-      }
+      // Always redirect to home page after profile completion
+      // User can join events from the home page
+      setIsRedirecting(true)
+      setTimeout(() => {
+        router.push("/home")
+      }, 1000)
     } catch (error) {
       console.error("Error completing profile:", error)
       toast.error("An error occurred")
@@ -631,7 +1008,64 @@ export function NewOnboardingFlow() {
       description: "Tell us about yourself",
       component: (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Profile Picture Upload */}
+          <div className="flex flex-col items-center space-y-4">
+            <Label className="text-sm font-medium text-foreground w-full text-left">
+              Profile Picture
+            </Label>
+            <div className="relative">
+              <Avatar className="w-24 h-24 border-2 border-border">
+                <AvatarImage src={photoUrl || undefined} alt={`${firstName} ${lastName}`} />
+                <AvatarFallback className="bg-muted text-muted-foreground text-xl font-medium">
+                  {firstName?.[0]?.toUpperCase() || ''}{lastName?.[0]?.toUpperCase() || ''}
+                </AvatarFallback>
+              </Avatar>
+              {photoUrl && (
+                <button
+                  onClick={handleRemovePhoto}
+                  className="absolute -top-2 -right-2 rounded-full bg-destructive text-white p-1.5 hover:bg-destructive/90 transition-colors"
+                  type="button"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <div className="flex flex-col items-center space-y-2 w-full">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoSelect}
+                className="hidden"
+              />
+              <div className="flex flex-col sm:flex-row gap-2 w-full max-w-xs">
+                <GradientButton
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex-1"
+                  type="button"
+                >
+                  <Camera className="w-4 h-4 mr-2" />
+                  {photoUrl ? 'Change' : 'Upload'}
+                </GradientButton>
+                <GradientButton
+                  variant="outline"
+                  onClick={handleCameraCapture}
+                  className="flex-1"
+                  type="button"
+                >
+                  <Camera className="w-4 h-4 mr-2" />
+                  Take Photo
+                </GradientButton>
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                {photoUrl ? 'Photo from ' + (user?.user_metadata?.avatar_url || user?.user_metadata?.picture ? 'OAuth' : 'upload') : 'Upload a photo, take a picture, or use your OAuth photo'}
+              </p>
+            </div>
+          </div>
+
+          {/* Name Fields - Stacked Vertically */}
+          <div className="space-y-4">
             <div>
               <Label htmlFor="firstName" className="text-sm font-medium text-foreground">
                 First Name *
@@ -650,7 +1084,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="e.g. John"
-                className={`mt-1 rounded-xl ${validationErrors.firstName ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-xl bg-muted/40 ${validationErrors.firstName ? 'border-destructive' : ''}`}
                 required
               />
               {validationErrors.firstName && (
@@ -675,7 +1109,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="e.g. Doe"
-                className={`mt-1 rounded-xl ${validationErrors.lastName ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-xl bg-muted/40 ${validationErrors.lastName ? 'border-destructive' : ''}`}
                 required
               />
               {validationErrors.lastName && (
@@ -692,7 +1126,8 @@ export function NewOnboardingFlow() {
       description: "Tell us about your work and expertise",
       component: (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* All fields stacked vertically for mobile */}
+          <div className="space-y-4">
             <div>
               <Label htmlFor="jobTitle" className="text-sm font-medium text-foreground">
                 Job Title *
@@ -711,16 +1146,53 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="e.g. Software Engineer"
-                className={`mt-1 rounded-xl ${validationErrors.jobTitle ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-xl bg-muted/40 ${validationErrors.jobTitle ? 'border-destructive' : ''}`}
                 required
               />
               {validationErrors.jobTitle && (
                 <p className="text-xs text-destructive mt-1">{validationErrors.jobTitle}</p>
               )}
             </div>
+
+            {/* Years of Experience - Bubble Grid */}
+            <div>
+              <Label className="text-sm font-medium text-foreground">
+                Years in your career field *
+              </Label>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {experienceOptions.map(option => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => {
+                      setYearsExperience(option)
+                      if (validationErrors.yearsExperience) {
+                        setValidationErrors(prev => {
+                          const newErrors = { ...prev }
+                          delete newErrors.yearsExperience
+                          return newErrors
+                        })
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                      yearsExperience === option
+                        ? 'bg-primary text-white'
+                        : 'bg-muted text-foreground hover:bg-muted/80 border border-border'
+                    } ${validationErrors.yearsExperience ? 'border-destructive' : ''}`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+              {validationErrors.yearsExperience && (
+                <p className="text-xs text-destructive mt-1">{validationErrors.yearsExperience}</p>
+              )}
+            </div>
+
+            {/* Company URL with auto-fill */}
             <div>
               <Label htmlFor="company" className="text-sm font-medium text-foreground">
-                Company *
+                Company website (URL)
               </Label>
               <Input
                 id="company"
@@ -735,71 +1207,95 @@ export function NewOnboardingFlow() {
                     })
                   }
                 }}
-                placeholder="e.g. Tech Corp"
-                className={`mt-1 rounded-xl ${validationErrors.company ? 'border-destructive' : ''}`}
-                required
+                placeholder="https://company.com"
+                className={`mt-1 rounded-xl bg-muted/40 ${validationErrors.company ? 'border-destructive' : ''}`}
               />
+              {companyName && (
+                <div className="mt-2 p-3 bg-muted/60 border border-border rounded-lg">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Company name:</Label>
+                  <p className="text-sm font-semibold text-foreground">{companyName}</p>
+                </div>
+              )}
               {validationErrors.company && (
                 <p className="text-xs text-destructive mt-1">{validationErrors.company}</p>
               )}
             </div>
-          </div>
 
-          <div>
-            <Label htmlFor="yearsExperience" className="text-sm font-medium text-foreground">
-              Years of Experience *
-            </Label>
-            <Select
-              value={yearsExperience}
-              onValueChange={(value) => {
-                setYearsExperience(value)
-                if (validationErrors.yearsExperience) {
-                  setValidationErrors(prev => {
-                    const newErrors = { ...prev }
-                    delete newErrors.yearsExperience
-                    return newErrors
-                  })
-                }
-              }}
-            >
-              <SelectTrigger className={`mt-1 rounded-xl ${validationErrors.yearsExperience ? 'border-destructive' : ''}`}>
-                <SelectValue placeholder="Select years of experience" />
-              </SelectTrigger>
-              <SelectContent>
-                {experienceOptions.map(option => (
-                  <SelectItem key={option} value={option}>{option}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {validationErrors.yearsExperience && (
-              <p className="text-xs text-destructive mt-1">{validationErrors.yearsExperience}</p>
-            )}
-          </div>
+            {/* Areas of Expertise - Bubbles */}
+            <div>
+              <Label htmlFor="areasOfExpertise" className="text-sm font-medium text-foreground">
+                Areas of Expertise *
+              </Label>
+              
+              {/* Suggested expertise bubbles - show all, highlight selected ones */}
+              {suggestedExpertise.length > 0 && (
+                <div className="mt-2 mb-3">
+                  <p className="text-xs text-muted-foreground mb-2">Select or add those that apply:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedExpertise.map((expertise) => (
+                      <button
+                        key={expertise}
+                        type="button"
+                        onClick={() => addSuggestedExpertise(expertise)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                          areasOfExpertise.includes(expertise)
+                            ? 'bg-primary text-white border border-primary'
+                            : 'bg-muted/60 text-foreground hover:bg-muted/80 border border-border'
+                        }`}
+                      >
+                        {expertise}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          <div>
-            <Label htmlFor="areasOfExpertise" className="text-sm font-medium text-foreground">
-              Areas of Expertise *
-            </Label>
-            <Input
-              id="areasOfExpertise"
-              value={areasOfExpertise}
-              onChange={(e) => {
-                setAreasOfExpertise(e.target.value)
-                if (validationErrors.areasOfExpertise) {
-                  setValidationErrors(prev => {
-                    const newErrors = { ...prev }
-                    delete newErrors.areasOfExpertise
-                    return newErrors
-                  })
-                }
-              }}
-              placeholder="e.g. AI, Software Development, Product Design"
-              className={`mt-1 rounded-xl ${validationErrors.areasOfExpertise ? 'border-destructive' : ''}`}
-              required
-            />
-            {validationErrors.areasOfExpertise && (
-              <p className="text-xs text-destructive mt-1">{validationErrors.areasOfExpertise}</p>
-            )}
+              {/* Selected expertise bubbles - show in order they were added */}
+              {areasOfExpertise.length > 0 && (
+                <div className="mt-2 mb-3 flex flex-wrap gap-2">
+                  {areasOfExpertise.map((expertise) => (
+                    <div
+                      key={expertise}
+                      className="px-3 py-1.5 rounded-full text-xs font-medium bg-primary text-white flex items-center gap-2"
+                    >
+                      {expertise}
+                      <button
+                        type="button"
+                        onClick={() => removeExpertise(expertise)}
+                        className="hover:text-destructive"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Input for adding custom expertise */}
+              <div className="relative">
+                <Input
+                  ref={expertiseInputRef}
+                  id="areasOfExpertise"
+                  value={expertiseInput}
+                  onChange={(e) => setExpertiseInput(e.target.value)}
+                  onKeyDown={handleExpertiseKeyDown}
+                  placeholder="Type and press Enter to add expertise"
+                  className={`mt-1 rounded-xl pr-10 bg-muted/40 ${validationErrors.areasOfExpertise ? 'border-destructive' : ''}`}
+                />
+                {expertiseInput.trim() && (
+                  <button
+                    type="button"
+                    onClick={addCustomExpertise}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90"
+                  >
+                    +
+                  </button>
+                )}
+              </div>
+              {validationErrors.areasOfExpertise && (
+                <p className="text-xs text-destructive mt-1">{validationErrors.areasOfExpertise}</p>
+              )}
+            </div>
           </div>
         </div>
       )
@@ -809,14 +1305,14 @@ export function NewOnboardingFlow() {
   const eventSteps: OnboardingStep[] = [
     {
       id: "why-attending",
-      title: "Why are you attending?",
-      description: "Help us understand your goals for this event",
+      title: eventName ? `Why are you attending ${eventName}?` : "Why are you attending?",
+      description: "", // Removed subtitle
       component: (
         <div className="space-y-4">
           <Textarea
             value={whyAttending}
             onChange={(e) => setWhyAttending(e.target.value)}
-            placeholder="Tell us why you chose to attend this event..."
+            placeholder="Help us understand your goals for this event"
             className="rounded-xl min-h-[120px]"
             rows={5}
           />
@@ -897,7 +1393,10 @@ export function NewOnboardingFlow() {
     }] : [])
   ]
 
-  const visibleSteps = profileCompleted ? eventSteps : profileSteps
+  // Determine visible steps:
+  // - If eventId is present, only show event-specific steps (skip profile)
+  // - If no eventId, show profile steps (user needs to complete profile first)
+  const visibleSteps = eventId ? eventSteps : (profileCompleted ? [] : profileSteps)
   const currentStepData = visibleSteps[currentStep]
   const isLastStep = currentStep === visibleSteps.length - 1
 
@@ -917,7 +1416,7 @@ export function NewOnboardingFlow() {
   const isStepValid = () => {
     if (!currentStepData) return false
     if (currentStepData.id === "profile") return firstName && lastName
-    if (currentStepData.id === "professional") return jobTitle && company && yearsExperience && areasOfExpertise
+    if (currentStepData.id === "professional") return jobTitle && company && yearsExperience && areasOfExpertise.length > 0
     if (currentStepData.id === "connection-types") return connectionTypesSelected.length > 0
     if (currentStepData.id === "why-attending") return whyAttending.trim().length > 0
     return true
@@ -1054,9 +1553,11 @@ export function NewOnboardingFlow() {
                 <h2 className="text-xl font-semibold text-foreground mb-2">
                   {currentStepData.title}
                 </h2>
-                <p className="text-muted-foreground">
-                  {currentStepData.description}
-                </p>
+                {currentStepData.description && (
+                  <p className="text-muted-foreground">
+                    {currentStepData.description}
+                  </p>
+                )}
               </div>
               <div className="space-y-6">
                 {currentStepData.component}
@@ -1065,6 +1566,29 @@ export function NewOnboardingFlow() {
           ) : null}
         </div>
       </div>
+
+      {/* Camera Capture Modal */}
+      <CameraCapture
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onCapture={handleCameraPhoto}
+      />
+
+      {/* Image Crop Modal - Always available */}
+      {previewImageUrl && (
+        <ImageCropModal
+          isOpen={isCropModalOpen}
+          onClose={() => {
+            setIsCropModalOpen(false)
+            setPreviewImageUrl(null)
+            if (fileInputRef.current) {
+              fileInputRef.current.value = ''
+            }
+          }}
+          onSave={handleCropSave}
+          imageUrl={previewImageUrl}
+        />
+      )}
 
       {/* Fixed Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t-2 border-border shadow-2xl px-6 z-[100] py-4">

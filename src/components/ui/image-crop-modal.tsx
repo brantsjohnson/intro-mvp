@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { GradientButton } from "@/components/ui/gradient-button"
-import { X, RotateCw, ZoomIn, ZoomOut } from "lucide-react"
+import { ZoomIn, ZoomOut } from "lucide-react"
 
 interface ImageCropModalProps {
   isOpen: boolean
@@ -16,135 +16,146 @@ interface ImageCropModalProps {
 export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  
   const [scale, setScale] = useState(1)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 })
 
   const cropSize = 200 // Size of the circular crop area
   const containerSize = 300 // Size of the container
 
+  // Reset state when modal opens/closes
   useEffect(() => {
-    if (!imageUrl || !imageRef.current) {
+    if (!isOpen) {
+      setImageLoaded(false)
+      setImageDimensions({ width: 0, height: 0 })
+      setScale(1)
+      setPosition({ x: 0, y: 0 })
+    }
+  }, [isOpen])
+
+  // Initialize image when it loads
+  useEffect(() => {
+    if (!isOpen || !imageUrl) {
       setImageLoaded(false)
       return
     }
 
-    const img = imageRef.current
+    // Create a new image element to load
+    const img = new Image()
     
-    // Reset loaded state when imageUrl changes
-    setImageLoaded(false)
-    // Don't reset scale/position here - will be set in handleLoad
+    // Only set crossOrigin for external URLs, not data URLs or blob URLs
+    if (!imageUrl.startsWith('data:') && !imageUrl.startsWith('blob:')) {
+      img.crossOrigin = 'anonymous'
+    }
     
     const handleLoad = () => {
       if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        const imgWidth = img.naturalWidth
+        const imgHeight = img.naturalHeight
+        
+        setImageDimensions({ width: imgWidth, height: imgHeight })
         setImageLoaded(true)
         
-        // Calculate initial scale to fit image to SMALLEST dimension of container
-        // This ensures the entire image is visible initially
-        const scaleToFitWidth = containerSize / img.naturalWidth
-        const scaleToFitHeight = containerSize / img.naturalHeight
+        // Find shortest dimension (width or height) - this is what fills the crop circle
+        const shortestDimension = Math.min(imgWidth, imgHeight)
+        const longestDimension = Math.max(imgWidth, imgHeight)
+        const isPortrait = imgHeight > imgWidth
         
-        // Use the smaller scale so the image fits entirely within the container
-        const initialScale = Math.min(scaleToFitWidth, scaleToFitHeight)
+        // Calculate scale so shortest dimension EXACTLY fills the crop circle (200px)
+        // This ensures no extra space - the shorter side fills the circle completely
+        const initialScale = cropSize / shortestDimension
         
-        // Ensure we can zoom out at least a bit (don't make initial scale too small)
-        // But always start with image fitting within container
-        setScale(Math.max(0.5, initialScale))
+        setScale(initialScale)
         
-        // Center the image initially
-        // With scale applied, calculate centered position
-        const scaledWidth = img.naturalWidth * initialScale
-        const scaledHeight = img.naturalHeight * initialScale
-        const centerX = (containerSize - scaledWidth) / 2
-        const centerY = (containerSize - scaledHeight) / 2
+        // Calculate scaled dimensions after applying scale
+        const scaledWidth = imgWidth * initialScale
+        const scaledHeight = imgHeight * initialScale
+        
+        // Verify: shortest scaled dimension should equal cropSize (200px)
+        const scaledShortest = Math.min(scaledWidth, scaledHeight)
+        const scaledLongest = Math.max(scaledWidth, scaledHeight)
+        
+        // Center the image so crop circle aligns with image center
+        // The crop circle is centered in the container at (150, 150)
+        const cropCenterX = containerSize / 2
+        const cropCenterY = containerSize / 2
+        
+        // Position image so its center aligns with crop circle center
+        // This ensures the crop circle captures the center of the image
+        const imageCenterX = scaledWidth / 2
+        const imageCenterY = scaledHeight / 2
+        
+        const centerX = cropCenterX - imageCenterX
+        const centerY = cropCenterY - imageCenterY
+        
         setPosition({ x: centerX, y: centerY })
         
-        console.log('Image loaded:', {
-          naturalWidth: img.naturalWidth,
-          naturalHeight: img.naturalHeight,
+        console.log('Image sizing (shortest side fills circle):', {
+          original: { width: imgWidth, height: imgHeight },
+          shortestDimension,
+          longestDimension,
+          isPortrait,
           initialScale,
-          scaledWidth,
-          scaledHeight,
-          centerX,
-          centerY
+          scaled: { width: scaledWidth, height: scaledHeight },
+          scaledShortest, // Should equal cropSize (200px)
+          scaledLongest,  // Will be larger, extending beyond circle
+          cropSize,
+          position: { x: centerX, y: centerY }
         })
       }
     }
     
-    const handleError = () => {
-      console.error('Failed to load image')
+    const handleError = (error: any) => {
+      console.error('Failed to load image:', error, imageUrl)
       setImageLoaded(false)
     }
     
-    // Remove any existing handlers to avoid duplicates
-    img.onload = null
-    img.onerror = null
-    
-    // Set new handlers
     img.onload = handleLoad
     img.onerror = handleError
     
-    // Check if image is already loaded (cached images may already be complete)
-    // Use setTimeout to check after DOM updates
-    const checkComplete = () => {
-      if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
-        handleLoad()
-      }
+    // Set src to trigger load
+    try {
+      img.src = imageUrl
+    } catch (error) {
+      console.error('Error setting image src:', error)
+      setImageLoaded(false)
     }
-    
-    // Check immediately and after a short delay to catch cached images
-    checkComplete()
-    const timeoutId = setTimeout(checkComplete, 100)
     
     return () => {
-      clearTimeout(timeoutId)
-      // Cleanup handlers
-      if (img) {
-        img.onload = null
-        img.onerror = null
-      }
+      img.onload = null
+      img.onerror = null
     }
-  }, [imageUrl]) // Only depend on imageUrl, not scale
+  }, [imageUrl, isOpen])
 
+  // Mouse drag handlers
   const handleMouseDown = (e: React.MouseEvent) => {
-    const container = e.currentTarget as HTMLElement
-    const rect = container.getBoundingClientRect()
-    const mouseX = e.clientX - rect.left
-    const mouseY = e.clientY - rect.top
-    
+    e.preventDefault()
     setIsDragging(true)
-    setDragStart({
-      x: mouseX - position.x,
-      y: mouseY - position.y
-    })
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (rect) {
+      setDragStart({
+        x: e.clientX - rect.left - position.x,
+        y: e.clientY - rect.top - position.y
+      })
+    }
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging) return
+    e.preventDefault()
     
-    const container = e.currentTarget as HTMLElement
-    const rect = container.getBoundingClientRect()
-    const newX = e.clientX - rect.left - dragStart.x
-    const newY = e.clientY - rect.top - dragStart.y
-    
-    // Constrain movement to keep image within bounds
-    const img = imageRef.current
-    if (img && imageLoaded) {
-      const scaledWidth = img.naturalWidth * scale
-      const scaledHeight = img.naturalHeight * scale
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (rect) {
+      const newX = e.clientX - rect.left - dragStart.x
+      const newY = e.clientY - rect.top - dragStart.y
       
-      // Calculate bounds - image should not go too far outside container
-      const minX = Math.min(0, containerSize - scaledWidth)
-      const maxX = 0
-      const minY = Math.min(0, containerSize - scaledHeight)
-      const maxY = 0
-      
-      setPosition({
-        x: Math.max(minX, Math.min(maxX, newX)),
-        y: Math.max(minY, Math.min(maxY, newY))
-      })
+      // Allow free movement - no bounds restriction
+      setPosition({ x: newX, y: newY })
     }
   }
 
@@ -152,53 +163,137 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
     setIsDragging(false)
   }
 
-  // Use native event listener for wheel to avoid passive listener issues
-  useEffect(() => {
-    if (!isOpen || !imageRef.current) return
+  // Touch handlers for mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault()
+    const touch = e.touches[0]
+    setIsDragging(true)
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (rect) {
+      setDragStart({
+        x: touch.clientX - rect.left - position.x,
+        y: touch.clientY - rect.top - position.y
+      })
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging) return
+    e.preventDefault()
     
-    const container = imageRef.current.parentElement
-    if (!container) return
+    const touch = e.touches[0]
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (rect) {
+      const newX = touch.clientX - rect.left - dragStart.x
+      const newY = touch.clientY - rect.top - dragStart.y
+      
+      setPosition({ x: newX, y: newY })
+    }
+  }
+
+  const handleTouchEnd = () => {
+    setIsDragging(false)
+  }
+
+  // Zoom handlers
+  const handleZoomIn = () => {
+    setScale(prev => {
+      const newScale = prev * 1.2
+      return Math.min(5, newScale)
+    })
+  }
+
+  const handleZoomOut = () => {
+    setScale(prev => {
+      const newScale = prev / 1.2
+      // Allow zooming out to at least 0.1 (10%) for very small images
+      return Math.max(0.1, newScale)
+    })
+  }
+
+  // Wheel zoom
+  useEffect(() => {
+    if (!isOpen || !containerRef.current) return
     
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
       const delta = e.deltaY > 0 ? 0.9 : 1.1
-      const newScale = Math.max(0.5, Math.min(3, scale * delta))
-      setScale(newScale)
+      setScale(prev => {
+        const newScale = prev * delta
+        return Math.max(0.1, Math.min(5, newScale))
+      })
     }
     
-    container.addEventListener('wheel', handleWheel, { passive: false })
+    containerRef.current.addEventListener('wheel', handleWheel, { passive: false })
     
     return () => {
-      container.removeEventListener('wheel', handleWheel)
+      containerRef.current?.removeEventListener('wheel', handleWheel)
     }
-  }, [isOpen, scale])
+  }, [isOpen])
 
+  // Pinch zoom for touch devices
+  useEffect(() => {
+    if (!isOpen || !containerRef.current) return
+    
+    let lastDistance = 0
+    
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        const touch1 = e.touches[0]
+        const touch2 = e.touches[1]
+        lastDistance = Math.hypot(
+          touch2.clientX - touch1.clientX,
+          touch2.clientY - touch1.clientY
+        )
+      }
+    }
+    
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault()
+        const touch1 = e.touches[0]
+        const touch2 = e.touches[1]
+        const distance = Math.hypot(
+          touch2.clientX - touch1.clientX,
+          touch2.clientY - touch1.clientY
+        )
+        
+        if (lastDistance > 0) {
+          const scaleChange = distance / lastDistance
+          setScale(prev => {
+            const newScale = prev * scaleChange
+            return Math.max(0.1, Math.min(5, newScale))
+          })
+        }
+        
+        lastDistance = distance
+      }
+    }
+    
+    containerRef.current.addEventListener('touchstart', handleTouchStart, { passive: false })
+    containerRef.current.addEventListener('touchmove', handleTouchMove, { passive: false })
+    
+    return () => {
+      containerRef.current?.removeEventListener('touchstart', handleTouchStart)
+      containerRef.current?.removeEventListener('touchmove', handleTouchMove)
+    }
+  }, [isOpen])
+
+  // Crop and save image
   const cropImage = () => {
     const canvas = canvasRef.current
     const img = imageRef.current
+    
     if (!canvas || !img || !imageLoaded) {
-      console.error('Crop failed: missing canvas, image, or image not loaded', {
-        hasCanvas: !!canvas,
-        hasImg: !!img,
-        imageLoaded
-      })
+      console.error('Cannot crop: missing elements or image not loaded')
       return
     }
 
     const ctx = canvas.getContext('2d')
     if (!ctx) {
-      console.error('Crop failed: cannot get canvas context')
+      console.error('Cannot get canvas context')
       return
     }
-
-    console.log('Cropping image:', {
-      position,
-      scale,
-      imgWidth: img.naturalWidth,
-      imgHeight: img.naturalHeight,
-      containerSize,
-      cropSize
-    })
 
     // Set canvas size
     canvas.width = cropSize
@@ -212,32 +307,22 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
     ctx.arc(cropSize / 2, cropSize / 2, cropSize / 2, 0, 2 * Math.PI)
     ctx.clip()
 
-    // Calculate the crop area center (middle of container)
+    // Calculate crop area center in container coordinates
     const cropCenterX = containerSize / 2
     const cropCenterY = containerSize / 2
     const cropRadius = cropSize / 2
 
-    // Calculate the visible region in container coordinates
-    // The crop circle is centered in the container
+    // Calculate the crop area bounds in container coordinates
     const cropLeft = cropCenterX - cropRadius
     const cropTop = cropCenterY - cropRadius
 
     // Convert container coordinates to image coordinates
-    // Position is the offset of the image's top-left corner from container's top-left
-    // The image is scaled, so we need to divide by scale
+    // Position is where the image's top-left corner is relative to container
     const imageX = (cropLeft - position.x) / scale
     const imageY = (cropTop - position.y) / scale
     const imageCropSize = cropSize / scale
 
-    console.log('Crop calculations:', {
-      cropLeft,
-      cropTop,
-      imageX,
-      imageY,
-      imageCropSize
-    })
-
-    // Draw the cropped image
+    // Draw the cropped portion of the image
     try {
       ctx.drawImage(
         img,
@@ -251,27 +336,21 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
         cropSize
       )
 
-      console.log('Image drawn to canvas successfully')
+      // Convert to blob and create URL
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const croppedUrl = URL.createObjectURL(blob)
+          onSave(croppedUrl)
+        } else {
+          console.error('Failed to convert canvas to blob')
+        }
+      }, 'image/jpeg', 0.95)
     } catch (error) {
-      console.error('Error drawing image to canvas:', error)
-      return
+      console.error('Error cropping image:', error)
     }
-
-    // Convert to blob and create URL
-    canvas.toBlob((blob) => {
-      if (blob) {
-        console.log('Canvas converted to blob, size:', blob.size)
-        const croppedUrl = URL.createObjectURL(blob)
-        console.log('Blob URL created:', croppedUrl)
-        onSave(croppedUrl)
-      } else {
-        console.error('Failed to convert canvas to blob')
-      }
-    }, 'image/jpeg', 0.9)
   }
 
   const handleSave = () => {
-    console.log('Save button clicked, imageLoaded:', imageLoaded)
     if (!imageLoaded) {
       console.error('Cannot save: image not loaded')
       return
@@ -281,7 +360,7 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
       cropImage()
       onClose()
     } catch (error) {
-      console.error('Error in handleSave:', error)
+      console.error('Error saving image:', error)
     }
   }
 
@@ -290,49 +369,83 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Adjust Your Photo</DialogTitle>
+          <DialogDescription>
+            Drag to position your photo and use zoom controls to adjust the size
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">
           {/* Crop area */}
-          <div className="relative mx-auto" style={{ width: containerSize, height: containerSize }}>
+          <div 
+            ref={containerRef}
+            className="relative mx-auto select-none"
+            style={{ width: containerSize, height: containerSize }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            {/* Container with circular mask */}
             <div
-              className="relative overflow-hidden border-2 border-primary rounded-full"
+              className="relative overflow-hidden rounded-full border-2 border-primary"
               style={{ width: containerSize, height: containerSize }}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
             >
               {/* Image */}
-              <img
-                ref={imageRef}
-                src={imageUrl}
-                alt="Profile preview"
-                className="absolute select-none"
-                style={{
-                  transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-                  transformOrigin: 'top left',
-                  width: imageLoaded && imageRef.current
-                    ? `${imageRef.current.naturalWidth}px`
-                    : 'auto',
-                  height: imageLoaded && imageRef.current
-                    ? `${imageRef.current.naturalHeight}px`
-                    : 'auto',
-                  // No objectFit - we want to preserve exact dimensions
-                  maxWidth: 'none',
-                  maxHeight: 'none'
-                }}
-                draggable={false}
-              />
+              {imageLoaded && imageDimensions.width > 0 && (
+                <img
+                  ref={imageRef}
+                  src={imageUrl}
+                  alt="Profile preview"
+                  className="absolute pointer-events-none"
+                  style={{
+                    transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+                    transformOrigin: 'top left',
+                    width: `${imageDimensions.width}px`,
+                    height: `${imageDimensions.height}px`,
+                    maxWidth: 'none',
+                    maxHeight: 'none',
+                  }}
+                  draggable={false}
+                  onLoad={() => {
+                    // Ensure image is marked as loaded when it actually loads
+                    if (imageRef.current && imageRef.current.naturalWidth > 0) {
+                      setImageLoaded(true)
+                    }
+                  }}
+                  onError={() => {
+                    console.error('Image failed to load in img element')
+                    setImageLoaded(false)
+                  }}
+                />
+              )}
               
-              {/* Circular mask overlay */}
-              <div className="absolute inset-0 rounded-full border-2 border-white shadow-inner" />
+              {/* Loading state */}
+              {!imageLoaded && (
+                <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                  <div className="text-muted-foreground">Loading image...</div>
+                </div>
+              )}
+              
+              {/* Error state */}
+              {imageUrl && !imageLoaded && imageDimensions.width === 0 && (
+                <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                  <div className="text-destructive text-sm">Failed to load image</div>
+                </div>
+              )}
             </div>
             
-            {/* Crop circle indicator */}
+            {/* Crop circle indicator overlay */}
             <div
-              className="absolute inset-0 rounded-full border-2 border-primary pointer-events-none"
-              style={{ width: cropSize, height: cropSize, left: (containerSize - cropSize) / 2, top: (containerSize - cropSize) / 2 }}
+              className="absolute pointer-events-none rounded-full border-2 border-white shadow-lg"
+              style={{ 
+                width: cropSize, 
+                height: cropSize, 
+                left: (containerSize - cropSize) / 2, 
+                top: (containerSize - cropSize) / 2 
+              }}
             />
           </div>
 
@@ -341,21 +454,21 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setScale(Math.max(0.5, scale - 0.1))}
-              disabled={scale <= 0.5}
+              onClick={handleZoomOut}
+              disabled={scale <= 0.1}
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
             
-            <span className="text-sm text-muted-foreground">
+            <span className="text-sm text-muted-foreground min-w-[60px] text-center">
               {Math.round(scale * 100)}%
             </span>
             
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setScale(Math.min(3, scale + 0.1))}
-              disabled={scale >= 3}
+              onClick={handleZoomIn}
+              disabled={scale >= 5}
             >
               <ZoomIn className="h-4 w-4" />
             </Button>
@@ -367,7 +480,7 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
         </div>
 
         {/* Actions */}
-        <div className="flex justify-between">
+        <div className="flex justify-between gap-4">
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>

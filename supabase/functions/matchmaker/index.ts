@@ -805,36 +805,48 @@ function buildSummaryAndReasons(
       const focusDetail = intentFocus.startsWith("commercial:")
         ? intentFocus.split(":")[1]
         : intentFocus || (viewerIntent.intent === "clients" ? "clients" : "")
+      // Buyer/Non-buyer persona-aware summary
+      const cRole = (match.meta?.candidateRole as any) || null
+      const persona = (match.meta?.viewerPersona as any) || null
+      const isBuyerFunction = cRole && persona ? (persona.buyer_functions || []).includes(cRole.role_function) : false
+      const isLeader = cRole ? ["director","vp","cxo","founder"].includes(cRole.role_seniority) : false
+      const targetCompanies = Array.isArray(persona?.target_companies) ? persona.target_companies : []
+      const firstName = candidate.firstName || "They"
+      const jobNice = candidate.jobTitle || (cRole ? `${cRole.role_function}` : "leader")
+      const companyNice = candidate.company || "their company"
+      const wantPhrase =
+        persona?.sector === "martech"
+          ? "more clients and sponsorships"
+          : "more clients"
       if (focusDetail === "partners") {
-        summary = `You want partners; ${candidate.jobTitle ?? "they"} at ${
-          candidate.company ?? "their company"
-        } can co-sell${intentTokenLabel ? ` in ${intentTokenLabel}` : ""}.`
+        summary = `You want partners; ${firstName} (${jobNice} at ${companyNice}) can co‑market and co‑sell${intentTokenLabel ? ` in ${intentTokenLabel}` : ""}.`
         reasonTag = "partner"
       } else if (focusDetail === "buy") {
-        summary = `You’re evaluating solutions; ${candidate.jobTitle ?? "they"} buys for ${
-          candidate.company ?? "their team"
-        }${intentTokenLabel ? ` in ${intentTokenLabel}` : ""}.`
+        summary = `You’re evaluating solutions; ${firstName} (${jobNice} at ${companyNice}) helps choose tools${intentTokenLabel ? ` in ${intentTokenLabel}` : ""}.`
         reasonTag = "buyer"
       } else if (focusDetail === "cofounder") {
-        summary = `You’re exploring co-founders; ${candidate.jobTitle ?? "they"} brings ${
-          intentTokenLabel ?? "complementary"
-        } strengths.`
+        summary = `You’re exploring co‑founders; ${firstName} brings ${intentTokenLabel ?? "complementary"} strengths.`
         reasonTag = "cofounder"
+      } else if (isBuyerFunction && (persona?.leader_required ? isLeader : true)) {
+        summary = `You want ${wantPhrase}; ${firstName} (${jobNice} at ${companyNice}) is a buyer${isLeader ? " and decision‑maker" : ""}${intentTokenLabel ? ` in ${intentTokenLabel}` : ""}.`
+        reasonTag = "potential_client"
       } else if (isBuyerProspect && !isSalesRole) {
-        summary = `You need customers${intentTokenLabel ? ` in ${intentTokenLabel}` : ""}; they’re a ${
-          candidate.jobTitle ?? "leader"
-        } at ${candidate.company ?? "their company"}—promising prospect.`
+        summary = `You want ${wantPhrase}; ${firstName} (${jobNice} at ${companyNice}) looks like a promising buyer${intentTokenLabel ? ` in ${intentTokenLabel}` : ""}.`
         reasonTag = "potential_client"
       } else if (isSalesRole) {
-        summary = `You need new deals${intentTokenLabel ? ` in ${intentTokenLabel}` : ""}; ${
-          candidate.jobTitle ?? "they"
-        } open referral paths.`
+        summary = `${firstName} is in sales; not a direct buyer, but can open referral paths.`
         reasonTag = "referrer"
       } else {
-        summary = `You need clients${intentTokenLabel ? ` in ${intentTokenLabel}` : ""}; ${
-          candidate.jobTitle ?? "they"
-        } at ${candidate.company ?? "their company"} is worth an intro.`
+        summary = `You want ${wantPhrase}; ${firstName} (${jobNice} at ${companyNice}) is worth an intro.`
         reasonTag = "potential_client"
+      }
+      if (targetCompanies?.length && candidate.company) {
+        for (const t of targetCompanies) {
+          if (candidate.company.toLowerCase().includes(String(t).toLowerCase())) {
+            summary += ` Company match: ${candidate.company}.`
+            break
+          }
+        }
       }
       break
     }
@@ -1012,6 +1024,48 @@ function computePillars(scored: ScoredCandidate, viewerIntent: ReturnType<typeof
     if (meta.sharedHobby) boostSum += 0.02
   }
 
+  // Buyer-persona role/sector boosts (persona-aware)
+  const vRole = meta.viewerRole
+  const cRole = meta.candidateRole
+  const persona = meta.viewerPersona
+  if (vRole && cRole) {
+    // penalties for obvious off-function pairs without rationale
+    const obviousOff = vRole.role_function === "sales" && cRole.role_function === "data"
+    if (obviousOff) boostSum -= 0.02
+  }
+  if (persona && cRole) {
+    if (viewerIntent.intent === "commercial") {
+      // candidate function in buyer_functions
+      if (persona.buyer_functions.includes(cRole.role_function)) boostSum += 0.05
+      // leadership requirement
+      if (persona.leader_required && (["director","vp","cxo","founder"].includes(cRole.role_seniority))) {
+        boostSum += 0.03
+      }
+      // sector token overlap small bonus if any token seen in candidate summary/company
+      const combined = `${candidate.offerSummary ?? ""} ${candidate.company ?? ""}`.toLowerCase()
+      if (combined.includes(persona.sector.replace(/_/g, " "))) {
+        boostSum += 0.01
+      }
+      // penalize non-buyers (ICs in sales/engineering/product) when leader_required
+      const nonBuyerIC =
+        persona.leader_required &&
+        ["sales","engineering","product"].includes(cRole.role_function) &&
+        !["manager","director","vp","cxo","founder"].includes(cRole.role_seniority)
+      if (nonBuyerIC) boostSum -= 0.08
+    } else if (viewerIntent.intent === "job_seeking") {
+      if (cRole.role_function === "hr_talent" || ["manager","director","vp","cxo","founder"].includes(cRole.role_seniority)) {
+        boostSum += 0.05
+      }
+    } else if (viewerIntent.intent === "recruiting") {
+      if (cRole.role_function === vRole?.role_function) boostSum += 0.05
+    } else if (viewerIntent.intent === "mentorship") {
+      if (cRole.role_function === vRole.role_function) {
+        const viewerYears = 0 // unknown in this context; handled in selection tie-breaker
+        boostSum += 0.04
+      }
+    }
+  }
+
   boostSum = Math.min(boostSum, 0.08)
   const business = clamp(businessCore + boostSum)
 
@@ -1158,7 +1212,12 @@ function buildFingerprint(viewer: ViewerProfile, top3: ScoredCandidate[], shortl
         (c.offerTags ?? []).join(","),
         JSON.stringify(c.followUps ?? {}),
         c.jobTitle ?? "",
-        c.company ?? ""
+        c.company ?? "",
+        JSON.stringify(m.meta?.viewerPersona ?? {}),
+        JSON.stringify(m.meta?.viewerRole ?? {}),
+        JSON.stringify(m.meta?.candidateRole ?? {}),
+        JSON.stringify((m.meta?.viewerPersona as any)?.target_companies ?? []),
+        JSON.stringify((m.meta?.viewerPersona as any)?.target_functions ?? [])
       ]
       return parts.join("|")
     })
@@ -1340,6 +1399,11 @@ async function upsertMatches(
       thresholds,
       total_for_selection: totalForSelection,
       business_components: businessComponents,
+      role_canonicalization: {
+        viewer: match.meta?.viewerRole ?? null,
+        candidate: match.meta?.candidateRole ?? null
+      },
+      buyer_persona: match.meta?.viewerPersona ?? null,
       ai_review: extras?.ai_review ?? null,
       selection_rule_version: extras?.selection_rule_version ?? "business_pool_ai_v2"
     }
@@ -1530,7 +1594,21 @@ async function processUser(eventId: string, userId: string) {
   const prioritized = prioritizePreserved(withPillars, preservedIds)
 
   // Business-first selection (no thresholds)
-  const byBusiness = [...prioritized].sort((a, b) => (b.pillars?.business ?? 0) - (a.pillars?.business ?? 0))
+  const buyerPriority = (m: ScoredCandidate): number => {
+    const persona = (m.meta?.viewerPersona as any) || null
+    const role = (m.meta?.candidateRole as any) || null
+    if (!persona || !role) return 0
+    const isBuyerFunc = (persona.buyer_functions || []).includes(role.role_function)
+    const isLeader = ["manager","director","vp","cxo","founder"].includes(role.role_seniority)
+    if (isBuyerFunc && isLeader) return 2
+    if (isBuyerFunc) return 1
+    return 0
+  }
+  const byBusiness = [...prioritized].sort((a, b) => {
+    const bp = buyerPriority(b) - buyerPriority(a)
+    if (bp !== 0) return bp
+    return (b.pillars?.business ?? 0) - (a.pillars?.business ?? 0)
+  })
   let shortlist = byBusiness.slice(0, 4)
 
   const stableCompare = (a: ScoredCandidate, b: ScoredCandidate) => {

@@ -23,30 +23,33 @@ export function AuthForm() {
   const eventCode = searchParams.get('eventCode')
   const supabase = createClientComponentClient()
 
-  const handleGoogleAuth = async () => {
+  const startOAuth = async (provider: "google" | "linkedin_oidc") => {
     setIsLoading(true)
     try {
+      // Use environment variable for production URL, fallback to current origin
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
       const redirectUrl = eventCode 
-        ? `${window.location.origin}/auth/callback?eventCode=${eventCode}`
-        : `${window.location.origin}/auth/callback`
+        ? `${baseUrl}/auth/callback?eventCode=${eventCode}`
+        : `${baseUrl}/auth/callback`
       
-      console.log('Starting Google OAuth with redirect:', redirectUrl)
+      console.log(`Starting ${provider} OAuth with redirect URL:`, redirectUrl)
       
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
+        provider,
         options: {
-          redirectTo: redirectUrl
+          redirectTo: redirectUrl,
+          scopes: provider === "linkedin_oidc" ? "openid profile email" : undefined,
         }
       })
       
       if (error) {
-        console.error('Google OAuth error:', error)
+        console.error(`${provider} OAuth error:`, error)
         toast.error(error.message)
       } else {
-        console.log('Google OAuth initiated successfully')
+        console.log(`${provider} OAuth initiated successfully`)
       }
     } catch (err) {
-      console.error('Google OAuth exception:', err)
+      console.error('OAuth exception:', err)
       toast.error("An error occurred during authentication")
     } finally {
       setIsLoading(false)
@@ -115,9 +118,24 @@ export function AuthForm() {
           <p className="text-white text-left">Log in/Sign up</p>
         </div>
 
+        {/* LinkedIn OAuth */}
+        <button
+          onClick={() => startOAuth("linkedin_oidc")}
+          disabled={isLoading}
+          className="w-full bg-[#0A66C2] text-white py-3 px-4 rounded-xl font-medium flex items-center justify-center space-x-3 hover:bg-[#084b8a] transition-colors disabled:opacity-50"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
+            <g>
+              <path d="M34 2.5v29c0 1.38-1.12 2.5-2.5 2.5h-29C1.12 34 0 32.88 0 31.5v-29C0 1.12 1.12 0 2.5 0h29C32.88 0 34 1.12 34 2.5z" fill="#0A66C2"/>
+              <path d="M25.43 25.39h-3.71v-5.59c0-1.33-.03-3.04-1.85-3.04-1.86 0-2.15 1.45-2.15 2.94v5.68h-3.71V13.5h3.56v1.62h.05c.5-.95 1.72-1.95 3.54-1.95 3.79 0 4.49 2.49 4.49 5.73v6.49zM10.08 11.88a2.14 2.14 0 01-2.12-2.14 2.14 2.14 0 112.13 2.14h-.01zM11.94 25.39H8.22V13.5h3.72v11.89z" fill="#fff"/>
+            </g>
+          </svg>
+          <span>Sign in with LinkedIn</span>
+        </button>
+
         {/* Google OAuth */}
         <button
-          onClick={handleGoogleAuth}
+          onClick={() => startOAuth("google")}
           disabled={isLoading}
           className="w-full bg-white text-gray-800 py-3 px-4 rounded-xl font-medium flex items-center justify-center space-x-3 hover:bg-gray-50 transition-colors disabled:opacity-50"
         >
