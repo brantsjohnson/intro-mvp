@@ -71,19 +71,29 @@ function UnifiedScrollContainer({
   const [answerAnimating, setAnswerAnimating] = useState<string | null>(null)
   const [showContinueButton, setShowContinueButton] = useState(false)
 
-  // Auto-scroll to bottom when new content is added
+  // Smooth auto-scroll to bottom when new content is added
   useEffect(() => {
-    if (scrollContainerRef.current && !isAnimating) {
-      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+    if (scrollContainerRef.current) {
+      // Use requestAnimationFrame for smoother scrolling
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTo({
+            top: scrollContainerRef.current.scrollHeight,
+            behavior: 'smooth'
+          })
+        }
+      })
     }
-  }, [qaPairs, isAnimating])
+  }, [qaPairs, currentQuestionId])
 
   // Auto-focus input when question appears
   useEffect(() => {
     if (currentQuestionId && inputRef.current) {
-      setTimeout(() => {
+      // Smooth focus after question animation starts
+      const timer = setTimeout(() => {
         inputRef.current?.focus()
-      }, 500) // Delay to allow question animation to start
+      }, 400)
+      return () => clearTimeout(timer)
     }
   }, [currentQuestionId, inputRef])
 
@@ -93,28 +103,44 @@ function UnifiedScrollContainer({
     setIsAnimating(true)
     setAnswerAnimating(currentQuestionId)
     
-    // Animate answer floating up from input
-    setTimeout(() => {
-      // Submit the answer
-      onAnswerSubmit(currentQuestionId, currentAnswer.trim())
-      setAnswerAnimating(null)
-      
-      // After answer appears, wait a moment then transform to continue button
+    // Smooth answer animation sequence
+    requestAnimationFrame(() => {
       setTimeout(() => {
-        setShowContinueButton(true)
-        setIsAnimating(false)
+        // Submit the answer
+        onAnswerSubmit(currentQuestionId, currentAnswer.trim())
         
-        // Scroll up the Q&A pair after a delay
-        setTimeout(() => {
+        // Smooth scroll to show answer
+        requestAnimationFrame(() => {
           if (scrollContainerRef.current) {
             scrollContainerRef.current.scrollTo({
-              top: scrollContainerRef.current.scrollHeight - 200,
+              top: scrollContainerRef.current.scrollHeight,
               behavior: 'smooth'
             })
           }
-        }, 1000)
-      }, 500)
-    }, 300)
+        })
+        
+        // After answer appears, smoothly transition to continue button
+        setTimeout(() => {
+          setAnswerAnimating(null)
+          setShowContinueButton(true)
+          
+          // Smooth scroll up to make room for next question
+          setTimeout(() => {
+            if (scrollContainerRef.current) {
+              const scrollHeight = scrollContainerRef.current.scrollHeight
+              const clientHeight = scrollContainerRef.current.clientHeight
+              const scrollPosition = scrollHeight - clientHeight - 100
+              
+              scrollContainerRef.current.scrollTo({
+                top: Math.max(0, scrollPosition),
+                behavior: 'smooth'
+              })
+            }
+            setIsAnimating(false)
+          }, 300)
+        }, 400)
+      }, 200)
+    })
   }
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -142,8 +168,12 @@ function UnifiedScrollContainer({
       <div 
         ref={scrollContainerRef}
         data-scroll-container
-        className="flex-1 overflow-y-auto px-4 py-8 space-y-6"
-        style={{ scrollBehavior: 'smooth' }}
+        className="flex-1 overflow-y-auto px-4 py-8 space-y-6 scroll-smooth"
+        style={{ 
+          scrollBehavior: 'smooth',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain'
+        }}
       >
         {qaPairs.map((qa, index) => {
           const isLastAnswered = index === qaPairs.length - 1 && qa.answer
@@ -153,13 +183,13 @@ function UnifiedScrollContainer({
           return (
             <div
               key={qa.id}
-              className={`space-y-3 transition-all duration-1000 ${
+              className={`space-y-3 transition-all duration-700 ease-in-out ${
                 isScrollingUp 
-                  ? 'transform translate-y-[-100px] opacity-50' 
+                  ? 'transform translate-y-[-80px] opacity-40 transition-all duration-1000 ease-in-out' 
                   : isLastAnswered
-                  ? 'animate-in fade-in slide-in-from-bottom-4 duration-700'
+                  ? 'animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out'
                   : isCurrentUnanswered
-                  ? 'animate-in fade-in slide-in-from-bottom-8 duration-1000'
+                  ? 'animate-in fade-in slide-in-from-bottom-8 duration-700 ease-out'
                   : ''
               }`}
             >
@@ -173,12 +203,12 @@ function UnifiedScrollContainer({
 
               {/* Answer or Checkbox Selection */}
               {qa.answer && (
-                <div className={`mt-2 transition-all duration-700 ${
+                <div className={`mt-2 transition-all duration-500 ease-out ${
                   answerAnimating === qa.id
-                    ? 'animate-in fade-in slide-in-from-bottom-8 duration-500'
-                    : 'animate-in fade-in slide-in-from-bottom-4 duration-700'
+                    ? 'animate-in fade-in slide-in-from-bottom-8 duration-400 ease-out'
+                    : 'animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out'
                 }`}>
-                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-primary text-white">
+                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-primary text-white transition-all duration-300 ease-out">
                     <p className="text-sm whitespace-pre-wrap">{qa.answer}</p>
                   </div>
                 </div>
@@ -230,7 +260,7 @@ function UnifiedScrollContainer({
 
         {/* Current Question - Rising from bottom with enhanced animation (only if not already in qaPairs) */}
         {currentQuestion && !currentQuestion.answer && !qaPairs.some(qa => qa.id === currentQuestionId) && (
-          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-8 duration-700 ease-out">
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Question:</p>
               <p className="text-lg font-medium text-foreground">{currentQuestion.question}</p>
@@ -289,8 +319,8 @@ function UnifiedScrollContainer({
               <ArrowUp className="h-4 w-4 ml-2" />
             </GradientButton>
           ) : (
-            <div className={`flex gap-2 items-end transition-all duration-500 ${
-              answerAnimating === currentQuestionId ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
+            <div className={`flex gap-2 items-end transition-all duration-300 ease-in-out ${
+              answerAnimating === currentQuestionId ? 'opacity-0 scale-95 translate-y-2' : 'opacity-100 scale-100 translate-y-0'
             }`}>
               <Textarea
                 ref={inputRef}
