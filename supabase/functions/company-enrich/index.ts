@@ -1,6 +1,11 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std/http/server.ts"
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
 function normalizeUrl(input: string): { url: string; domain: string } {
   let s = input.trim()
   if (!/^https?:\/\//i.test(s)) s = "https://" + s
@@ -81,8 +86,16 @@ function bestDescription(html?: string | null): string | null {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
   if (req.method !== "POST") {
-    return new Response("Method Not Allowed", { status: 405 })
+    return new Response("Method Not Allowed", { 
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    })
   }
   try {
     const body = await req.json()
@@ -90,7 +103,7 @@ serve(async (req) => {
     if (!raw) {
       return new Response(JSON.stringify({ ok: false, error: "url required" }), {
         status: 400,
-        headers: { "Content-Type": "application/json" }
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       })
     }
     const norm = normalizeUrl(raw)
@@ -105,12 +118,12 @@ serve(async (req) => {
         company_name: companyName,
         company_description: description
       }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e) }), {
       status: 500,
-      headers: { "Content-Type": "application/json" }
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
     })
   }
 })

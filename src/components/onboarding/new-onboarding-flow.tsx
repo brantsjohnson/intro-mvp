@@ -70,6 +70,8 @@ export function NewOnboardingFlow() {
   const [customExpertise, setCustomExpertise] = useState<string[]>([]) // Track custom-added expertise separately
   const [companyName, setCompanyName] = useState("")
   const [isEnrichingCompany, setIsEnrichingCompany] = useState(false)
+  const [companyUrlTouched, setCompanyUrlTouched] = useState(false)
+  const [companyUrlError, setCompanyUrlError] = useState("")
   const expertiseInputRef = useRef<HTMLInputElement>(null)
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
@@ -424,6 +426,7 @@ export function NewOnboardingFlow() {
   }
 
   // Enrich company information (runs silently in background, no loading state)
+  // This calls the edge function which analyzes the website and extracts the real company name
   const enrichCompany = async (companyUrl: string) => {
     if (!companyUrl || !/[.]/.test(companyUrl)) return
     
@@ -442,13 +445,43 @@ export function NewOnboardingFlow() {
       
       if (res.ok) {
         const enriched = await res.json()
+        // Use the company name that the edge function extracted from the website
+        // This is the real company name from meta tags, JSON-LD, or title tags
         if (enriched.company_name) {
           setCompanyName(enriched.company_name)
+        } else {
+          // Fallback: if edge function couldn't find a name, use domain as last resort
+          const domain = companyUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+          const domainName = domain.split('.')[0]
+          if (domainName && domainName.length > 1) {
+            setCompanyName(domainName.charAt(0).toUpperCase() + domainName.slice(1))
+          }
+        }
+      } else {
+        // If API call fails, fallback to domain name
+        const domain = companyUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+        const domainName = domain.split('.')[0]
+        if (domainName && domainName.length > 1) {
+          setCompanyName(domainName.charAt(0).toUpperCase() + domainName.slice(1))
         }
       }
     } catch (e) {
       console.warn("company_enrich_failed", e)
+      // On error, fallback to domain name
+      const domain = companyUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+      const domainName = domain.split('.')[0]
+      if (domainName && domainName.length > 1) {
+        setCompanyName(domainName.charAt(0).toUpperCase() + domainName.slice(1))
+      }
     }
+  }
+
+  // Validate URL format
+  const validateUrl = (url: string): boolean => {
+    if (!url.trim()) return true // Empty is valid (optional)
+    // Check if it looks like a URL (has http/https or has a dot)
+    const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/
+    return urlPattern.test(url) || /^https?:\/\//.test(url) || /[.]/.test(url)
   }
 
   // Generate AI-suggested expertise based on job title
@@ -1210,7 +1243,9 @@ export function NewOnboardingFlow() {
                 id="company"
                 value={company}
                 onChange={(e) => {
-                  setCompany(e.target.value)
+                  const value = e.target.value
+                  setCompany(value)
+                  setCompanyUrlError("")
                   if (validationErrors.company) {
                     setValidationErrors(prev => {
                       const newErrors = { ...prev }
@@ -1218,32 +1253,48 @@ export function NewOnboardingFlow() {
                       return newErrors
                     })
                   }
+                  // Don't auto-guess here - let the enrichment function handle it
+                  // The enrichment will run via useEffect debounce and populate the real company name
+                }}
+                onBlur={(e) => {
+                  setCompanyUrlTouched(true)
+                  const value = e.target.value.trim()
+                  if (value && !validateUrl(value)) {
+                    setCompanyUrlError("URLs only - optional")
+                  } else {
+                    setCompanyUrlError("")
+                  }
                 }}
                 placeholder="https://company.com"
-                className={`mt-1 rounded-xl bg-muted/40 ${validationErrors.company ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-xl bg-muted/40 ${companyUrlError ? 'border-destructive' : ''}`}
               />
-              {/* Company Name Input - Auto-populated but editable */}
-              <div className="mt-2">
-                <Label htmlFor="companyName" className="text-sm font-medium text-foreground">
-                  Company name
-                </Label>
-                <Input
-                  id="companyName"
-                  value={companyName}
-                  onChange={(e) => {
-                    setCompanyName(e.target.value)
-                    if (validationErrors.company) {
-                      setValidationErrors(prev => {
-                        const newErrors = { ...prev }
-                        delete newErrors.company
-                        return newErrors
-                      })
-                    }
-                  }}
-                  placeholder="Company name will auto-populate from URL"
-                  className={`mt-1 rounded-xl bg-muted/40 ${validationErrors.company ? 'border-destructive' : ''}`}
-                />
-              </div>
+              {companyUrlError && (
+                <p className="text-xs text-destructive mt-1">{companyUrlError}</p>
+              )}
+              {/* Company Name Input - Only show after URL is entered or invalid input attempted */}
+              {(company || companyUrlTouched) && (
+                <div className="mt-2">
+                  <Label htmlFor="companyName" className="text-sm font-medium text-foreground">
+                    Company name
+                  </Label>
+                  <Input
+                    id="companyName"
+                    value={companyName}
+                    onChange={(e) => {
+                      setCompanyName(e.target.value)
+                      if (validationErrors.company) {
+                        setValidationErrors(prev => {
+                          const newErrors = { ...prev }
+                          delete newErrors.company
+                          return newErrors
+                        })
+                      }
+                    }}
+                    placeholder="Company name"
+                    className={`mt-1 rounded-xl bg-muted/40 ${validationErrors.company ? 'border-destructive' : ''}`}
+                  />
+                </div>
+              )}
               {validationErrors.company && (
                 <p className="text-xs text-destructive mt-1">{validationErrors.company}</p>
               )}
