@@ -295,7 +295,7 @@ export function EventJoinScanner({
           <div className="w-full border-t-2 border-border"></div>
         </div>
         <div className="relative flex justify-center">
-          <span className="bg-background px-4 text-foreground text-3xl font-semibold">OR</span>
+          <span className="px-4 text-foreground text-2xl font-semibold">OR</span>
         </div>
       </div>
 
