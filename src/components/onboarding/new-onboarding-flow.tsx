@@ -67,6 +67,7 @@ export function NewOnboardingFlow() {
   const [areasOfExpertise, setAreasOfExpertise] = useState<string[]>([])
   const [expertiseInput, setExpertiseInput] = useState("")
   const [suggestedExpertise, setSuggestedExpertise] = useState<string[]>([])
+  const [customExpertise, setCustomExpertise] = useState<string[]>([]) // Track custom-added expertise separately
   const [companyName, setCompanyName] = useState("")
   const [isEnrichingCompany, setIsEnrichingCompany] = useState(false)
   const expertiseInputRef = useRef<HTMLInputElement>(null)
@@ -493,7 +494,7 @@ export function NewOnboardingFlow() {
         matchedSuggestions.push('Communication', 'Problem Solving', 'Collaboration', 'Planning', 'Execution', 'Leadership')
       }
 
-      setSuggestedExpertise(matchedSuggestions.slice(0, 6))
+      setSuggestedExpertise(matchedSuggestions.slice(0, 12))
     } catch (error) {
       console.error('Error generating expertise suggestions:', error)
       setSuggestedExpertise([])
@@ -507,6 +508,10 @@ export function NewOnboardingFlow() {
       const newExpertise = expertiseInput.trim()
       if (!areasOfExpertise.includes(newExpertise)) {
         setAreasOfExpertise([...areasOfExpertise, newExpertise])
+        // Track as custom if it's not in suggested list
+        if (!suggestedExpertise.includes(newExpertise)) {
+          setCustomExpertise([...customExpertise, newExpertise])
+        }
       }
       setExpertiseInput("")
       // Keep focus on input for next entry
@@ -518,6 +523,8 @@ export function NewOnboardingFlow() {
 
   const removeExpertise = (expertise: string) => {
     setAreasOfExpertise(areasOfExpertise.filter(e => e !== expertise))
+    // Also remove from custom if it was custom
+    setCustomExpertise(customExpertise.filter(e => e !== expertise))
   }
 
   const addSuggestedExpertise = (expertise: string) => {
@@ -534,6 +541,10 @@ export function NewOnboardingFlow() {
       const newExpertise = expertiseInput.trim()
       if (!areasOfExpertise.includes(newExpertise)) {
         setAreasOfExpertise([...areasOfExpertise, newExpertise])
+        // Track as custom if it's not in suggested list
+        if (!suggestedExpertise.includes(newExpertise)) {
+          setCustomExpertise([...customExpertise, newExpertise])
+        }
       }
       setExpertiseInput("")
       // Keep focus on input for next entry
@@ -664,12 +675,13 @@ export function NewOnboardingFlow() {
       // Parse years of experience to integer
       const yearsExpInt = parseInt(yearsExperience) || null
 
-      // Enrich company name from URL if URL is provided but name is not
-      let companyNameToSave = companyName
+      // Use the company name from state (which may have been auto-populated or manually edited)
+      // If user edited it, use their edited value; otherwise try to enrich if needed
+      let companyNameToSave = companyName.trim() || null
       let companySummary: string | null = null
       
-      // If we have a URL but no company name, try to enrich
-      if (!companyName && company && /[.]/.test(company)) {
+      // If we have a URL but no company name (user didn't edit it), try to enrich
+      if (!companyNameToSave && company && /[.]/.test(company)) {
         try {
           const { data: session } = await supabase.auth.getSession()
           const token = session.session?.access_token
@@ -1210,12 +1222,28 @@ export function NewOnboardingFlow() {
                 placeholder="https://company.com"
                 className={`mt-1 rounded-xl bg-muted/40 ${validationErrors.company ? 'border-destructive' : ''}`}
               />
-              {companyName && (
-                <div className="mt-2 p-3 bg-muted/60 border border-border rounded-lg">
-                  <Label className="text-xs text-muted-foreground mb-1 block">Company name:</Label>
-                  <p className="text-sm font-semibold text-foreground">{companyName}</p>
-                </div>
-              )}
+              {/* Company Name Input - Auto-populated but editable */}
+              <div className="mt-2">
+                <Label htmlFor="companyName" className="text-sm font-medium text-foreground">
+                  Company name
+                </Label>
+                <Input
+                  id="companyName"
+                  value={companyName}
+                  onChange={(e) => {
+                    setCompanyName(e.target.value)
+                    if (validationErrors.company) {
+                      setValidationErrors(prev => {
+                        const newErrors = { ...prev }
+                        delete newErrors.company
+                        return newErrors
+                      })
+                    }
+                  }}
+                  placeholder="Company name will auto-populate from URL"
+                  className={`mt-1 rounded-xl bg-muted/40 ${validationErrors.company ? 'border-destructive' : ''}`}
+                />
+              </div>
               {validationErrors.company && (
                 <p className="text-xs text-destructive mt-1">{validationErrors.company}</p>
               )}
@@ -1250,10 +1278,10 @@ export function NewOnboardingFlow() {
                 </div>
               )}
 
-              {/* Selected expertise bubbles - show in order they were added */}
-              {areasOfExpertise.length > 0 && (
+              {/* Custom expertise bubbles - only show custom-added ones (not suggested) */}
+              {customExpertise.length > 0 && (
                 <div className="mt-2 mb-3 flex flex-wrap gap-2">
-                  {areasOfExpertise.map((expertise) => (
+                  {customExpertise.map((expertise) => (
                     <div
                       key={expertise}
                       className="px-3 py-1.5 rounded-full text-xs font-medium bg-primary text-white flex items-center gap-2"
