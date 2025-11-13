@@ -262,7 +262,7 @@ function UnifiedScrollContainer({
       </div>
 
       {/* Input Area - Fixed at bottom with transform animation */}
-      <div className="pt-4 pb-4 px-4 flex-shrink-0 border-t border-border bg-card mt-auto">
+      <div className="pt-4 pb-4 px-4 flex-shrink-0 bg-card mt-auto">
         {currentQuestionId && currentQuestion && !currentQuestion.answer && !showContinueButton ? (
           currentQuestion.type === 'checkbox' ? (
             // For checkbox questions, show Continue button when at least one is selected
@@ -2069,6 +2069,17 @@ export function NewOnboardingFlow() {
       }])
     }
   }, [eventId, currentStep, eventName, currentQuestionId])
+
+  // Update question text when eventName becomes available
+  useEffect(() => {
+    if (eventName && qaPairs.some(qa => qa.id === "why-attending")) {
+      setQAPairs(prev => prev.map(qa => 
+        qa.id === "why-attending" 
+          ? { ...qa, question: `Why are you attending ${eventName}?` }
+          : qa
+      ))
+    }
+  }, [eventName, qaPairs.length])
   
   // When "why attending" is answered, add connection types question to scroll
   useEffect(() => {
