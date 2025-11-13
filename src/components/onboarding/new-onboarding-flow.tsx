@@ -70,6 +70,7 @@ export function NewOnboardingFlow() {
   const [additionalSuggestions, setAdditionalSuggestions] = useState<string[]>([]) // Additional suggestions after 2 selected
   const [customExpertise, setCustomExpertise] = useState<string[]>([]) // Track custom-added expertise separately
   const [companyName, setCompanyName] = useState("")
+  const [companySummary, setCompanySummary] = useState<string | null>(null)
   const [isEnrichingCompany, setIsEnrichingCompany] = useState(false)
   const [companyUrlTouched, setCompanyUrlTouched] = useState(false)
   const [companyUrlError, setCompanyUrlError] = useState("")
@@ -458,6 +459,8 @@ export function NewOnboardingFlow() {
             setCompanyName(domainName.charAt(0).toUpperCase() + domainName.slice(1))
           }
         }
+        // Always update company summary/description when URL changes
+        setCompanySummary(enriched.company_description || null)
       } else {
         // If API call fails, fallback to domain name
         const domain = companyUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
@@ -465,6 +468,7 @@ export function NewOnboardingFlow() {
         if (domainName && domainName.length > 1) {
           setCompanyName(domainName.charAt(0).toUpperCase() + domainName.slice(1))
         }
+        setCompanySummary(null) // Clear summary if enrichment fails
       }
     } catch (e) {
       console.warn("company_enrich_failed", e)
@@ -474,6 +478,7 @@ export function NewOnboardingFlow() {
       if (domainName && domainName.length > 1) {
         setCompanyName(domainName.charAt(0).toUpperCase() + domainName.slice(1))
       }
+      setCompanySummary(null) // Clear summary on error
     }
   }
 
@@ -726,10 +731,12 @@ export function NewOnboardingFlow() {
       // Use the company name from state (which may have been auto-populated or manually edited)
       // If user edited it, use their edited value; otherwise try to enrich if needed
       let companyNameToSave = companyName.trim() || null
-      let companySummary: string | null = null
+      let companySummaryToSave = companySummary
       
-      // If we have a URL but no company name (user didn't edit it), try to enrich
-      if (!companyNameToSave && company && /[.]/.test(company)) {
+      // If URL exists, ensure we have the latest company summary for that URL
+      // Re-enrich if URL changed or if we don't have a summary yet
+      if (company && /[.]/.test(company)) {
+        // Always re-enrich to get the latest description for the current URL
         try {
           const { data: session } = await supabase.auth.getSession()
           const token = session.session?.access_token
@@ -743,8 +750,12 @@ export function NewOnboardingFlow() {
           })
           if (res.ok) {
             const enriched = await res.json()
-            companyNameToSave = enriched.company_name || null
-            companySummary = enriched.company_description || null
+            // Update company name if we don't have one yet
+            if (!companyNameToSave) {
+              companyNameToSave = enriched.company_name || null
+            }
+            // Always update summary to match the current URL
+            companySummaryToSave = enriched.company_description || null
           }
         } catch (e) {
           console.warn("company_enrich_failed", e)
@@ -768,6 +779,7 @@ export function NewOnboardingFlow() {
           career_title: jobTitle,
           company_name: companyNameToSave || null,
           company_url: company || null,
+          company_summ: companySummaryToSave || null, // Save company description/summary
           career_years_experience: yearsExpInt,
           expertise_summary: expertiseArray.join(", "),
         }, {
