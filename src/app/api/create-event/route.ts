@@ -34,14 +34,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Create event with new schema
+    // Store times exactly as provided (datetime-local format: "YYYY-MM-DDTHH:mm")
+    // Don't convert timezones - store as-is so times remain as entered
     const { data, error } = await supabase
       .from('events')
       .insert({
         event_code: cleanCode,
         event_name: eventName,
         event_location: eventLocation || null,
-        event_starts_at: eventStartsAt || null,
-        event_ends_at: eventEndsAt || null,
+        event_starts_at: eventStartsAt || null, // Store exactly as entered
+        event_ends_at: eventEndsAt || null, // Store exactly as entered
         onboarding_question_schema: {},
         matching_config: {}
       })
