@@ -1493,10 +1493,23 @@ export function NewOnboardingFlow() {
 
   useEffect(() => {
     if (visibleSteps.length === 0) return
+    // If current step is out of bounds, reset to last valid step
     if (currentStep >= visibleSteps.length) {
       setCurrentStep(Math.max(visibleSteps.length - 1, 0))
     }
-  }, [visibleSteps.length, currentStep])
+    // If we're on a follow-up step that no longer exists (connection type was deselected),
+    // move to the connection-types step
+    if (currentStepData?.id.startsWith("follow-up-")) {
+      const typeId = currentStepData.id.replace("follow-up-", "")
+      if (!connectionTypesSelected.includes(typeId)) {
+        // Find the connection-types step index
+        const connectionTypesIndex = visibleSteps.findIndex(step => step.id === "connection-types")
+        if (connectionTypesIndex >= 0) {
+          setCurrentStep(connectionTypesIndex)
+        }
+      }
+    }
+  }, [visibleSteps.length, currentStep, currentStepData, connectionTypesSelected])
 
   // Show adaptive Q&A if we have a current question or are loading one
   // DISABLED: Adaptive Q&A is dormant for now
