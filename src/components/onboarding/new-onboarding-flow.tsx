@@ -855,7 +855,7 @@ export function NewOnboardingFlow() {
           connection_types_selected: dbConnectionTypes,
           connection_followups_json: dbFollowUpResponses,
           business_need_text: businessNeed,
-          onboarding_completed: false // Will be set to true after adaptive Q&A
+          onboarding_completed: true // Mark as complete - adaptive Q&A is dormant
         }, { onConflict: 'event_id,user_id' })
         .select()
 
@@ -873,41 +873,23 @@ export function NewOnboardingFlow() {
 
       console.log("Event onboarding saved successfully:", data)
       
-      // Derive attendance data immediately after saving event onboarding
+      // Derive attendance data in background (non-blocking)
       // This populates offer_summary, want_summary, embeddings, tags, etc.
-      console.log("Calling derive-attendance to populate all fields...")
-      try {
-        const deriveResponse = await fetch('/api/derive-attendance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ eventId, userId: user.id })
-        })
-
-        if (deriveResponse.ok) {
-          const deriveResult = await deriveResponse.json()
-          console.log("Derive-attendance completed:", deriveResult)
-        } else {
-          const error = await deriveResponse.json()
-          console.error('Error deriving attendance (non-blocking):', error)
-          // Don't block - continue with adaptive Q&A
-        }
-      } catch (deriveError) {
-        console.error('Error calling derive-attendance (non-blocking):', deriveError)
-        // Don't block - continue with adaptive Q&A
-      }
+      fetch('/api/derive-attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId, userId: user.id })
+      }).catch(error => {
+        console.error('Error deriving attendance (background):', error)
+        // Don't show error to user, this is background processing
+      })
       
-      // Event questions saved, now start adaptive Q&A
-      toast.success("Saved! Let's continue...")
-      
-      // Load first adaptive question, but allow progression if it fails
-      const adaptiveQnASuccess = await loadNextAdaptiveQuestion(undefined, true)
-      
-      // If adaptive Q&A is not available or fails, complete onboarding anyway
-      // The user has already provided all necessary information
-      if (!adaptiveQnASuccess) {
-        console.log('Adaptive Q&A not available, completing onboarding without it')
-        await completeAdaptiveQnA()
-      }
+      // Skip adaptive Q&A - redirect directly to home
+      toast.success("Welcome to the event! Redirecting...")
+      setIsRedirecting(true)
+      setTimeout(() => {
+        router.push('/home')
+      }, 1000)
       
     } catch (error: any) {
       console.error("Error completing event onboarding:", {
