@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { createClientComponentClient } from "@/lib/supabase"
 import { User } from "@/lib/types"
 import { toast } from "sonner"
-import { ArrowRight, ChevronLeft, Loader2, Camera, X, Upload, Send } from "lucide-react"
+import { ArrowRight, ChevronLeft, Loader2, Camera, X, Upload, Send, ArrowUp } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ImageCropModal } from "@/components/ui/image-crop-modal"
 import { CameraCapture } from "@/components/ui/camera-capture"
@@ -22,6 +22,403 @@ interface OnboardingStep {
   title: string
   description: string
   component: React.ReactNode
+}
+
+// Unified scroll container for Q&A pairs
+interface QAPair {
+  id: string
+  question: string
+  answer: string | null
+  type: 'text' | 'checkbox'
+  checkboxOptions?: Array<{ id: string; label: string }>
+  checkboxSelected?: string[]
+}
+
+interface UnifiedScrollContainerProps {
+  qaPairs: QAPair[]
+  currentQuestionId: string | null
+  currentAnswer: string
+  setCurrentAnswer: (answer: string) => void
+  onAnswerSubmit: (questionId: string, answer: string) => void
+  onContinue: () => void
+  inputRef: React.RefObject<HTMLTextAreaElement>
+  isSubmitting: boolean
+  canGoBack: boolean
+  onBack: () => void
+  // For checkbox questions
+  checkboxOptions?: Array<{ id: string; label: string }>
+  checkboxSelected?: string[]
+  onCheckboxChange?: (id: string, checked: boolean) => void
+}
+
+function UnifiedScrollContainer({
+  qaPairs,
+  currentQuestionId,
+  currentAnswer,
+  setCurrentAnswer,
+  onAnswerSubmit,
+  onContinue,
+  inputRef,
+  isSubmitting,
+  canGoBack,
+  onBack,
+  checkboxOptions,
+  checkboxSelected = [],
+  onCheckboxChange
+}: UnifiedScrollContainerProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [isAnimating, setIsAnimating] = useState(false)
+  const [answerAnimating, setAnswerAnimating] = useState<string | null>(null)
+  const [showContinueButton, setShowContinueButton] = useState(false)
+
+  // Auto-scroll to bottom when new content is added
+  useEffect(() => {
+    if (scrollContainerRef.current && !isAnimating) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+    }
+  }, [qaPairs, isAnimating])
+
+  // Auto-focus input when question appears
+  useEffect(() => {
+    if (currentQuestionId && inputRef.current) {
+      setTimeout(() => {
+        inputRef.current?.focus()
+      }, 500) // Delay to allow question animation to start
+    }
+  }, [currentQuestionId, inputRef])
+
+  const handleSubmit = () => {
+    if (!currentAnswer.trim() || !currentQuestionId) return
+    
+    setIsAnimating(true)
+    setAnswerAnimating(currentQuestionId)
+    
+    // Animate answer floating up from input
+    setTimeout(() => {
+      // Submit the answer
+      onAnswerSubmit(currentQuestionId, currentAnswer.trim())
+      setAnswerAnimating(null)
+      
+      // After answer appears, wait a moment then transform to continue button
+      setTimeout(() => {
+        setShowContinueButton(true)
+        setIsAnimating(false)
+        
+        // Scroll up the Q&A pair after a delay
+        setTimeout(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTo({
+              top: scrollContainerRef.current.scrollHeight - 200,
+              behavior: 'smooth'
+            })
+          }
+        }, 1000)
+      }, 500)
+    }, 300)
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSubmit()
+    }
+  }
+
+  const currentQuestion = qaPairs.find(qa => qa.id === currentQuestionId)
+
+  return (
+    <div className="flex flex-col h-full min-h-[calc(100vh-200px)] relative">
+      {/* Back Button - Top Left */}
+      {canGoBack && (
+        <button
+          onClick={onBack}
+          className="absolute top-4 left-4 z-10 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* Scroll Container - Holds all Q&A pairs */}
+      <div 
+        ref={scrollContainerRef}
+        data-scroll-container
+        className="flex-1 overflow-y-auto px-4 py-8 space-y-6"
+        style={{ scrollBehavior: 'smooth' }}
+      >
+        {qaPairs.map((qa, index) => {
+          const isLastAnswered = index === qaPairs.length - 1 && qa.answer
+          const isScrollingUp = isLastAnswered && showContinueButton
+          
+          return (
+            <div
+              key={qa.id}
+              className={`space-y-3 transition-all duration-1000 ${
+                isScrollingUp 
+                  ? 'transform translate-y-[-100px] opacity-50' 
+                  : isLastAnswered
+                  ? 'animate-in fade-in slide-in-from-bottom-4 duration-700'
+                  : ''
+              }`}
+            >
+              {/* Question */}
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Question:</p>
+                <p className="text-lg font-medium text-foreground">{qa.question}</p>
+              </div>
+
+              {/* Answer or Checkbox Selection */}
+              {qa.answer && (
+                <div className={`mt-2 transition-all duration-700 ${
+                  answerAnimating === qa.id
+                    ? 'animate-in fade-in slide-in-from-bottom-8 duration-500'
+                    : 'animate-in fade-in slide-in-from-bottom-4 duration-700'
+                }`}>
+                  <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-primary text-white">
+                    <p className="text-sm whitespace-pre-wrap">{qa.answer}</p>
+                  </div>
+                </div>
+              )}
+
+              {qa.type === 'checkbox' && qa.checkboxSelected && qa.checkboxSelected.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {qa.checkboxSelected.map((selectedId) => {
+                    const option = qa.checkboxOptions?.find(opt => opt.id === selectedId)
+                    return option ? (
+                      <div key={selectedId} className="max-w-[85%] rounded-2xl px-4 py-2 bg-primary/20 text-primary border border-primary/30">
+                        <p className="text-sm">{option.label}</p>
+                      </div>
+                    ) : null
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        {/* Current Question - Rising from bottom with enhanced animation */}
+        {currentQuestion && !currentQuestion.answer && (
+          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Question:</p>
+              <p className="text-lg font-medium text-foreground">{currentQuestion.question}</p>
+            </div>
+            
+            {/* Checkbox options for connection types */}
+            {currentQuestion.type === 'checkbox' && checkboxOptions && (
+              <div className="mt-4 space-y-2">
+                {checkboxOptions.map((option) => (
+                  <div key={option.id} className="flex items-center space-x-3 rounded-xl p-3 transition-colors hover:bg-muted/50">
+                    <Checkbox
+                      id={`scroll-checkbox-${option.id}`}
+                      checked={checkboxSelected?.includes(option.id) || false}
+                      onCheckedChange={(checked) => onCheckboxChange?.(option.id, checked as boolean)}
+                      className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                    />
+                    <label
+                      htmlFor={`scroll-checkbox-${option.id}`}
+                      className="text-sm font-medium cursor-pointer flex-1"
+                    >
+                      {option.label}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Input Area - Fixed at bottom with transform animation */}
+      <div className="pt-4 pb-4 px-4 flex-shrink-0 border-t border-border bg-card">
+        {currentQuestion && !currentQuestion.answer && !showContinueButton ? (
+          currentQuestion.type === 'checkbox' ? (
+            // For checkbox questions, show Continue button when at least one is selected
+            <GradientButton
+              onClick={() => {
+                // Save checkbox selection as answer
+                if (checkboxSelected && checkboxSelected.length > 0) {
+                  const selectedLabels = checkboxOptions
+                    ?.filter(opt => checkboxSelected.includes(opt.id))
+                    .map(opt => opt.label)
+                    .join(", ") || ""
+                  
+                  onAnswerSubmit(currentQuestionId, selectedLabels)
+                  
+                  setTimeout(() => {
+                    setShowContinueButton(true)
+                  }, 500)
+                }
+              }}
+              disabled={!checkboxSelected || checkboxSelected.length === 0 || isSubmitting}
+              className="w-full h-16 rounded-xl text-lg font-medium"
+            >
+              Continue
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </GradientButton>
+          ) : (
+            <div className={`flex gap-2 items-end transition-all duration-500 ${
+              answerAnimating === currentQuestionId ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
+            }`}>
+              <Textarea
+                ref={inputRef}
+                value={currentAnswer}
+                onChange={(e) => setCurrentAnswer(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Type your answer..."
+                className="flex-1 rounded-xl min-h-[44px] max-h-[120px] resize-none bg-muted/40"
+                rows={1}
+                autoFocus
+              />
+              <Button
+                onClick={handleSubmit}
+                disabled={!currentAnswer.trim() || isSubmitting || isAnimating}
+                size="icon"
+                className="h-11 w-11 rounded-xl shrink-0"
+              >
+                <ArrowUp className="h-5 w-5" />
+              </Button>
+            </div>
+          )
+        ) : (
+          <div className={`transition-all duration-500 ${
+            showContinueButton ? 'animate-in fade-in slide-in-from-bottom-4' : ''
+          }`}>
+            <GradientButton
+              onClick={() => {
+                setShowContinueButton(false)
+                setCurrentAnswer("")
+                onContinue()
+              }}
+              disabled={isSubmitting}
+              className="w-full h-16 rounded-xl text-lg font-medium"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </>
+              )}
+            </GradientButton>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+interface ChatQuestionInputProps {
+  question: string
+  answer: string
+  setAnswer: (answer: string) => void
+  placeholder: string
+  inputRef: React.RefObject<HTMLTextAreaElement>
+  onComplete?: () => void
+  onSend?: () => void
+}
+
+function ChatQuestionInput({
+  question,
+  answer,
+  setAnswer,
+  placeholder,
+  inputRef,
+  onComplete,
+  onSend
+}: ChatQuestionInputProps) {
+  const [hasAnswered, setHasAnswered] = useState(false)
+  const answerContainerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    // Auto-focus input after a short delay to trigger mobile keyboard
+    setTimeout(() => {
+      inputRef.current?.focus()
+    }, 300)
+  }, [])
+
+  useEffect(() => {
+    // Scroll to bottom when answer is added
+    if (answerContainerRef.current && hasAnswered) {
+      answerContainerRef.current.scrollTop = answerContainerRef.current.scrollHeight
+    }
+  }, [hasAnswered, answer])
+
+  const handleSend = () => {
+    if (!answer.trim()) return
+    setHasAnswered(true)
+    if (onSend) {
+      onSend()
+    }
+    // Don't auto-call onComplete - wait for user to click Continue button
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-full min-h-[calc(100vh-200px)]">
+      {/* Question Label and Text - Left justified */}
+      <div className="flex-1 flex flex-col justify-center px-4">
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <p className="text-sm text-muted-foreground mb-2">Question:</p>
+          <p className="text-lg font-medium text-foreground">{question}</p>
+          
+          {/* Answer appears under question after submission */}
+          {hasAnswered && (
+            <div className="mt-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-primary text-white">
+                <p className="text-sm whitespace-pre-wrap">{answer}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Input Area - Positioned at very bottom */}
+      <div className="pt-4 pb-4 flex-shrink-0">
+        <div className="flex gap-2 items-end">
+          {!hasAnswered ? (
+            <>
+              <Textarea
+                ref={inputRef}
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder={placeholder}
+                className="flex-1 rounded-xl min-h-[44px] max-h-[120px] resize-none bg-muted/40"
+                rows={1}
+                autoFocus
+              />
+              <Button
+                onClick={handleSend}
+                disabled={!answer.trim()}
+                size="icon"
+                className="h-11 w-11 rounded-xl shrink-0"
+              >
+                <ArrowUp className="h-5 w-5" />
+              </Button>
+            </>
+          ) : (
+            <GradientButton
+              onClick={onComplete}
+              className="w-full h-16 rounded-xl text-lg font-medium"
+            >
+              Continue
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </GradientButton>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 interface ChatFollowUpQuestionsProps {
@@ -140,42 +537,39 @@ function ChatFollowUpQuestions({
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)] max-h-[600px]">
-      {/* Chat Messages Container */}
+    <div className="flex flex-col h-full min-h-[calc(100vh-200px)]">
+      {/* Chat Messages Container - Only show answers */}
       <div 
         ref={chatContainerRef}
-        className="flex-1 overflow-y-auto space-y-4 pb-4 px-1"
+        className="flex-shrink overflow-y-auto space-y-4 pb-4 px-1 flex flex-col justify-end"
         style={{ scrollBehavior: 'smooth' }}
       >
-        {chatMessages.map((message, index) => (
-          <div
-            key={message.id}
-            className={`flex ${message.type === 'question' ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-4 duration-700`}
-          >
+        {chatMessages.map((message) => (
+          message.type === 'answer' && (
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 transition-all ${
-                message.type === 'question'
-                  ? 'bg-muted text-foreground'
-                  : 'bg-primary text-white'
-              }`}
+              key={message.id}
+              className="flex justify-end animate-in fade-in slide-in-from-bottom-4 duration-700"
             >
-              <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+              <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-primary text-white">
+                <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+              </div>
             </div>
-          </div>
+          )
         ))}
-        
-        {/* Current question (if not yet added to messages) - slides in from bottom */}
-        {currentQuestion && !chatMessages.some(m => m.text === currentQuestion.question && m.type === 'question') && (
-          <div className="flex justify-start animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-muted text-foreground">
-              <p className="text-sm">{currentQuestion.question}</p>
-            </div>
+      </div>
+
+      {/* Question Label and Text - Left justified */}
+      <div className="flex-1 flex flex-col justify-center px-4">
+        {currentQuestion && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <p className="text-sm text-muted-foreground mb-2">Question:</p>
+            <p className="text-lg font-medium text-foreground">{currentQuestion.question}</p>
           </div>
         )}
       </div>
 
-      {/* Input Area */}
-      <div className="border-t border-border pt-4 mt-auto">
+      {/* Input Area - Positioned at very bottom */}
+      <div className="pt-4 pb-4 flex-shrink-0">
         <div className="flex gap-2 items-end">
           <Textarea
             ref={followUpInputRef}
@@ -193,14 +587,9 @@ function ChatFollowUpQuestions({
             size="icon"
             className="h-11 w-11 rounded-xl shrink-0"
           >
-            <Send className="h-5 w-5" />
+            <ArrowUp className="h-5 w-5" />
           </Button>
         </div>
-        {isLastQuestion && followUpResponses[currentQuestion?.typeId || ''] && (
-          <p className="text-xs text-muted-foreground mt-2 text-center">
-            All questions answered! Click continue to proceed.
-          </p>
-        )}
       </div>
     </div>
   )
@@ -274,7 +663,14 @@ export function NewOnboardingFlow() {
   const [currentAnswer, setCurrentAnswer] = useState("")
   const followUpInputRef = useRef<HTMLTextAreaElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
+  const [whyAttendingAnswer, setWhyAttendingAnswer] = useState("")
+  const whyAttendingInputRef = useRef<HTMLTextAreaElement>(null)
   const [businessNeed, setBusinessNeed] = useState("")
+  
+  // Unified scroll container state
+  const [qaPairs, setQAPairs] = useState<QAPair[]>([])
+  const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null)
+  const [scrollHistory, setScrollHistory] = useState<number[]>([]) // Track scroll positions for back navigation
   
   // Adaptive Q&A state
   const [currentAdaptiveQuestion, setCurrentAdaptiveQuestion] = useState<{
@@ -1622,21 +2018,294 @@ export function NewOnboardingFlow() {
     }
   ]
 
+  // Initialize unified scroll container when entering event onboarding
+  useEffect(() => {
+    if (eventId && currentStep === 0 && !currentQuestionId) {
+      // Start with the first question
+      setCurrentQuestionId("why-attending")
+      setQAPairs([{
+        id: "why-attending",
+        question: eventName ? `Why are you attending ${eventName}?` : "Why are you attending?",
+        answer: null,
+        type: 'text'
+      }])
+    }
+  }, [eventId, currentStep, eventName, currentQuestionId])
+  
+  // When "why attending" is answered, add connection types question to scroll
+  useEffect(() => {
+    if (eventId && whyAttending.trim() && currentStep === 0 && qaPairs.some(qa => qa.id === "why-attending" && qa.answer)) {
+      // Move to connection types step
+      setCurrentStep(1)
+      setCurrentQuestionId("connection-types")
+      // Add connection types question to Q&A pairs
+      if (!qaPairs.some(qa => qa.id === "connection-types")) {
+        setQAPairs(prev => [...prev, {
+          id: "connection-types",
+          question: "What types of connections would you be ok with?",
+          answer: null,
+          type: 'checkbox',
+          checkboxOptions: [
+            { id: "general", label: "General Connections" },
+            { id: "business-opportunities", label: "Discover Business Opportunities" },
+            { id: "find-mentor", label: "Find a Mentor" },
+            { id: "be-mentor", label: "Be a Mentor" },
+            { id: "find-job", label: "Find a Job" },
+            { id: "recruit", label: "Recruit" },
+            { id: "other", label: "Other" }
+          ],
+          checkboxSelected: []
+        }])
+      }
+    }
+  }, [whyAttending, eventId, currentStep, qaPairs])
+  
+  // When connection types are submitted, add follow-up questions one by one
+  useEffect(() => {
+    if (eventId && connectionTypesSelected.length > 0 && currentStep === 1) {
+      const connectionTypesAnswered = qaPairs.some(qa => qa.id === "connection-types" && qa.checkboxSelected && qa.checkboxSelected.length > 0)
+      
+      if (connectionTypesAnswered && currentFollowUpIndex === 0) {
+        // Get follow-up questions for selected connection types
+        const followUpQuestions = connectionTypesSelected
+          .map(typeId => ({
+            typeId,
+            question: getFollowUpQuestion(typeId)
+          }))
+          .filter(item => item.question)
+        
+        // Add first follow-up question if not already added
+        if (followUpQuestions.length > 0) {
+          const firstFollowUp = followUpQuestions[0]
+          const followUpId = `follow-up-${firstFollowUp.typeId}`
+          
+          if (!qaPairs.some(qa => qa.id === followUpId)) {
+            setTimeout(() => {
+              setCurrentQuestionId(followUpId)
+              setQAPairs(prev => [...prev, {
+                id: followUpId,
+                question: firstFollowUp.question,
+                answer: null,
+                type: 'text'
+              }])
+              setCurrentStep(2) // Move to follow-ups step
+            }, 1000) // Delay to allow scroll animation
+          }
+        }
+      }
+    }
+  }, [connectionTypesSelected, eventId, currentStep, qaPairs, currentFollowUpIndex, getFollowUpQuestion])
+  
+  // Handle follow-up question completion - move to next one
+  useEffect(() => {
+    if (eventId && currentStep === 2 && currentQuestionId?.startsWith("follow-up-")) {
+      const followUpQuestions = connectionTypesSelected
+        .map(typeId => ({
+          typeId,
+          question: getFollowUpQuestion(typeId)
+        }))
+        .filter(item => item.question)
+      
+      // Check if current follow-up is answered
+      const currentFollowUp = followUpQuestions[currentFollowUpIndex]
+      if (currentFollowUp) {
+        const followUpId = `follow-up-${currentFollowUp.typeId}`
+        const isAnswered = qaPairs.some(qa => qa.id === followUpId && qa.answer)
+        
+        if (isAnswered && currentFollowUpIndex < followUpQuestions.length - 1) {
+          // Move to next follow-up question
+          const nextIndex = currentFollowUpIndex + 1
+          const nextFollowUp = followUpQuestions[nextIndex]
+          
+          if (nextFollowUp) {
+            const nextFollowUpId = `follow-up-${nextFollowUp.typeId}`
+            
+            // Add next question if not already added
+            if (!qaPairs.some(qa => qa.id === nextFollowUpId)) {
+              setTimeout(() => {
+                setCurrentFollowUpIndex(nextIndex)
+                setCurrentQuestionId(nextFollowUpId)
+                setQAPairs(prev => [...prev, {
+                  id: nextFollowUpId,
+                  question: nextFollowUp.question,
+                  answer: null,
+                  type: 'text'
+                }])
+                setCurrentAnswer("")
+              }, 1000) // Delay to allow scroll animation
+            }
+          }
+        }
+      }
+    }
+  }, [qaPairs, connectionTypesSelected, currentFollowUpIndex, eventId, currentStep, currentQuestionId, getFollowUpQuestion])
+
+  const handleAnswerSubmit = (questionId: string, answer: string) => {
+    setQAPairs(prev => prev.map(qa => 
+      qa.id === questionId ? { ...qa, answer } : qa
+    ))
+    
+    // Update the corresponding state
+    if (questionId === "why-attending") {
+      setWhyAttending(answer)
+    } else if (questionId.startsWith("follow-up-")) {
+      const typeId = questionId.replace("follow-up-", "")
+      setFollowUpResponses(prev => ({ ...prev, [typeId]: answer }))
+    }
+  }
+
+  const handleScrollContinue = () => {
+    // Check if we're in follow-up questions
+    if (currentQuestionId?.startsWith("follow-up-")) {
+      const followUpQuestions = connectionTypesSelected
+        .map(typeId => ({
+          typeId,
+          question: getFollowUpQuestion(typeId)
+        }))
+        .filter(item => item.question)
+      
+      // Check if all follow-ups are answered
+      const allAnswered = followUpQuestions.every((item) => {
+        const followUpId = `follow-up-${item.typeId}`
+        return qaPairs.some(qa => qa.id === followUpId && qa.answer)
+      })
+      
+      if (allAnswered) {
+        // All follow-ups answered, move to next step
+        setCurrentQuestionId(null)
+        handleNext()
+      }
+      // Otherwise, the useEffect will handle moving to the next follow-up question
+    } else {
+      // Clear current question and move to next step/question
+      setCurrentQuestionId(null)
+      handleNext()
+    }
+  }
+
+  const handleScrollBack = () => {
+    if (qaPairs.length > 1) {
+      // Save current scroll position before going back
+      const scrollContainer = document.querySelector('[data-scroll-container]') as HTMLElement
+      if (scrollContainer) {
+        setScrollHistory(prev => [...prev, scrollContainer.scrollTop])
+      }
+      
+      // Find the previous question and restore its answer for editing
+      const lastQAPair = qaPairs[qaPairs.length - 1]
+      const prevQAPair = qaPairs[qaPairs.length - 2]
+      
+      if (prevQAPair) {
+        // Remove the last Q&A pair with reverse animation
+        setQAPairs(prev => {
+          const newPairs = prev.slice(0, -1)
+          return newPairs
+        })
+        
+        // Restore previous question for editing
+        setTimeout(() => {
+          setCurrentQuestionId(prevQAPair.id)
+          
+          if (prevQAPair.type === 'text') {
+            setCurrentAnswer(prevQAPair.answer || "")
+            // Restore state
+            if (prevQAPair.id === "why-attending") {
+              setWhyAttending(prevQAPair.answer || "")
+            }
+          } else if (prevQAPair.type === 'checkbox') {
+            // Restore checkbox selections
+            if (prevQAPair.id === "connection-types" && prevQAPair.checkboxSelected) {
+              setConnectionTypesSelected(prevQAPair.checkboxSelected)
+            }
+          }
+          
+          // Scroll back down smoothly
+          setTimeout(() => {
+            const scrollContainer = document.querySelector('[data-scroll-container]') as HTMLElement
+            if (scrollContainer) {
+              scrollContainer.scrollTo({
+                top: scrollContainer.scrollHeight,
+                behavior: 'smooth'
+              })
+            }
+          }, 300)
+        }, 100)
+      }
+    } else if (qaPairs.length === 1) {
+      // Only one Q&A pair, go back to previous step
+      setCurrentQuestionId(null)
+      setQAPairs([])
+      handleBack()
+    } else {
+      // No Q&A pairs, go back to previous step
+      handleBack()
+    }
+  }
+
   const eventSteps: OnboardingStep[] = [
     {
       id: "why-attending",
       title: eventName ? `Why are you attending ${eventName}?` : "Why are you attending?",
       description: "", // Removed subtitle
-      component: (
-        <div className="space-y-4">
-          <Textarea
-            value={whyAttending}
-            onChange={(e) => setWhyAttending(e.target.value)}
-            placeholder="Help us understand your goals for this event"
-            className="rounded-xl min-h-[120px]"
-            rows={5}
-          />
-        </div>
+      component: (currentQuestionId === "why-attending" || currentQuestionId === "connection-types" || currentQuestionId?.startsWith("follow-up-")) && qaPairs.length > 0 ? (
+        <UnifiedScrollContainer
+          qaPairs={qaPairs}
+          currentQuestionId={currentQuestionId}
+          currentAnswer={
+            currentQuestionId === "why-attending" 
+              ? whyAttending 
+              : currentQuestionId?.startsWith("follow-up-")
+              ? currentAnswer
+              : ""
+          }
+          setCurrentAnswer={
+            currentQuestionId === "why-attending" 
+              ? setWhyAttending 
+              : currentQuestionId?.startsWith("follow-up-")
+              ? setCurrentAnswer
+              : () => {}
+          }
+          onAnswerSubmit={(questionId, answer) => {
+            if (questionId === "connection-types") {
+              // Update the Q&A pair with checkbox selections
+              setQAPairs(prev => prev.map(qa => 
+                qa.id === questionId ? { ...qa, checkboxSelected: connectionTypesSelected } : qa
+              ))
+            } else {
+              handleAnswerSubmit(questionId, answer)
+            }
+          }}
+          onContinue={handleScrollContinue}
+          inputRef={whyAttendingInputRef}
+          isSubmitting={isLoading}
+          canGoBack={currentStep > 0 || qaPairs.length > 1}
+          onBack={handleScrollBack}
+          checkboxOptions={currentQuestionId === "connection-types" ? [
+            { id: "general", label: "General Connections" },
+            { id: "business-opportunities", label: "Discover Business Opportunities" },
+            { id: "find-mentor", label: "Find a Mentor" },
+            { id: "be-mentor", label: "Be a Mentor" },
+            { id: "find-job", label: "Find a Job" },
+            { id: "recruit", label: "Recruit" },
+            { id: "other", label: "Other" }
+          ] : undefined}
+          checkboxSelected={currentQuestionId === "connection-types" ? connectionTypesSelected : undefined}
+          onCheckboxChange={currentQuestionId === "connection-types" ? handleConnectionTypesCheckboxChange : undefined}
+        />
+      ) : (
+        <ChatQuestionInput
+          question={eventName ? `Why are you attending ${eventName}?` : "Why are you attending?"}
+          answer={whyAttending}
+          setAnswer={setWhyAttending}
+          placeholder="Help us understand your goals for this event"
+          inputRef={whyAttendingInputRef}
+          onComplete={() => {
+            // Advance to next step after clicking Continue
+            if (whyAttending.trim()) {
+              handleNext()
+            }
+          }}
+        />
       )
     },
     {
@@ -1644,7 +2313,7 @@ export function NewOnboardingFlow() {
       title: "Connection Types",
       description: "What types of connections would you be ok with?",
       component: (
-        <div className="space-y-4">
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
           {connectionTypes.map((type) => (
             <div key={type.id} className="flex items-center space-x-3 rounded-xl p-4 transition-colors hover:bg-muted/50">
               <Checkbox
@@ -1759,6 +2428,13 @@ export function NewOnboardingFlow() {
       setCurrentFollowUpIndex(0)
       setChatMessages([])
       setCurrentAnswer("")
+    } else if (stepId === "why-attending") {
+      // For chat-style questions, handleNext is called automatically after sending
+      // This validation is just a safety check
+      if (!whyAttending.trim()) {
+        toast.error("Please tell us why you're attending")
+        return
+      }
     } else if (stepId === "follow-ups") {
       // Ensure all follow-up questions are answered
       const followUpQuestions = connectionTypesSelected
@@ -1835,8 +2511,8 @@ export function NewOnboardingFlow() {
       )}
 
       {/* Main Content Area - Centered with max 512px */}
-      <div className={`flex-1 flex items-center justify-center px-6 ${currentStep === 0 ? '' : 'md:items-center items-start pt-8 md:pt-0'} pb-48`}>
-        <div className={`w-full max-w-lg transition-all duration-300 animate-fade-up`}>
+      <div className={`flex-1 flex ${currentStepData?.id === "why-attending" || currentStepData?.id === "follow-ups" ? 'items-stretch' : 'items-center justify-center'} px-6 ${currentStep === 0 ? '' : 'md:items-center items-start pt-8 md:pt-0'} ${currentStepData?.id === "why-attending" || currentStepData?.id === "follow-ups" ? 'pb-0' : 'pb-48'}`}>
+        <div className={`w-full max-w-lg transition-all duration-300 animate-fade-up ${currentStepData?.id === "why-attending" || currentStepData?.id === "follow-ups" ? 'h-full flex flex-col' : ''}`}>
           {/* Adaptive Q&A Content */}
           {showAdaptiveQnA ? (
             <div className="space-y-6">
@@ -1880,17 +2556,20 @@ export function NewOnboardingFlow() {
           ) : currentStepData ? (
             // Regular onboarding steps
             <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-semibold text-foreground mb-2">
-                  {currentStepData.title}
-                </h2>
-                {currentStepData.description && (
-                  <p className="text-muted-foreground">
-                    {currentStepData.description}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-6">
+              {/* Hide header for chat-style questions */}
+              {currentStepData.id !== "why-attending" && currentStepData.id !== "follow-ups" && (
+                <div>
+                  <h2 className="text-xl font-semibold text-foreground mb-2">
+                    {currentStepData.title}
+                  </h2>
+                  {currentStepData.description && (
+                    <p className="text-muted-foreground">
+                      {currentStepData.description}
+                    </p>
+                  )}
+                </div>
+              )}
+              <div className={currentStepData.id === "why-attending" || currentStepData.id === "follow-ups" ? "h-full flex flex-col" : "space-y-6"}>
                 {currentStepData.component}
               </div>
             </div>
@@ -1924,44 +2603,47 @@ export function NewOnboardingFlow() {
       {/* Fixed Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t-2 border-border shadow-2xl px-6 z-[100] py-4">
         <div className="max-w-lg mx-auto">
-          <div className="flex gap-4 items-center">
-            {/* Back Button */}
-            <GradientButton 
-              variant="outline" 
-              onClick={handleBack} 
-              disabled={currentStep <= 0} 
-              className="flex items-center justify-center w-16 h-16 rounded-2xl border-2 border-primary disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </GradientButton>
-            
-            {/* Continue Button */}
-            <GradientButton 
-              onClick={isLastStep 
-                ? (profileCompleted ? handleCompleteEventOnboarding : handleCompleteProfile)
-                : handleNext
-              } 
-              disabled={isLastStep 
-                ? isLoading 
-                : !isStepValid() || isLoading || isLoadingQuestion
-              } 
-              className="flex-1 h-16 rounded-2xl text-lg font-medium gradient-primary text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
-            >
-              {isLoading || isLoadingQuestion ? (
-                <span className="flex items-center gap-2 justify-center">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Loading...
-                </span>
-              ) : isLastStep ? (
-                isLoading ? "Completing..." : "Complete"
-              ) : (
-                <span className="flex items-center justify-center">
-                  Continue
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </span>
-              )}
-            </GradientButton>
-          </div>
+          {/* Hide back/continue buttons for chat-style questions */}
+          {currentStepData.id !== "why-attending" && currentStepData.id !== "follow-ups" && (
+            <div className="flex gap-4 items-center">
+              {/* Back Button */}
+              <GradientButton 
+                variant="outline" 
+                onClick={handleBack} 
+                disabled={currentStep <= 0} 
+                className="flex items-center justify-center w-16 h-16 rounded-2xl border-2 border-primary disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </GradientButton>
+              
+              {/* Continue Button */}
+              <GradientButton 
+                onClick={isLastStep 
+                  ? (profileCompleted ? handleCompleteEventOnboarding : handleCompleteProfile)
+                  : handleNext
+                } 
+                disabled={isLastStep 
+                  ? isLoading 
+                  : !isStepValid() || isLoading || isLoadingQuestion
+                } 
+                className="flex-1 h-16 rounded-2xl text-lg font-medium gradient-primary text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
+              >
+                {isLoading || isLoadingQuestion ? (
+                  <span className="flex items-center gap-2 justify-center">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Loading...
+                  </span>
+                ) : isLastStep ? (
+                  isLoading ? "Completing..." : "Complete"
+                ) : (
+                  <span className="flex items-center justify-center">
+                    Continue
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </span>
+                )}
+              </GradientButton>
+            </div>
+          )}
           
           {/* Footer */}
           {currentStep >= 3 && (
