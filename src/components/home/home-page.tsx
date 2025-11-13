@@ -988,8 +988,7 @@ export function HomePage() {
       const { data: event, error: eventError } = await supabase
         .from("events")
         .select("*")
-        .eq("code", eventCode.toUpperCase())
-        .eq("is_active", true)
+        .eq("event_code", eventCode.toUpperCase())
         .maybeSingle()
 
       if (eventError) {
