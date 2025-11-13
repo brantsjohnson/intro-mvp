@@ -241,12 +241,12 @@ export function EventJoinScanner({
       {/* Title and Subtitle */}
       <div className="text-center space-y-2">
         <h2 className="text-2xl font-semibold text-foreground">Join an Event</h2>
-        <p className="text-sm text-muted-foreground">Let us analyse who you should meet while you're here.</p>
+        <p className="text-sm text-foreground">Enter 6 digit code or scan QR code to join.</p>
       </div>
 
       {/* 6-Digit Code Input */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex justify-center gap-2">
+        <div className="flex justify-center items-center gap-2">
           {eventCode.map((digit, index) => (
             <input
               key={index}
@@ -293,7 +293,7 @@ export function EventJoinScanner({
           <div className="w-full border-t border-border"></div>
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="bg-background px-3 text-muted-foreground">OR</span>
+          <span className="bg-background px-3 text-foreground">OR</span>
         </div>
       </div>
 
@@ -309,33 +309,26 @@ export function EventJoinScanner({
                 playsInline
                 muted
               />
-              <div className="absolute inset-0 border-2 border-primary rounded-2xl pointer-events-none">
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-2 border-primary rounded-lg">
-                  <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-primary rounded-tl-lg"></div>
-                  <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-primary rounded-tr-lg"></div>
-                  <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-primary rounded-bl-lg"></div>
-                  <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-primary rounded-br-lg"></div>
-                </div>
-              </div>
             </div>
-            <p className="text-muted-foreground text-sm text-center">Position the QR code within the frame</p>
             {isProcessing && (
               <div className="flex items-center justify-center space-x-2 text-primary">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                <p className="text-sm">Processing QR code...</p>
+                <p className="text-sm text-foreground">Processing QR code...</p>
               </div>
             )}
             {scanError && (
               <p className="text-destructive text-sm text-center">{scanError}</p>
             )}
-            <GradientButton 
-              onClick={stopScanning}
-              variant="outline"
-              className="w-full max-w-xs mx-auto rounded-full py-3 text-base font-medium"
-            >
-              <X className="h-5 w-5 mr-2" />
-              Stop Scanning
-            </GradientButton>
+            <div className="flex justify-center">
+              <GradientButton 
+                onClick={stopScanning}
+                variant="outline"
+                className="max-w-xs rounded-full py-3 text-base font-medium"
+              >
+                <X className="h-5 w-5 mr-2" />
+                Stop Scanning
+              </GradientButton>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
