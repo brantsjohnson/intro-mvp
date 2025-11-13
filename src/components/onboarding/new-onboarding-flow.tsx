@@ -731,12 +731,9 @@ export function NewOnboardingFlow() {
       // Use the company name from state (which may have been auto-populated or manually edited)
       // If user edited it, use their edited value; otherwise try to enrich if needed
       let companyNameToSave = companyName.trim() || null
-      let companySummaryToSave = companySummary
       
-      // If URL exists, ensure we have the latest company summary for that URL
-      // Re-enrich if URL changed or if we don't have a summary yet
-      if (company && /[.]/.test(company)) {
-        // Always re-enrich to get the latest description for the current URL
+      // If URL exists but no company name, try to enrich (but don't block on it)
+      if (company && /[.]/.test(company) && !companyNameToSave) {
         try {
           const { data: session } = await supabase.auth.getSession()
           const token = session.session?.access_token
@@ -751,14 +748,12 @@ export function NewOnboardingFlow() {
           if (res.ok) {
             const enriched = await res.json()
             // Update company name if we don't have one yet
-            if (!companyNameToSave) {
-              companyNameToSave = enriched.company_name || null
+            if (!companyNameToSave && enriched.company_name) {
+              companyNameToSave = enriched.company_name
             }
-            // Always update summary to match the current URL
-            companySummaryToSave = enriched.company_description || null
           }
         } catch (e) {
-          console.warn("company_enrich_failed", e)
+          console.warn("company_enrich_failed (non-blocking):", e)
         }
       }
 
@@ -768,29 +763,41 @@ export function NewOnboardingFlow() {
         return
       }
 
-      const { error: profileError } = await supabase
+      const profileData = {
+        user_id: user.id,
+        first_name: firstName,
+        last_name: lastName,
+        email: user.email || "",
+        photo_url: finalPhotoUrl,
+        career_title: jobTitle,
+        company_name: companyNameToSave || null,
+        company_url: company || null,
+        career_years_experience: yearsExpInt,
+        expertise_summary: expertiseArray.join(", "),
+      }
+      
+      console.log("Saving profile data:", profileData)
+      
+      const { data: savedData, error: profileError } = await supabase
         .from("users")
-        .upsert({
-          user_id: user.id,
-          first_name: firstName,
-          last_name: lastName,
-          email: user.email || "",
-          photo_url: finalPhotoUrl,
-          career_title: jobTitle,
-          company_name: companyNameToSave || null,
-          company_url: company || null,
-          // Note: company_summ column doesn't exist in users table, storing company description elsewhere if needed
-          career_years_experience: yearsExpInt,
-          expertise_summary: expertiseArray.join(", "),
-        }, {
+        .upsert(profileData, {
           onConflict: 'user_id'
         })
+        .select()
 
       if (profileError) {
         console.error("Profile upsert error:", profileError)
-        toast.error("Failed to save profile. Please try again.")
+        console.error("Error details:", {
+          code: profileError.code,
+          message: profileError.message,
+          details: profileError.details,
+          hint: profileError.hint
+        })
+        toast.error(`Failed to save profile: ${profileError.message || 'Please try again.'}`)
         return
       }
+      
+      console.log("Profile saved successfully:", savedData)
 
       toast.success("Profile completed!")
       setProfileCompleted(true)
