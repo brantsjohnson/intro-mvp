@@ -1501,6 +1501,21 @@ export function HomePage() {
         </div>
       </main>
 
+      {/* Joining Event Loading Modal */}
+      <Dialog open={isJoiningEvent} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md">
+          <div className="flex flex-col items-center justify-center py-8 space-y-6">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <div className="text-center space-y-2">
+              <DialogTitle className="text-xl">Joining Event...</DialogTitle>
+              <DialogDescription className="text-base pt-2">
+                To help you connect with the most helpful people here, we'll ask you only a few questions.
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* QR Scanner Modal */}
       <Dialog
         open={Boolean(withdrawTarget)}
@@ -1518,7 +1533,7 @@ export function HomePage() {
               {withdrawTarget
                 ? `${withdrawTarget.profile.first_name} ${withdrawTarget.profile.last_name}`
                 : "this attendee"}
-              . They’ll no longer see your request.
+              . They'll no longer see your request.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
