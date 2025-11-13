@@ -779,7 +779,7 @@ export function NewOnboardingFlow() {
           career_title: jobTitle,
           company_name: companyNameToSave || null,
           company_url: company || null,
-          company_summ: companySummaryToSave || null, // Save company description/summary
+          // Note: company_summ column doesn't exist in users table, storing company description elsewhere if needed
           career_years_experience: yearsExpInt,
           expertise_summary: expertiseArray.join(", "),
         }, {

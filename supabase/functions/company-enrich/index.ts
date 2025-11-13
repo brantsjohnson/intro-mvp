@@ -60,6 +60,23 @@ function extractJsonLd(html: string): { name?: string; description?: string } | 
   return null
 }
 
+function cleanCompanyNameFromTitle(title: string): string {
+  // Common separators: dash, pipe, colon, em dash, en dash
+  // Extract just the company name part before the separator
+  const separators = /[\s]*[-–—|:]\s*/
+  const parts = title.split(separators)
+  if (parts.length > 1) {
+    // Take the first part and trim it
+    const cleaned = parts[0]!.trim()
+    // Only use it if it's reasonable length (not too short, not too long)
+    if (cleaned.length > 1 && cleaned.length < 50) {
+      return cleaned
+    }
+  }
+  // If no separator or cleaned name is unreasonable, return original
+  return title.trim()
+}
+
 function bestCompanyName(domain: string, html?: string | null): string {
   if (!html) {
     return domain.split(".")[0]
@@ -68,8 +85,22 @@ function bestCompanyName(domain: string, html?: string | null): string {
   const ogSite = extractMeta(html, "og:site_name", "property")
   const ogTitle = extractMeta(html, "og:title", "property")
   const title = extractTitle(html)
-  const candidates = [ld?.name, ogSite, ogTitle, title].filter(Boolean) as string[]
-  if (candidates.length) return candidates[0]!
+  
+  // Prioritize: JSON-LD name > og:site_name > cleaned og:title > cleaned title
+  // JSON-LD and og:site_name are usually just the company name
+  if (ld?.name) return ld.name.trim()
+  if (ogSite) return ogSite.trim()
+  
+  // For og:title and title, clean them to extract just the company name
+  if (ogTitle) {
+    const cleaned = cleanCompanyNameFromTitle(ogTitle)
+    if (cleaned) return cleaned
+  }
+  if (title) {
+    const cleaned = cleanCompanyNameFromTitle(title)
+    if (cleaned) return cleaned
+  }
+  
   return domain.split(".")[0]
 }
 
