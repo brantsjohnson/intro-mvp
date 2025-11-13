@@ -2317,6 +2317,14 @@ export function NewOnboardingFlow() {
     setCurrentAnswer("")
   }
 
+  const handleSubmitConnectionTypes = () => {
+    if (connectionTypesSelected.length === 0) {
+      toast.error("Please select at least one connection type")
+      return
+    }
+    handleNext()
+  }
+
   const handleScrollBack = () => {
     if (qaPairs.length > 1) {
       // Save current scroll position before going back
@@ -2449,7 +2457,7 @@ export function NewOnboardingFlow() {
       title: "Connection Types",
       description: "What types of connections would you be ok with?",
       component: (
-        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700 relative pt-14">
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700 relative pt-14 pb-24">
           {/* Back Button - Top Left */}
           <button
             onClick={handleBack}
@@ -2478,6 +2486,15 @@ export function NewOnboardingFlow() {
               </label>
             </div>
           ))}
+
+          <GradientButton
+            onClick={handleSubmitConnectionTypes}
+            disabled={connectionTypesSelected.length === 0}
+            className="w-full h-14 rounded-xl text-lg font-medium"
+          >
+            Submit
+            <ArrowUp className="h-4 w-4 ml-2" />
+          </GradientButton>
         </div>
       )
     },
