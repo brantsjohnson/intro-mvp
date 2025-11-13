@@ -385,6 +385,8 @@ interface ChatQuestionInputProps {
   inputRef: React.RefObject<HTMLTextAreaElement>
   onComplete?: () => void
   onSend?: () => void
+  onBack?: () => void
+  canGoBack?: boolean
 }
 
 function ChatQuestionInput({
@@ -394,7 +396,9 @@ function ChatQuestionInput({
   placeholder,
   inputRef,
   onComplete,
-  onSend
+  onSend,
+  onBack,
+  canGoBack = false
 }: ChatQuestionInputProps) {
   const [hasAnswered, setHasAnswered] = useState(false)
   const answerContainerRef = useRef<HTMLDivElement>(null)
@@ -430,9 +434,23 @@ function ChatQuestionInput({
   }
 
   return (
-    <div className="flex flex-col h-full min-h-[calc(100vh-200px)]">
+    <div className="flex flex-col h-full min-h-[calc(100vh-200px)] relative">
+      {/* Back Button - Top Left */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          disabled={!canGoBack}
+          className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-colors ${
+            canGoBack 
+              ? 'hover:bg-muted/50 cursor-pointer' 
+              : 'opacity-30 cursor-not-allowed'
+          }`}
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+      )}
       {/* Question Label and Text - Left justified */}
-      <div className="flex-1 flex flex-col justify-center px-4">
+      <div className="flex-1 flex flex-col justify-center px-4 pt-14">
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
           <p className="text-sm text-muted-foreground mb-2">Question:</p>
           <p className="text-lg font-medium text-foreground">{question}</p>
@@ -500,6 +518,8 @@ interface ChatFollowUpQuestionsProps {
   setCurrentAnswer: (answer: string) => void
   followUpInputRef: React.RefObject<HTMLTextAreaElement>
   chatContainerRef: React.RefObject<HTMLDivElement>
+  onBack?: () => void
+  canGoBack?: boolean
 }
 
 function ChatFollowUpQuestions({
@@ -514,7 +534,9 @@ function ChatFollowUpQuestions({
   currentAnswer,
   setCurrentAnswer,
   followUpInputRef,
-  chatContainerRef
+  chatContainerRef,
+  onBack,
+  canGoBack = false
 }: ChatFollowUpQuestionsProps) {
   // Get questions that need answers
   const followUpQuestions = connectionTypesSelected
@@ -603,11 +625,25 @@ function ChatFollowUpQuestions({
   }
 
   return (
-    <div className="flex flex-col h-full min-h-[calc(100vh-200px)]">
+    <div className="flex flex-col h-full min-h-[calc(100vh-200px)] relative">
+      {/* Back Button - Top Left */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          disabled={!canGoBack}
+          className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-colors ${
+            canGoBack 
+              ? 'hover:bg-muted/50 cursor-pointer' 
+              : 'opacity-30 cursor-not-allowed'
+          }`}
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+      )}
       {/* Chat Messages Container - Only show answers */}
       <div 
         ref={chatContainerRef}
-        className="flex-shrink overflow-y-auto space-y-4 pb-4 px-1 flex flex-col justify-end"
+        className="flex-shrink overflow-y-auto space-y-4 pb-4 px-1 flex flex-col justify-end pt-14"
         style={{ scrollBehavior: 'smooth' }}
       >
         {chatMessages.map((message) => (
@@ -2387,6 +2423,8 @@ export function NewOnboardingFlow() {
               handleNext()
             }
           }}
+          onBack={handleBack}
+          canGoBack={currentStep > 0}
         />
       )
     },
@@ -2395,7 +2433,19 @@ export function NewOnboardingFlow() {
       title: "Connection Types",
       description: "What types of connections would you be ok with?",
       component: (
-        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700 relative pt-14">
+          {/* Back Button - Top Left */}
+          <button
+            onClick={handleBack}
+            disabled={currentStep <= 0}
+            className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-colors ${
+              currentStep > 0
+                ? 'hover:bg-muted/50 cursor-pointer' 
+                : 'opacity-30 cursor-not-allowed'
+            }`}
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
           {connectionTypes.map((type) => (
             <div key={type.id} className="flex items-center space-x-3 rounded-xl p-4 transition-colors hover:bg-muted/50">
               <Checkbox
@@ -2433,6 +2483,8 @@ export function NewOnboardingFlow() {
           setCurrentAnswer={setCurrentAnswer}
           followUpInputRef={followUpInputRef}
           chatContainerRef={chatContainerRef}
+          onBack={handleBack}
+          canGoBack={currentStep > 0}
         />
       )
     },
