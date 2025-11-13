@@ -2302,29 +2302,18 @@ export function NewOnboardingFlow() {
   }
 
   // Handle back step - must be defined before eventSteps
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1)
-    }
-  }
-
-  // Handle next step - must be defined before eventSteps
-  const handleNext = () => {
-    // Move to next step (validation happens in the component render)
-    setCurrentStep(prev => prev + 1)
-    // Reset chat state when moving to a new step
-    setChatMessages([])
-    setCurrentAnswer("")
-  }
-
   const handleSubmitConnectionTypes = () => {
     if (connectionTypesSelected.length === 0) {
       toast.error("Please select at least one connection type")
       return
     }
+    setCurrentFollowUpIndex(0)
+    setChatMessages([])
+    setCurrentAnswer("")
     handleNext()
   }
 
+  const handleScrollBack = () => {
   const handleScrollBack = () => {
     if (qaPairs.length > 1) {
       // Save current scroll position before going back
@@ -2575,6 +2564,21 @@ export function NewOnboardingFlow() {
     return true
   }
 
+  function handleNext() {
+    if (!currentStepData) return
+    if (!isStepValid()) return
+
+    if (currentStep < visibleSteps.length - 1) {
+      setCurrentStep(prev => prev + 1)
+    }
+  }
+
+  function handleBack() {
+    if (currentStep > 0) {
+      setCurrentStep(prev => Math.max(0, prev - 1))
+    }
+  }
+
 
   if (!user) {
     return (
@@ -2723,8 +2727,8 @@ export function NewOnboardingFlow() {
       {/* Fixed Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t-2 border-border shadow-2xl px-6 z-[100] py-4">
         <div className="max-w-lg mx-auto">
-          {/* Hide back/continue buttons for chat-style questions and unified scroll container */}
-          {currentStepData.id !== "why-attending" && currentStepData.id !== "follow-ups" && !(currentQuestionId === "why-attending" || currentQuestionId === "connection-types" || currentQuestionId?.startsWith("follow-up-")) && (
+          {/* Hide back/continue buttons for chat-style questions, connection types custom layout, and unified scroll container */}
+          {currentStepData.id !== "why-attending" && currentStepData.id !== "follow-ups" && currentStepData.id !== "connection-types" && !(currentQuestionId === "why-attending" || currentQuestionId === "connection-types" || currentQuestionId?.startsWith("follow-up-")) && (
             <div className="flex gap-4 items-center">
               {/* Back Button */}
               <GradientButton 
