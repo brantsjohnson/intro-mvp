@@ -76,9 +76,9 @@ export class EventQRCodeService {
     
     const trimmedContent = content.trim()
     
-    // Fast path: Check if it's just a simple 5-character event code first (most common case)
+    // Fast path: Check if it's just a simple 6-character event code first (most common case)
     const upperTrimmed = trimmedContent.toUpperCase()
-    if (upperTrimmed.length === 5 && /^[A-Z0-9]+$/.test(upperTrimmed)) {
+    if (upperTrimmed.length === 6 && /^[A-Z0-9]+$/.test(upperTrimmed)) {
       return upperTrimmed
     }
     
@@ -87,7 +87,7 @@ export class EventQRCodeService {
       try {
         const url = new URL(trimmedContent)
         const eventCode = url.searchParams.get('code')
-        if (eventCode && eventCode.length === 5 && /^[A-Z0-9]+$/i.test(eventCode)) {
+        if (eventCode && eventCode.length === 6 && /^[A-Z0-9]+$/i.test(eventCode)) {
           return eventCode.toUpperCase()
         }
       } catch (urlError) {
@@ -99,7 +99,7 @@ export class EventQRCodeService {
     try {
       const data = JSON.parse(content)
       if (data && data.eventCode && data.type === 'event_join') {
-        return data.eventCode
+        return data.eventCode.toUpperCase()
       }
     } catch (error) {
       // Not JSON, that's fine
