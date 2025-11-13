@@ -328,7 +328,7 @@ export function NewOnboardingFlow() {
       case "biz_opps":
         return "What opportunities are you looking for?"
       case "general":
-        return "What are your hobbies and interests?"
+        return "What are your hobbies or interests?"
       case "other":
         return "What are your career goals?"
       case "find-job":
@@ -1407,13 +1407,10 @@ export function NewOnboardingFlow() {
 
   const followUpSteps: OnboardingStep[] = followUpQuestions.map(({ typeId, question }) => ({
     id: `follow-up-${typeId}`,
-    title: "Tell us more",
-    description: question,
+    title: question,
+    description: "",
     component: (
       <div className="space-y-4">
-        <Label className="text-sm font-medium text-foreground block">
-          {question}
-        </Label>
         <Textarea
           value={followUpResponses[typeId] || ""}
           onChange={(e) =>
@@ -1422,7 +1419,7 @@ export function NewOnboardingFlow() {
               [typeId]: e.target.value
             }))
           }
-          placeholder={question}
+          placeholder="Type here..."
           className="rounded-xl min-h-[120px]"
           rows={5}
         />
