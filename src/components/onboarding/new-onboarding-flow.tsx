@@ -158,7 +158,7 @@ function UnifiedScrollContainer({
       <button
         onClick={onBack}
         disabled={!canGoBack}
-        className={`absolute top-4 left-4 z-10 p-2 rounded-lg transition-colors ${
+        className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-colors ${
           canGoBack 
             ? 'hover:bg-muted/50 cursor-pointer' 
             : 'opacity-30 cursor-not-allowed'
@@ -171,7 +171,7 @@ function UnifiedScrollContainer({
       <div 
         ref={scrollContainerRef}
         data-scroll-container
-        className="flex-1 overflow-y-auto px-4 py-8 space-y-6 scroll-smooth"
+        className="flex-1 overflow-y-auto px-4 py-8 pt-14 space-y-6 scroll-smooth"
         style={{ 
           scrollBehavior: 'smooth',
           WebkitOverflowScrolling: 'touch',
