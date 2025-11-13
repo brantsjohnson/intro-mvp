@@ -1036,6 +1036,7 @@ export function HomePage() {
         })
 
       if (joinError) {
+        setIsJoiningEvent(false)
         toast.error("Failed to join event")
         return
       }
