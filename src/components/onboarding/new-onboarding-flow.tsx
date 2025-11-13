@@ -265,7 +265,7 @@ function UnifiedScrollContainer({
       <div className="pt-4 pb-4 px-4 flex-shrink-0 bg-card mt-auto">
         {currentQuestionId && currentQuestion && !currentQuestion.answer && !showContinueButton ? (
           currentQuestion.type === 'checkbox' ? (
-            // For checkbox questions, show Continue button when at least one is selected
+            // For checkbox questions, show Submit button when at least one is selected
             <GradientButton
               onClick={() => {
                 // Save checkbox selection as answer
@@ -285,8 +285,8 @@ function UnifiedScrollContainer({
               disabled={!checkboxSelected || checkboxSelected.length === 0 || isSubmitting}
               className="w-full h-16 rounded-xl text-lg font-medium"
             >
-              Continue
-              <ArrowRight className="h-4 w-4 ml-2" />
+              Submit
+              <ArrowUp className="h-4 w-4 ml-2" />
             </GradientButton>
           ) : (
             <div className={`flex gap-2 items-end transition-all duration-500 ${
@@ -2652,8 +2652,8 @@ export function NewOnboardingFlow() {
       {/* Fixed Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t-2 border-border shadow-2xl px-6 z-[100] py-4">
         <div className="max-w-lg mx-auto">
-          {/* Hide back/continue buttons for chat-style questions */}
-          {currentStepData.id !== "why-attending" && currentStepData.id !== "follow-ups" && (
+          {/* Hide back/continue buttons for chat-style questions and unified scroll container */}
+          {currentStepData.id !== "why-attending" && currentStepData.id !== "follow-ups" && !(currentQuestionId === "why-attending" || currentQuestionId === "connection-types" || currentQuestionId?.startsWith("follow-up-")) && (
             <div className="flex gap-4 items-center">
               {/* Back Button */}
               <GradientButton 
