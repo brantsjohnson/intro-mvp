@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { createClientComponentClient } from "@/lib/supabase"
 import { User } from "@/lib/types"
 import { toast } from "sonner"
-import { ArrowRight, ChevronLeft, Loader2, Camera, X } from "lucide-react"
+import { ArrowRight, ChevronLeft, Loader2, Camera, X, Upload } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ImageCropModal } from "@/components/ui/image-crop-modal"
 import { CameraCapture } from "@/components/ui/camera-capture"
@@ -1050,7 +1050,7 @@ export function NewOnboardingFlow() {
     {
       id: "profile",
       title: "Complete Your Profile",
-      description: "Tell us about yourself",
+      description: "",
       component: (
         <div className="space-y-6">
           {/* Profile Picture Upload */}
@@ -1090,8 +1090,8 @@ export function NewOnboardingFlow() {
                   className="flex-1"
                   type="button"
                 >
-                  <Camera className="w-4 h-4 mr-2" />
-                  {photoUrl ? 'Change' : 'Upload'}
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload
                 </GradientButton>
                 <GradientButton
                   variant="outline"
@@ -1104,7 +1104,7 @@ export function NewOnboardingFlow() {
                 </GradientButton>
               </div>
               <p className="text-xs text-muted-foreground text-center">
-                {photoUrl ? 'Photo from ' + (user?.user_metadata?.avatar_url || user?.user_metadata?.picture ? 'OAuth' : 'upload') : 'Upload a photo, take a picture, or use your OAuth photo'}
+                Upload a photo or take a picture
               </p>
             </div>
           </div>
