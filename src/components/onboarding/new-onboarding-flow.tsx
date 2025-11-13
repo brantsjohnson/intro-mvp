@@ -67,6 +67,7 @@ export function NewOnboardingFlow() {
   const [areasOfExpertise, setAreasOfExpertise] = useState<string[]>([])
   const [expertiseInput, setExpertiseInput] = useState("")
   const [suggestedExpertise, setSuggestedExpertise] = useState<string[]>([])
+  const [additionalSuggestions, setAdditionalSuggestions] = useState<string[]>([]) // Additional suggestions after 2 selected
   const [customExpertise, setCustomExpertise] = useState<string[]>([]) // Track custom-added expertise separately
   const [companyName, setCompanyName] = useState("")
   const [isEnrichingCompany, setIsEnrichingCompany] = useState(false)
@@ -502,7 +503,7 @@ export function NewOnboardingFlow() {
         'engineer': ['Software Development', 'Problem Solving', 'Code Review', 'System Design', 'Testing', 'Documentation'],
         'developer': ['Software Development', 'Problem Solving', 'Code Review', 'System Design', 'Testing', 'Documentation'],
         'designer': ['User Experience', 'Visual Design', 'Prototyping', 'User Research', 'Design Systems', 'Collaboration'],
-        'product': ['Product Management', 'Roadmaps', 'User Research', 'Stakeholder Management', 'Agile', 'Analytics'],
+        'product': ['Product Management', 'Roadmaps', 'User Research', 'Stakeholder Management', 'Agile', 'Analytics', 'Prioritization', 'Feature Planning', 'User Stories', 'Backlog Management', 'Metrics', 'A/B Testing'],
         'manager': ['Team Leadership', 'Project Management', 'Stakeholder Management', 'Process Improvement', 'Communication', 'Planning'],
         'founder': ['Leadership', 'Strategy', 'Fundraising', 'Product Vision', 'Team Building', 'Business Development'],
         'ceo': ['Leadership', 'Strategy', 'Vision', 'Team Building', 'Fundraising', 'Business Development'],
@@ -522,12 +523,19 @@ export function NewOnboardingFlow() {
         }
       }
 
-      // Default suggestions if no match
+      // Default suggestions if no match (need at least 17 for initial 12 + 5 more)
       if (matchedSuggestions.length === 0) {
-        matchedSuggestions.push('Communication', 'Problem Solving', 'Collaboration', 'Planning', 'Execution', 'Leadership')
+        matchedSuggestions.push(
+          'Communication', 'Problem Solving', 'Collaboration', 'Planning', 'Execution', 'Leadership',
+          'Project Management', 'Team Building', 'Strategic Thinking', 'Analytics', 'Innovation',
+          'Stakeholder Management', 'Process Improvement', 'Mentoring', 'Research', 'Presentation', 'Negotiation'
+        )
       }
 
+      // Show first 12 suggestions initially
       setSuggestedExpertise(matchedSuggestions.slice(0, 12))
+      // Store remaining suggestions for later
+      setAdditionalSuggestions(matchedSuggestions.slice(12, 17))
     } catch (error) {
       console.error('Error generating expertise suggestions:', error)
       setSuggestedExpertise([])
@@ -565,7 +573,14 @@ export function NewOnboardingFlow() {
     if (areasOfExpertise.includes(expertise)) {
       removeExpertise(expertise)
     } else {
-      setAreasOfExpertise([...areasOfExpertise, expertise])
+      const newSelection = [...areasOfExpertise, expertise]
+      setAreasOfExpertise(newSelection)
+      
+      // Show 5 additional suggestions after 2 are selected
+      if (newSelection.length === 2 && additionalSuggestions.length > 0) {
+        setSuggestedExpertise([...suggestedExpertise, ...additionalSuggestions])
+        setAdditionalSuggestions([]) // Clear so we don't add them again
+      }
     }
   }
 
