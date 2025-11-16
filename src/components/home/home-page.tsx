@@ -26,6 +26,15 @@ import {
   ArrowRight
 } from "lucide-react"
 
+interface StructuredMatchExplanation {
+  connection_type: string
+  reason_title: string
+  reason_summary: string
+  shared_tags: string[]
+  helpfulness_bullets: string[]
+  suggested_icebreaker: string
+}
+
 interface MatchWithProfile {
   id: string
   summary: string
@@ -34,6 +43,8 @@ interface MatchWithProfile {
   dive_deeper: string
   profile: Profile
   is_present: boolean
+  structured_explanation?: StructuredMatchExplanation
+  connection_type?: string
 }
 
 interface ConnectionWithProfile {
@@ -445,15 +456,18 @@ export function HomePage() {
           }
           
           const explanation = e.match_explanation_text || matchData.summary || ""
+          const structuredExplanation = (matchData as any).structured_explanation as StructuredMatchExplanation | undefined
 
           return {
             id: e.created_at || `${u.user_id}-${explanation}`,
-            summary: explanation,
+            summary: structuredExplanation?.reason_summary || explanation,
             bases: matchData.bases || [],
             shared_activities: sharedActivitiesStr,
             dive_deeper: matchData.dive_deeper || "",
             profile,
             is_present: false,
+            structured_explanation: structuredExplanation,
+            connection_type: structuredExplanation?.connection_type,
           }
         })
         .filter(Boolean) as MatchWithProfile[]
@@ -1077,7 +1091,7 @@ export function HomePage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading...</p>
@@ -1088,7 +1102,7 @@ export function HomePage() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>
         <div className="text-center">
           <p className="text-muted-foreground mb-4">Please complete your profile setup</p>
           <GradientButton onClick={() => router.push("/onboarding")}>
@@ -1100,7 +1114,7 @@ export function HomePage() {
   }
 
   return (
-    <div className="min-h-screen gradient-bg">
+    <div className="min-h-screen bg-cover bg-center bg-fixed" style={{ backgroundImage: "url('/background.jpg')" }}>
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
@@ -1121,10 +1135,9 @@ export function HomePage() {
             {/* Right of avatar: Intro wordmark */}
             <div className="ml-4">
               <h1 
-                className="text-2xl font-bold"
+                className="text-2xl font-bold text-accent"
                 style={{ 
-                  fontFamily: 'Changa One, cursive',
-                  color: '#EB7437'
+                  fontFamily: 'Changa One, cursive'
                 }}
               >
                 INTRO
@@ -1136,16 +1149,15 @@ export function HomePage() {
               <button
                 type="button"
                 onClick={() => router.push(`/messages?eventId=${currentEvent?.id || ''}`)}
-                className="relative w-10 h-10 rounded-full flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className="relative w-10 h-10 rounded-full flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20 gradient-primary"
                 style={{
-                  background: 'linear-gradient(135deg, #EC874E 0%, #BF341E 100%)',
                   border: 'none'
                 }}
                 aria-label="Open messages"
               >
                 <MessageSquare className="h-5 w-5 text-white pointer-events-none" />
                 {unreadMessageCount > 0 && (
-                  <span className="pointer-events-none absolute -top-1 -right-1 bg-[#BF341E] text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                  <span className="pointer-events-none absolute -top-1 -right-1 bg-accent text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
                     {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
                   </span>
                 )}
@@ -1180,10 +1192,7 @@ export function HomePage() {
                 
                 {/* Gradient Separator Line */}
                 <div 
-                  className="h-1 w-full rounded-full"
-                  style={{
-                    background: 'linear-gradient(90deg, #EC874E 0%, #BF341E 100%)'
-                  }}
+                  className="h-1 w-full rounded-full gradient-primary"
                 />
                 
                 {/* Event Details - Compact Format */}
@@ -1247,9 +1256,8 @@ export function HomePage() {
                   <button
                     onClick={togglePresence}
                     disabled={isLoading}
-                    className="px-8 py-3 rounded-lg text-white font-medium text-lg mx-auto block"
+                    className="px-8 py-3 rounded-lg text-white font-medium text-lg mx-auto block gradient-success"
                     style={{
-                      background: 'linear-gradient(135deg, #4B915A 0%, #0B3E16 100%)',
                       border: 'none'
                     }}
                   >
@@ -1292,6 +1300,8 @@ export function HomePage() {
                       summary={match.summary}
                       isPresent={match.is_present}
                       onClick={() => handleMatchClick(match)}
+                      structuredExplanation={match.structured_explanation}
+                      connectionType={match.connection_type}
                     />
                   ))
                 ) : currentEvent && !currentEvent.matchmaking_enabled ? (

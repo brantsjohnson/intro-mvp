@@ -962,6 +962,135 @@ export function scoreCandidates(
       composite = clamp(composite + intentBoost)
     }
 
+    // Industry fit boost for commercial viewers (soft boost, not a hard filter)
+    let industryFitBoost = 0
+    const viewerIndustryTags = viewer.industryTags ?? []
+    const candidateIndustryTags = candidate.industryTags ?? []
+    const viewerSpecificity = viewer.industrySpecificity ?? 0.2
+    const candidateSpecificity = candidate.industrySpecificity ?? 0.2
+    
+    if (resolvedViewerIntent === "commercial" && viewerIndustryTags.length > 0 && candidateIndustryTags.length > 0) {
+      // Compute overlap using Jaccard
+      const industryFitOverlap = jaccard(viewerIndustryTags, candidateIndustryTags)
+      
+      if (industryFitOverlap > 0) {
+        // Base boost scales with overlap
+        const baseBoost = 0.02 + Math.min(industryFitOverlap, 0.6) * 0.05
+        // Specificity multiplier: niche products get stronger boost when industries align
+        const specificityMultiplier = Math.max(viewerSpecificity, candidateSpecificity)
+        industryFitBoost = baseBoost + (specificityMultiplier * 0.06)
+        // Cap at 0.08 total
+        industryFitBoost = Math.min(industryFitBoost, 0.08)
+        
+        // Find matched tags
+        const viewerTagSet = new Set(viewerIndustryTags.map(t => t.toLowerCase()))
+        const matchedTags = candidateIndustryTags.filter(t => viewerTagSet.has(t.toLowerCase()))
+        
+        meta.industryFit = {
+          overlap: industryFitOverlap,
+          viewerSpecificity: viewerSpecificity,
+          viewerTags: viewerIndustryTags,
+          candidateTags: candidateIndustryTags,
+          matchedTags: matchedTags.length > 0 ? matchedTags : undefined
+        }
+      }
+    }
+    
+    if (industryFitBoost > 0) {
+      composite = clamp(composite + industryFitBoost)
+    }
+
+    // ============================================================
+    // Buyer-Persona Intelligence Layer - Business Pillar Boosts
+    // ============================================================
+    // These boosts are clamped within the existing +0.08 cap
+    let personaBoost = 0
+    const personaBases: string[] = []
+
+    // Seller (commercial:clients) - match buyer functions and leadership
+    if (resolvedViewerIntent === "commercial" && viewerPersona?.leader_required) {
+      // Candidate function matches buyer functions
+      if (viewerPersona.buyer_functions.includes(candidateRole.role_function)) {
+        personaBoost += 0.03
+        personaBases.push("buyer_function_match")
+      }
+      
+      // Leadership title when leader_required
+      if (isLeadershipTitle(candidateRole.role_seniority)) {
+        personaBoost += 0.02
+        personaBases.push("leadership_match")
+      }
+      
+      // Sector match (viewer sector tokens ↔ candidate tags/company)
+      if (viewerPersona.sector !== "unknown" && candidateIndustryTags.length > 0) {
+        const sectorTokens = viewerPersona.sector.split("_")
+        const sectorMatch = sectorTokens.some(token => 
+          candidateIndustryTags.some(tag => tag.toLowerCase().includes(token)) ||
+          candidateCompanyLower.includes(token)
+        )
+        if (sectorMatch) {
+          personaBoost += 0.01
+          personaBases.push("sector_match")
+        }
+      }
+    }
+
+    // Job-seeking: recruiter or hiring manager in same function
+    if (resolvedViewerIntent === "job_seeking") {
+      if (candidateIsRecruiter && candidateRole.role_function === viewerRole.role_function) {
+        personaBoost += 0.06
+        personaBases.push("recruiter_function_match")
+      } else if (candidateIsHiring && candidateRole.role_function === viewerRole.role_function) {
+        personaBoost += 0.04
+        personaBases.push("hiring_manager_function_match")
+      } else if (candidateRole.role_function === viewerRole.role_function && isLeadershipTitle(candidateRole.role_seniority)) {
+        personaBoost += 0.03
+        personaBases.push("hiring_leader_function_match")
+      }
+    }
+
+    // Recruiter: candidate is job seeker / role match
+    if (candidateConnectionSet.has("find_job") || candidateConnectionSet.has("job_seeking")) {
+      if (candidateRole.role_function === viewerRole.role_function) {
+        personaBoost += 0.05
+        personaBases.push("job_seeker_function_match")
+      }
+    }
+
+    // Mentorship: same function + seniority gap ≥3y
+    if (resolvedViewerIntent === "mentorship" && viewerMentorMode === "mentee") {
+      if (candidateRole.role_function === viewerRole.role_function) {
+        const viewerYears = viewer.careerYears ?? 0
+        const candidateYears = candidate.careerYears ?? 0
+        const seniorityGap = candidateYears - viewerYears
+        if (seniorityGap >= 3) {
+          personaBoost += 0.04
+          personaBases.push("mentor_seniority_gap")
+        }
+      }
+    }
+
+    // Penalties: clear off-function pair with no product/industry rationale
+    if (viewerRole.role_function !== "unknown" && candidateRole.role_function !== "unknown") {
+      const functionMismatch = viewerRole.role_function !== candidateRole.role_function
+      const noIndustryOverlap = industryOverlap < 0.1
+      const noNeedMatch = needScore < 0.2
+      
+      // Only penalize if there's no clear reason for the mismatch
+      if (functionMismatch && noIndustryOverlap && noNeedMatch && 
+          viewerRole.role_function !== "exec" && candidateRole.role_function !== "exec") {
+        personaBoost -= 0.02
+        personaBases.push("function_mismatch_penalty")
+      }
+    }
+
+    // Clamp persona boost to stay within +0.08 total cap (with other boosts)
+    personaBoost = Math.max(-0.02, Math.min(0.08, personaBoost))
+    
+    if (personaBoost !== 0) {
+      composite = clamp(composite + personaBoost)
+    }
+
     // Company targeting bonus for commercial viewers
     if ((viewerPersona?.target_companies?.length ?? 0) > 0 && candidateCompanyLower) {
       const setTargets = new Set((viewerPersona!.target_companies ?? []).map((c) => c.toLowerCase()))
@@ -982,6 +1111,9 @@ export function scoreCandidates(
     if (careerScore > 0.2) bases.push("career")
     if (personalityScore > 0.25) bases.push("compatibility")
     bases.push(...intentBases)
+    if (industryFitBoost > 0 && meta.industryFit) {
+      bases.push("industry_fit")
+    }
 
     meta.connectionBoost = clamp(connectionBoost)
 

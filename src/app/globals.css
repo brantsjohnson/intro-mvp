@@ -46,71 +46,99 @@
 
 :root {
   --radius: 1rem; /* rounded-2xl equivalent */
-  --background: #242424; /* charcoal */
-  --foreground: #D9D9D9; /* light gray */
-  --card: #242424;
-  --card-foreground: #D9D9D9;
-  --popover: #242424;
-  --popover-foreground: #D9D9D9;
-  --primary: #EC874E; /* orange gradient start */
-  --primary-foreground: #FFFFFF;
-  --secondary: #2A2A2A;
-  --secondary-foreground: #D9D9D9;
-  --muted: #2A2A2A;
-  --muted-foreground: #A1A1A1; /* muted text */
-  --accent: #2A2A2A;
-  --accent-foreground: #D9D9D9;
-  --destructive: #BF341E; /* red gradient end */
-  --border: rgba(255, 255, 255, 0.05);
-  --input: rgba(255, 255, 255, 0.1);
-  --ring: rgba(255, 255, 255, 0.1);
-  --chart-1: #EC874E;
-  --chart-2: #BF341E;
+  /* Core surfaces */
+  --background: #0C1A14; /* dark forest */
+  --foreground: #F6F7F4;
+  --card: #2A302F; /* muted deep pine green */
+  --card-foreground: #F6F7F4;
+  --popover: #2A302F;
+  --popover-foreground: #F6F7F4;
+  /* Borders & subtle dividers */
+  --border: #30423A;
+  --input: rgba(255, 255, 255, 0.15); /* lighter input background for visibility */
+  --ring: rgba(127, 167, 148, 0.3);
+  /* Text */
+  --muted-foreground: #A9B1AA;
+  --muted: #2A302F;
+  /* Buttons */
+  --primary: #1A2C24; /* deep green gradient start */
+  --primary-dark: #0C1A14; /* gradient end */
+  --primary-foreground: #F6F7F4;
+  --secondary: #2A302F;
+  --secondary-foreground: #F6F7F4;
+  /* Rare accent (warm ember) */
+  --accent: #9C4C05;
+  --accent-foreground: #F6F7F4;
+  --destructive: #BF341E; /* keep red for destructive actions */
+  /* Shadows */
+  --shadow-color: rgba(0, 0, 0, 0.5);
+  --shadow-soft: 0 6px 24px rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 2px 12px rgba(0,0,0,0.32);
+  /* Transparency */
+  --glass-alpha: rgba(42, 48, 47, 0.72);
+  /* Charts */
+  --chart-1: #1A2C24;
+  --chart-2: #9C4C05;
   --chart-3: #4B915A;
   --chart-4: #0B3E16;
-  --chart-5: #A1A1A1;
-  --sidebar: #242424;
-  --sidebar-foreground: #D9D9D9;
-  --sidebar-primary: #EC874E;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #2A2A2A;
-  --sidebar-accent-foreground: #D9D9D9;
-  --sidebar-border: rgba(255, 255, 255, 0.05);
-  --sidebar-ring: rgba(255, 255, 255, 0.1);
+  --chart-5: #A9B1AA;
+  /* Sidebar */
+  --sidebar: #0C1A14;
+  --sidebar-foreground: #F6F7F4;
+  --sidebar-primary: #1A2C24;
+  --sidebar-primary-foreground: #F6F7F4;
+  --sidebar-accent: #2A302F;
+  --sidebar-accent-foreground: #F6F7F4;
+  --sidebar-border: #30423A;
+  --sidebar-ring: rgba(127, 167, 148, 0.3);
 }
 
 .dark {
-  --background: #242424; /* charcoal */
-  --foreground: #D9D9D9; /* light gray */
-  --card: #242424;
-  --card-foreground: #D9D9D9;
-  --popover: #242424;
-  --popover-foreground: #D9D9D9;
-  --primary: #EC874E; /* orange gradient start */
-  --primary-foreground: #FFFFFF;
-  --secondary: #2A2A2A;
-  --secondary-foreground: #D9D9D9;
-  --muted: #2A2A2A;
-  --muted-foreground: #A1A1A1; /* muted text */
-  --accent: #2A2A2A;
-  --accent-foreground: #D9D9D9;
-  --destructive: #BF341E; /* red gradient end */
-  --border: rgba(255, 255, 255, 0.05);
-  --input: rgba(255, 255, 255, 0.1);
-  --ring: rgba(255, 255, 255, 0.1);
-  --chart-1: #EC874E;
-  --chart-2: #BF341E;
+  /* Core surfaces */
+  --background: #0C1A14; /* dark forest */
+  --foreground: #F6F7F4;
+  --card: #2A302F; /* muted deep pine green */
+  --card-foreground: #F6F7F4;
+  --popover: #2A302F;
+  --popover-foreground: #F6F7F4;
+  /* Borders & subtle dividers */
+  --border: #30423A;
+  --input: rgba(255, 255, 255, 0.15); /* lighter input background for visibility */
+  --ring: rgba(127, 167, 148, 0.3);
+  /* Text */
+  --muted-foreground: #A9B1AA;
+  --muted: #2A302F;
+  /* Buttons */
+  --primary: #1A2C24; /* deep green gradient start */
+  --primary-dark: #0C1A14; /* gradient end */
+  --primary-foreground: #F6F7F4;
+  --secondary: #2A302F;
+  --secondary-foreground: #F6F7F4;
+  /* Rare accent (warm ember) */
+  --accent: #9C4C05;
+  --accent-foreground: #F6F7F4;
+  --destructive: #BF341E; /* keep red for destructive actions */
+  /* Shadows */
+  --shadow-color: rgba(0, 0, 0, 0.5);
+  --shadow-soft: 0 6px 24px rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 2px 12px rgba(0,0,0,0.32);
+  /* Transparency */
+  --glass-alpha: rgba(42, 48, 47, 0.72);
+  /* Charts */
+  --chart-1: #1A2C24;
+  --chart-2: #9C4C05;
   --chart-3: #4B915A;
   --chart-4: #0B3E16;
-  --chart-5: #A1A1A1;
-  --sidebar: #242424;
-  --sidebar-foreground: #D9D9D9;
-  --sidebar-primary: #EC874E;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #2A2A2A;
-  --sidebar-accent-foreground: #D9D9D9;
-  --sidebar-border: rgba(255, 255, 255, 0.05);
-  --sidebar-ring: rgba(255, 255, 255, 0.1);
+  --chart-5: #A9B1AA;
+  /* Sidebar */
+  --sidebar: #0C1A14;
+  --sidebar-foreground: #F6F7F4;
+  --sidebar-primary: #1A2C24;
+  --sidebar-primary-foreground: #F6F7F4;
+  --sidebar-accent: #2A302F;
+  --sidebar-accent-foreground: #F6F7F4;
+  --sidebar-border: #30423A;
+  --sidebar-ring: rgba(127, 167, 148, 0.3);
 }
 
 @layer base {
@@ -126,7 +154,16 @@
 @layer utilities {
   /* Custom gradient utilities */
   .gradient-primary {
-    background: linear-gradient(135deg, #EC874E 0%, #BF341E 100%);
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  }
+  
+  .gradient-accent {
+    background: linear-gradient(135deg, var(--accent), #6E3303);
+  }
+  
+  .gradient-card {
+    background: rgba(42,48,47,0.72);
+    backdrop-filter: blur(12px);
   }
   
   .gradient-success {
@@ -135,11 +172,15 @@
   
   /* Custom shadow utilities */
   .shadow-elevation {
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--shadow-card);
   }
   
   .shadow-modern {
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--shadow-card);
+  }
+  
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
   }
   
   /* Custom ring utilities */
@@ -180,14 +221,14 @@
   
   /* Moving gradient background */
   .gradient-bg {
-    background: linear-gradient(-45deg, #92473B, #92473B, #92473B, #92473B);
+    background: linear-gradient(-45deg, #0C1A14, #1A2C24, #0C1A14, #1A2C24);
     background-size: 400% 400%;
     animation: gradientShift 15s ease infinite;
   }
   
   /* Progress bar gradient */
   .gradient-progress {
-    background: linear-gradient(90deg, #EC874E 0%, #BF341E 50%, #A855F7 100%);
+    background: linear-gradient(90deg, var(--primary) 0%, var(--primary-dark) 50%, var(--accent) 100%);
   }
   
   /* Fade animations */

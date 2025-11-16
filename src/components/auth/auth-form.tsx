@@ -137,7 +137,7 @@ export function AuthForm() {
         <button
           onClick={() => startOAuth("google")}
           disabled={isLoading}
-          className="w-full bg-white text-gray-800 py-3 px-4 rounded-xl font-medium flex items-center justify-center space-x-3 hover:bg-gray-50 transition-colors disabled:opacity-50"
+          className="w-full bg-white text-slate-900 py-3 px-4 rounded-xl font-medium flex items-center justify-center space-x-3 hover:bg-gray-50 transition-colors disabled:opacity-50"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path
@@ -163,10 +163,10 @@ export function AuthForm() {
         {/* Separator */}
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-600"></div>
+            <div className="w-full border-t border-border"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="bg-card px-2 text-gray-400">or</span>
+            <span className="bg-card px-2 text-muted-foreground">or</span>
           </div>
         </div>
 
@@ -179,7 +179,7 @@ export function AuthForm() {
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 required={isSignUp}
-                className="bg-gray-800 text-white rounded-xl border-gray-600 placeholder-gray-400"
+                className="bg-input text-foreground rounded-xl border-border placeholder:text-muted-foreground"
                 placeholder="First Name"
               />
               <Input
@@ -187,7 +187,7 @@ export function AuthForm() {
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 required={isSignUp}
-                className="bg-gray-800 text-white rounded-xl border-gray-600 placeholder-gray-400"
+                className="bg-input text-foreground rounded-xl border-border placeholder:text-muted-foreground"
                 placeholder="Last Name"
               />
             </div>
@@ -198,7 +198,7 @@ export function AuthForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="bg-gray-800 text-white rounded-xl border-gray-600"
+            className="bg-input text-foreground rounded-xl border-border"
             placeholder="Email"
           />
 
@@ -207,7 +207,7 @@ export function AuthForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="bg-gray-800 text-white rounded-xl border-gray-600"
+            className="bg-input text-foreground rounded-xl border-border"
             placeholder="Password"
           />
 
@@ -215,7 +215,7 @@ export function AuthForm() {
             <div className="text-left">
               <button
                 type="button"
-                className="text-sm text-gray-400 hover:text-gray-300"
+                className="text-sm text-muted-foreground hover:text-foreground"
               >
                 Forgot password?
               </button>
@@ -230,13 +230,13 @@ export function AuthForm() {
                 onCheckedChange={(checked) => setConsent(checked as boolean)}
                 className="mt-0.5"
               />
-              <Label htmlFor="consent" className="text-sm text-gray-400 leading-relaxed">
+              <Label htmlFor="consent" className="text-sm text-muted-foreground leading-relaxed">
                 By signing up, I accept the{" "}
-                <a href="/terms" className="text-orange-400 hover:underline">
+                <a href="/terms" className="text-accent hover:underline">
                   Terms of Service
                 </a>{" "}
                 and{" "}
-                <a href="/privacy" className="text-orange-400 hover:underline">
+                <a href="/privacy" className="text-accent hover:underline">
                   Privacy Policy
                 </a>
                 . I understand that my name and image will be visible to event attendees and that OpenAI will be used for matching.
@@ -247,8 +247,7 @@ export function AuthForm() {
           <button
             type="submit"
             disabled={isLoading || (isSignUp && !consent)}
-            className="w-full text-white py-3 px-4 rounded-xl font-bold text-lg transition-all disabled:opacity-50"
-            style={{ background: 'linear-gradient(to right, #EC874E, #BF341E)' }}
+            className="w-full text-primary-foreground py-3 px-4 rounded-xl font-bold text-lg transition-all disabled:opacity-50 gradient-primary"
           >
             {isLoading ? "Loading..." : isSignUp ? "SIGN UP" : "LOG IN"}
           </button>
@@ -261,13 +260,13 @@ export function AuthForm() {
           >
             {isSignUp ? (
               <>
-                <span className="text-gray-400">Already have an account? </span>
-                <span className="text-orange-400 hover:underline">Sign in</span>
+                <span className="text-muted-foreground">Already have an account? </span>
+                <span className="text-accent hover:underline">Sign in</span>
               </>
             ) : (
               <>
-                <span className="text-gray-400">Don&apos;t have an account? </span>
-                <span className="text-orange-400 hover:underline">Sign up</span>
+                <span className="text-muted-foreground">Don&apos;t have an account? </span>
+                <span className="text-accent hover:underline font-medium">Sign up</span>
               </>
             )}
           </button>

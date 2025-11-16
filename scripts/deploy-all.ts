@@ -76,6 +76,7 @@ if (forceDbFromEnv || forceDbFromCli) {
 
 const SUPABASE_PROJECT_REF = process.env.DEPLOY_SUPABASE_PROJECT_REF as string
 const SUPABASE_FUNCTION = (process.env.DEPLOY_SUPABASE_FUNCTION_NAME || "matchmaker").trim()
+const SUPABASE_FUNCTIONS_TO_DEPLOY = (process.env.DEPLOY_SUPABASE_FUNCTIONS || "matchmaker,generate-match-explanations").split(",").map(f => f.trim())
 const VERCEL_TOKEN = process.env.DEPLOY_VERCEL_TOKEN as string
 const VERCEL_PROJECT_ID = process.env.DEPLOY_VERCEL_PROJECT_ID as string
 const VERCEL_ORG_ID = process.env.DEPLOY_VERCEL_ORG_ID?.trim()
@@ -154,7 +155,7 @@ async function main() {
   )
 
   let step = 0
-  const totalSteps = SKIP_DB_PUSH ? 3 : 4
+  const totalSteps = SKIP_DB_PUSH ? (2 + SUPABASE_FUNCTIONS_TO_DEPLOY.length) : (3 + SUPABASE_FUNCTIONS_TO_DEPLOY.length)
   const nextStep = (message: string) => {
     step += 1
     log(`${step}/${totalSteps}`, message)
@@ -187,13 +188,16 @@ async function main() {
     log("info", "Skipping database migrations (set DEPLOY_FORCE_DB_PUSH=true or pass --force-db to run them).")
   }
 
-  nextStep(`Deploying edge function '${SUPABASE_FUNCTION}' to Supabase`)
-  await runCommand(
-    "supabase",
-    "supabase",
-    ["functions", "deploy", SUPABASE_FUNCTION, "--project-ref", SUPABASE_PROJECT_REF, "--yes"],
-    { cwd: SUPABASE_ROOT, env: SUPABASE_ENV }
-  )
+  // Deploy all specified functions
+  for (const funcName of SUPABASE_FUNCTIONS_TO_DEPLOY) {
+    nextStep(`Deploying edge function '${funcName}' to Supabase`)
+    await runCommand(
+      "supabase",
+      "supabase",
+      ["functions", "deploy", funcName, "--project-ref", SUPABASE_PROJECT_REF, "--yes"],
+      { cwd: SUPABASE_ROOT, env: SUPABASE_ENV }
+    )
+  }
 
   nextStep("Triggering Vercel production deploy")
   const vercelArgs = ["deploy", "--prod", "--token", VERCEL_TOKEN, "--yes", "--confirm"]

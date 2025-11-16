@@ -572,7 +572,7 @@ export function ConversationView() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex flex-col overflow-hidden">
+      <div className="min-h-screen bg-cover bg-center bg-fixed flex flex-col overflow-hidden" style={{ backgroundImage: "url('/background.jpg')" }}>
         <header className="border-b border-border bg-card/50 backdrop-blur-sm flex-shrink-0 z-10">
           <div className="container mx-auto px-4 py-4">
             <div className="max-w-3xl mx-auto flex items-center justify-between">
@@ -624,7 +624,7 @@ export function ConversationView() {
 
   if (!thread && !hasCheckedForThread) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex flex-col overflow-hidden">
+      <div className="min-h-screen bg-cover bg-center bg-fixed flex flex-col overflow-hidden" style={{ backgroundImage: "url('/background.jpg')" }}>
         <header className="border-b border-border bg-card/50 backdrop-blur-sm flex-shrink-0 z-10">
           <div className="container mx-auto px-4 py-4">
             <div className="max-w-3xl mx-auto flex items-center justify-between">
@@ -677,7 +677,7 @@ export function ConversationView() {
   // If we've checked and confirmed there's no thread, show error
   if (!thread && hasCheckedForThread) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>
         <div className="text-center">
           <User className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-foreground mb-2">
@@ -760,8 +760,8 @@ export function ConversationView() {
                   const alignment = message.is_from_current_user ? "items-end" : "items-start"
                   const bubbleAlignment = message.is_from_current_user ? "ml-auto" : "mr-auto"
                   const bubbleColors = message.is_from_current_user
-                    ? "bg-gradient-to-br from-[#EC874E] to-[#BF341E] text-white"
-                    : "bg-white/95 text-slate-900 border border-border/40 shadow-sm"
+                    ? "gradient-primary text-primary-foreground"
+                    : "bg-card/55 text-foreground border border-border shadow-sm"
                   const timestampVisible = visibleTimestamps[message.id]
 
                   return (

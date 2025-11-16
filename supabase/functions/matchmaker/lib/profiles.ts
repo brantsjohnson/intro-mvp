@@ -1,5 +1,6 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { CandidateProfile, ViewerProfile } from "./types.ts"
+import { deriveIndustrySignals, mergeIndustryTags } from "./industry.ts"
 
 const PROFILE_COLUMNS = `
   event_id,
@@ -22,6 +23,8 @@ const PROFILE_COLUMNS = `
     last_name,
     career_title,
     company_name,
+    company_summary,
+    company_url,
     career_years_experience,
     offer_summary_text,
     want_summary_text,
@@ -59,6 +62,18 @@ function mergeUnique(...lists: (string[] | null | undefined)[]): string[] | null
 
 function mapAttendanceRow(row: any): CandidateProfile {
   const user = row.users || {}
+  
+  // Derive industry signals from company_summary
+  const industrySignals = deriveIndustrySignals(
+    user.company_summary,
+    user.company_name,
+    user.company_url
+  )
+  
+  // Merge derived tags with existing industry tags
+  const existingIndustryTags = mergeUnique(user.industry_tags, row.event_industry_tags)
+  const mergedIndustryTags = mergeIndustryTags(existingIndustryTags, industrySignals.tags)
+  
   return {
     eventId: row.event_id,
     id: user.user_id,
@@ -66,6 +81,8 @@ function mapAttendanceRow(row: any): CandidateProfile {
     lastName: user.last_name ?? null,
     jobTitle: user.career_title ?? null,
     company: user.company_name ?? null,
+    companySummary: user.company_summary ?? null,
+    companyUrl: user.company_url ?? null,
     careerYears: user.career_years_experience ?? null,
     offerSummary: user.offer_summary_text ?? null,
     wantSummary: user.want_summary_text ?? null,
@@ -75,7 +92,8 @@ function mapAttendanceRow(row: any): CandidateProfile {
     offerTags: mergeUnique(user.offer_tags, row.event_offer_tags),
     wantTags: mergeUnique(user.want_tags, row.event_want_tags),
     needTags: mergeUnique(user.need_tags, row.event_need_tags),
-    industryTags: mergeUnique(user.industry_tags, row.event_industry_tags),
+    industryTags: mergedIndustryTags,
+    industrySpecificity: industrySignals.specificity,
     hobbyTags: mergeUnique(user.hobby_tags, row.event_hobby_tags),
     hobbies: mergeUnique(user.hobbies, row.event_hobby_tags),
     businessNeed: row.business_need_text ?? null,
@@ -112,6 +130,8 @@ export async function loadViewerProfile(
     lastName: candidateProfile.lastName,
     jobTitle: candidateProfile.jobTitle,
     company: candidateProfile.company,
+    companySummary: candidateProfile.companySummary,
+    companyUrl: candidateProfile.companyUrl,
     careerYears: candidateProfile.careerYears,
     offerEmbedding: candidateProfile.offerEmbedding ?? null,
     needEmbedding: candidateProfile.needEmbedding ?? null,
@@ -120,6 +140,7 @@ export async function loadViewerProfile(
     wantTags: candidateProfile.wantTags ?? null,
     needTags: candidateProfile.needTags ?? null,
     industryTags: candidateProfile.industryTags ?? null,
+    industrySpecificity: candidateProfile.industrySpecificity,
     hobbyTags: candidateProfile.hobbyTags ?? null,
     hobbies: candidateProfile.hobbies ?? null,
     businessNeed: candidateProfile.businessNeed ?? null,

@@ -291,6 +291,155 @@ async function generateSummary(
   return fallback;
 }
 
+async function extractIndustryTags(
+  companyName: string,
+  companySummary: string,
+  companyUrl: string | null,
+): Promise<string[]> {
+  const fallback: string[] = [];
+
+  // APPROVED INDUSTRY TAXONOMY - All tags must come from this list
+  const validTags = [
+    "fintech",
+    "banking",
+    "payments",
+    "insurance",
+    "ecommerce",
+    "retail",
+    "enterprise_software",
+    "saas",
+    "cybersecurity",
+    "marketing",
+    "advertising",
+    "media",
+    "social_media",
+    "real_estate",
+    "recruiting",
+    "hrtech",
+    "travel",
+    "hospitality",
+    "transportation",
+    "logistics",
+    "healthtech",
+    "biotech",
+    "entertainment",
+    "gaming",
+    "edtech",
+    "education",
+    "higher_education",
+    "research",
+    "academia",
+    "ai",
+    "infrastructure",
+    "cloud",
+    "developer_tools",
+    "telecommunications",
+    "productivity",
+    "marketplaces",
+    "consumer_goods",
+    "food_delivery",
+    "sports",
+    "fitness",
+    "hardware",
+    "wearables",
+    "government",
+    "legaltech",
+    "nonprofit",
+    "consulting",
+  ];
+
+  try {
+    const prompt =
+      `Extract 3-7 industry tags for this company based on their description. Follow these rules:\n\n` +
+      `1. USE ONLY TAGS FROM THIS APPROVED TAXONOMY (lowercase snake_case):\n` +
+      `${validTags.join(", ")}\n\n` +
+      `2. ASSIGN 3-7 TAGS PER COMPANY:\n` +
+      `   - 1-2 primary industry tags (what the company *is*)\n` +
+      `   - 2-5 secondary tags (markets served, technologies used)\n\n` +
+      `3. TAG BY FUNCTION, NOT JUST KEYWORDS:\n` +
+      `   - Stripe → ["fintech", "payments", "developer_tools", "saas"]\n` +
+      `   - Shopify → ["ecommerce", "retail", "saas", "developer_tools"]\n` +
+      `   - Nike → ["consumer_goods", "retail", "sports", "fitness"]\n` +
+      `   - LinkedIn → ["social_media", "recruiting", "saas", "enterprise_software"]\n` +
+      `   - OpenAI → ["ai", "developer_tools", "saas"]\n` +
+      `   - Twilio → ["telecommunications", "developer_tools", "saas"]\n` +
+      `   - DoorDash → ["food_delivery", "marketplaces", "logistics"]\n` +
+      `   - Stanford University → ["education", "higher_education", "research", "academia"]\n` +
+      `   - Professor/Researcher → ["education", "research", "academia", "higher_education"]\n` +
+      `   - Khan Academy → ["edtech", "education", "saas"]\n\n` +
+      `4. IF THE DESCRIPTION MENTIONS AI, ALWAYS ADD "ai" AS A TAG.\n\n` +
+      `5. DO NOT DUPLICATE TAGS.\n` +
+      `6. DO NOT USE GENERIC TAGS LIKE "tech".\n` +
+      `7. NEVER RETURN MORE THAN 7 TAGS.\n` +
+      `8. ALWAYS PICK THE MOST SPECIFIC OPTION AVAILABLE.\n\n` +
+      `Company name: ${companyName}\n` +
+      `Company description: ${companySummary}\n` +
+      `Company URL: ${companyUrl || "(not available)"}\n\n` +
+      `Return ONLY a JSON array of tag strings, nothing else. Example: ["fintech", "payments", "developer_tools", "saas"]`;
+
+    const payload = {
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      max_tokens: 100,
+      temperature: 0.3,
+    };
+
+    const response = await fetch(OPENAI_CHAT_COMPLETIONS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openAIApiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error("OpenAI API error for industry tags:", response.status, errorBody);
+      return fallback;
+    }
+
+    const data = await response.json();
+    const text = data?.choices?.[0]?.message?.content?.trim();
+    if (text) {
+      // Clean up JSON response
+      let cleanedText = text.trim();
+      if (cleanedText.startsWith('```json')) {
+        cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanedText.startsWith('```')) {
+        cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+      
+      try {
+        const tags = JSON.parse(cleanedText);
+        if (Array.isArray(tags) && tags.length > 0) {
+          // Validate tags are strings and filter to valid industry tags
+          const validTagSet = new Set(validTags);
+          const processedTags = tags
+            .filter((tag: any) => typeof tag === 'string')
+            .map((tag: string) => tag.toLowerCase().trim().replace(/\s+/g, '_'))
+            .filter((tag: string) => validTagSet.has(tag))
+            .filter((tag: string, index: number, arr: string[]) => arr.indexOf(tag) === index); // Remove duplicates
+          
+          // Return 3-7 tags (enforce max)
+          return processedTags.slice(0, 7);
+        }
+      } catch (parseError) {
+        console.warn("Failed to parse industry tags JSON:", cleanedText, parseError);
+      }
+    }
+  } catch (error) {
+    console.error("OpenAI request failed for industry tags:", error);
+  }
+
+  return fallback;
+}
+
 serve(async (req) => {
   try {
     // Handle both batch processing (no body) and single user processing (with body)
@@ -614,9 +763,55 @@ serve(async (req) => {
 
     if (updates.length > 0) {
       console.log(`About to upsert ${updates.length} users`);
+      
+      // For each update, extract industry_tags using AI if company_summary is being updated
+      const updatesWithIndustryTags = await Promise.all(
+        updates.map(async (update) => {
+          // If we're updating company_summary, extract industry tags using AI
+          if (update.company_summary) {
+            try {
+              const user = users.find(u => u.user_id === update.user_id);
+              const companyName = update.company_name || user?.company_name || "";
+              const companyUrl = user?.company_url || null;
+              
+              // Use AI to extract industry tags
+              const aiTags = await extractIndustryTags(
+                companyName,
+                update.company_summary,
+                companyUrl
+              );
+              
+              if (aiTags && aiTags.length > 0) {
+                console.log(`AI extracted industry tags for ${companyName}: ${JSON.stringify(aiTags)}`);
+                return { ...update, industry_tags: aiTags };
+              } else {
+                // Fallback to SQL function if AI fails
+                console.log(`AI returned no tags, trying SQL function for ${companyName}`);
+                const { data: derivedTags, error: tagError } = await supabase.rpc(
+                  "derive_industry_tags",
+                  {
+                    p_company_summary: update.company_summary,
+                    p_company_name: companyName,
+                    p_company_url: companyUrl,
+                  }
+                );
+                
+                if (!tagError && derivedTags && Array.isArray(derivedTags) && derivedTags.length > 0) {
+                  console.log(`SQL derived industry tags for ${companyName}: ${JSON.stringify(derivedTags)}`);
+                  return { ...update, industry_tags: derivedTags };
+                }
+              }
+            } catch (error) {
+              console.warn(`Failed to extract industry tags for user ${update.user_id}:`, error);
+            }
+          }
+          return update;
+        })
+      );
+      
       const { error: updateError } = await supabase
         .from("users")
-        .upsert(updates, {
+        .upsert(updatesWithIndustryTags, {
           onConflict: "user_id",
           returning: "minimal",
         });

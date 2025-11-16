@@ -647,7 +647,7 @@ export function UserProfile({ userId }: UserProfileProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen gradient-bg flex items-center justify-center">
+      <div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading profile...</p>
@@ -658,7 +658,7 @@ export function UserProfile({ userId }: UserProfileProps) {
 
   if (!profile) {
     return (
-      <div className="min-h-screen gradient-bg flex items-center justify-center">
+      <div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>
         <div className="text-center">
           <p className="text-muted-foreground mb-4">Profile not found</p>
           <GradientButton onClick={() => router.push("/home")}>
@@ -670,7 +670,7 @@ export function UserProfile({ userId }: UserProfileProps) {
   }
 
   return (
-    <div className="min-h-screen gradient-bg">
+    <div className="min-h-screen bg-cover bg-center bg-fixed" style={{ backgroundImage: "url('/background.jpg')" }}>
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
@@ -731,7 +731,7 @@ export function UserProfile({ userId }: UserProfileProps) {
                     </p>
                   )}
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    <span className="font-semibold text-[#EC874E]">Areas of Expertise:</span>{" "}
+                    <span className="font-semibold text-accent">Areas of Expertise:</span>{" "}
                     {expertiseList.length > 0
                       ? expertiseList.join(", ")
                       : profile.what_do_you_do?.trim() || "—"}

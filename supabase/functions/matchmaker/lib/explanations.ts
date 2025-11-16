@@ -19,12 +19,34 @@ function buildCandidateStrengths(scored: ScoredCandidate): string[] {
 
 function renderNeedPhrase(viewer: ViewerProfile, scored: ScoredCandidate): string {
   const candidate = scored.candidate
+  const industryFit = scored.meta.industryFit
+  
+  // Industry fit takes precedence for commercial matches
+  if (industryFit && industryFit.overlap >= 0.3 && industryFit.matchedTags && industryFit.matchedTags.length > 0) {
+    const industryName = industryFit.matchedTags[0]
+    const productHint = viewer.companySummary 
+      ? viewer.companySummary.split(/[.;]/)[0].slice(0, 60).trim()
+      : viewer.offerSummary?.split(/[.;]/)[0].slice(0, 60).trim() || "your product"
+    
+    const candidateCompany = candidate.company || `${candidate.firstName || "their"}'s organization`
+    return `You build ${productHint} for ${industryName}; ${candidateCompany} is in ${industryName}—direct fit.`
+  }
+  
+  // Broad product with relevant role
+  if (viewer.industrySpecificity && viewer.industrySpecificity < 0.3 && candidate.jobTitle) {
+    const productHint = viewer.companySummary 
+      ? viewer.companySummary.split(/[.;]/)[0].slice(0, 50).trim()
+      : viewer.offerSummary?.split(/[.;]/)[0].slice(0, 50).trim() || "your solution"
+    const candidateCompany = candidate.company || "their organization"
+    return `Your ${productHint} applies widely; their role at ${candidateCompany} makes them a strong pilot.`
+  }
+  
   const token = scored.meta.needToken || scored.meta.supplyToken
   if (token) {
     return `${viewer.firstName || "You"} need support with ${token}, and ${candidate.firstName || "they"} focus on that area.`
   }
   if (viewer.businessNeed) {
-    return `${viewer.firstName || "You"} mentioned “${viewer.businessNeed}”, and ${candidate.firstName || "they"} have experience that aligns with it.`
+    return `${viewer.firstName || "You"} mentioned "${viewer.businessNeed}", and ${candidate.firstName || "they"} have experience that aligns with it.`
   }
   if (candidate.offerSummary) {
     return `${candidate.firstName || "They"} can help with ${candidate.offerSummary}.`
@@ -57,6 +79,10 @@ export function buildDeterministicExplanation(
   }
   if (scored.meta.needToken && scored.meta.supplyToken && scored.meta.needToken === scored.meta.supplyToken) {
     sharedPoints.push(`Mutual focus on ${scored.meta.needToken}`)
+  }
+  if (scored.meta.industryFit && scored.meta.industryFit.matchedTags && scored.meta.industryFit.matchedTags.length > 0) {
+    const industries = scored.meta.industryFit.matchedTags.join(", ")
+    sharedPoints.push(`Both operate in ${industries}`)
   }
 
   const aiReason = scored.meta.aiReason?.trim()

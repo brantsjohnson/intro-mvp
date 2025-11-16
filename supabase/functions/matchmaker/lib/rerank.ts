@@ -93,9 +93,26 @@ export async function rerankWithAI(
   const viewerSummary = buildViewerSummary(viewer)
   const candidateSummaries = top.map((candidate, idx) => buildCandidateSummary(candidate, idx)).join("\n\n")
 
-  const prompt = `You are a networking matchmaker. Choose up to three candidates who best help the viewer.
+  const prompt = `You are a networking matchmaker. Reorder the provided candidates to maximize the viewer's success.
+You MUST return all candidates provided - you cannot drop any. Only reorder them.
+
+BEFORE SCORING: Infer each person's normalized function and seniority from their job title (e.g., "Account Executive" → sales/IC, "VP of Engineering" → engineering/vp, "Founder" → exec/founder).
+
+Use buyer-persona intelligence:
+- Sellers (seeking clients): Match buyer functions (prefer Directors+ when leader_required). If sector is known, prioritize that sector.
+- Job seekers: Match recruiters/hiring managers in the same function.
+- Mentees: Match mentors in the same function with seniority gap ≥3 years.
+- If uncertain about sector, prefer leadership in core buyer functions.
+- If proposing a non-standard pairing, justify it explicitly with product/industry context.
+
 Return strict JSON array with objects { "match_user_id": "<id>", "reason": "<short reason>" }.
-Explain why the candidate helps the viewer (focus on supply aligning with need). Be concise.
+Include ALL candidate IDs in your response. Explain why each candidate helps the viewer (focus on supply aligning with need). Be concise.
+
+IMPORTANT RULES:
+- You must NOT say someone can teach coding unless their title or tags clearly show engineering/development/ML/data skills.
+- If you select a non-engineer because no engineer exists, you must state that explicitly in the reason ("there isn't a clear engineer available, so...").
+- Never drop candidates - only reorder them.
+- For each candidate, include function_fit_reason explaining why the role pairing makes sense for the intent.
 
 ${viewerSummary}
 
@@ -138,7 +155,18 @@ ${candidateSummaries}`
       return scored
     }
 
-    return applyRerank(scored, parsed.slice(0, 3))
+    // Ensure we return all candidates (AI can only reorder, not filter)
+    const allCandidateIds = new Set(scored.map(c => c.candidate.id))
+    const parsedIds = new Set(parsed.map(p => p.match_user_id))
+    
+    // Add any missing candidates to the end
+    for (const candidate of scored) {
+      if (!parsedIds.has(candidate.candidate.id)) {
+        parsed.push({ match_user_id: candidate.candidate.id, reason: "Additional match" })
+      }
+    }
+    
+    return applyRerank(scored, parsed)
   } catch (error) {
     console.warn("GPT rerank failed:", error)
     return scored

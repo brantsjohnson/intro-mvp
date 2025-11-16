@@ -116,8 +116,17 @@ export async function fetchCandidatePool(
   const candidateIds = Array.from(candidateScoreMap.keys())
   const profiles = await loadCandidateProfiles(client, eventId, candidateIds)
 
+  const normalizeCompany = (value?: string | null) =>
+    value ? value.toLowerCase().replace(/[^a-z0-9]+/g, "") : ""
+
+  const viewerCompany = normalizeCompany(viewer.company)
+  const filteredProfiles =
+    viewerCompany.length === 0
+      ? profiles
+      : profiles.filter((profile) => normalizeCompany(profile.company) !== viewerCompany)
+
   return {
-    candidates: profiles,
+    candidates: filteredProfiles,
     seedCount: candidateIds.length
   }
 }

@@ -70,7 +70,7 @@ export default function Home() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading...</p>
@@ -82,7 +82,7 @@ export default function Home() {
   // If user is authenticated, don't show the auth form
   if (user) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Redirecting...</p>
@@ -92,31 +92,23 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Top section with animated orange gradient */}
-      <div className="px-4 pt-6 sm:pt-8 lg:pt-10 pb-2 sm:pb-3 lg:pb-4 relative overflow-hidden">
-        <div 
-          className="absolute inset-0 animate-gradient"
-          style={{ 
-            background: 'linear-gradient(45deg, #EC874E, #BF341E, #EC874E, #D2691E, #EC874E)',
-            backgroundSize: '400% 400%',
-            animation: 'gradientShift 8s ease infinite'
-          }}
-        />
+    <div className="min-h-screen bg-cover bg-center bg-fixed" style={{ backgroundImage: "url('/background.jpg')" }}>
+      {/* Top section */}
+      <div className="px-4 pt-6 sm:pt-8 lg:pt-10 pb-2 sm:pb-3 lg:pb-4 relative">
         <div className="relative z-10 text-center">
-          <p className="text-sm sm:text-base font-medium mb-2 sm:mb-3" style={{ color: '#242424' }}>
+          <p className="text-sm sm:text-base font-medium mb-2 sm:mb-3 text-foreground">
             The Best Way to Network
           </p>
           <div className="flex justify-center items-center mb-0 sm:mb-1">
             <div className="relative inline-block leading-none">
               <span
                 aria-hidden
-                className={`${changaOne.className} block absolute left-0 top-[6px] text-[#BF341E] text-[64px] sm:text-[80px] md:text-[96px] lg:text-[120px] xl:text-[144px]`}
+                className={`${changaOne.className} block absolute left-0 top-[6px] text-accent text-[64px] sm:text-[80px] md:text-[96px] lg:text-[120px] xl:text-[144px]`}
               >
                 INTRO
               </span>
               <span
-                className={`${changaOne.className} relative block text-[#242424] text-[64px] sm:text-[80px] md:text-[96px] lg:text-[120px] xl:text-[144px]`}
+                className={`${changaOne.className} relative block text-foreground text-[64px] sm:text-[80px] md:text-[96px] lg:text-[120px] xl:text-[144px]`}
               >
                 INTRO
               </span>
@@ -135,7 +127,7 @@ export default function Home() {
       {/* Contact section */}
       <div className="text-center px-4 py-2">
         <p className="text-muted-foreground text-sm">
-          <span className="text-primary hover:underline cursor-pointer">Contact us</span> if you want to use INTRO at your event.
+          <span className="text-accent hover:underline cursor-pointer">Contact us</span> if you want to use INTRO at your event.
         </p>
       </div>
     </div>

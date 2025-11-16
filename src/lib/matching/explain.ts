@@ -11,6 +11,9 @@ export type AttendeeSnapshot = {
   hobbies?: string[] | null
   career_title?: string | null
   company_name?: string | null
+  company_summary?: string | null
+  industry_tags?: string[] | null
+  event_industry_tags?: string[] | null
 }
 
 export type MatchExplanationOptions = {
@@ -50,6 +53,10 @@ const BOILERPLATE_SNIPPETS = [
   "they're here because",
   "they are here because",
   "they're looking to connect with like-minded",
+  "high overlap",
+  "worth a quick introduction",
+  "strong overlap",
+  "worth a five-minute intro",
 ]
 
 const normStrings = (items?: string[] | null): string[] =>
@@ -179,6 +186,16 @@ export const parseMatchExplanationConfig = (input: unknown): MatchExplanationOpt
   return parsed
 }
 
+// Helper to compute Jaccard similarity for industry tags
+const jaccardIndustryOverlap = (uTags: string[] | null | undefined, vTags: string[] | null | undefined): number => {
+  if (!uTags || !vTags || uTags.length === 0 || vTags.length === 0) return 0
+  const uSet = new Set(uTags.map(t => t.toLowerCase()))
+  const vSet = new Set(vTags.map(t => t.toLowerCase()))
+  const intersection = new Set([...uSet].filter(x => vSet.has(x)))
+  const union = new Set([...uSet, ...vSet])
+  return union.size > 0 ? intersection.size / union.size : 0
+}
+
 export const buildMatchExplanation = (
   u: AttendeeSnapshot,
   v: AttendeeSnapshot,
@@ -214,9 +231,117 @@ export const buildMatchExplanation = (
   const uRole = formatRoleAndCompany(u)
   const vRole = formatRoleAndCompany(v)
 
+  // Check for industry overlap
+  const uIndustryTags = u.event_industry_tags ?? u.industry_tags ?? []
+  const vIndustryTags = v.event_industry_tags ?? v.industry_tags ?? []
+  const industryOverlap = jaccardIndustryOverlap(uIndustryTags, vIndustryTags)
+  const matchedIndustries = uIndustryTags.filter(tag => 
+    vIndustryTags.some(vTag => vTag.toLowerCase() === tag.toLowerCase())
+  )
+
+  // Extract industry context from company summaries (without company name)
+  const getIndustryContext = (summary: string | null | undefined, tags: string[], companyName?: string | null): string => {
+    if (!summary && tags.length === 0) return ""
+    const tagPhrase = tags.length > 0 ? tags.slice(0, 2).map(t => t.replace(/_/g, " ")).join(" and ") : ""
+    if (summary && summary.length > 0) {
+      let cleanSummary = summary.trim()
+      // Remove company name from start of summary if present
+      if (companyName) {
+        const companyLower = companyName.toLowerCase().trim()
+        const summaryLower = cleanSummary.toLowerCase()
+        // Check if summary starts with company name (with optional punctuation/space)
+        if (summaryLower.startsWith(companyLower)) {
+          cleanSummary = cleanSummary.substring(companyName.length).trim()
+          // Remove common prefixes like "offers", "provides", "is", "operates", etc.
+          cleanSummary = cleanSummary.replace(/^[,\s\-–—]*(offers|provides|is|operates|builds|creates|develops|designs|delivers|enables|helps|powers|supports)\s+/i, "").trim()
+          // Remove leading punctuation
+          cleanSummary = cleanSummary.replace(/^[,\s\-–—:]+/, "").trim()
+        }
+      }
+      // If still starts with company name (case-insensitive), try again
+      if (companyName && cleanSummary.toLowerCase().startsWith(companyName.toLowerCase())) {
+        cleanSummary = cleanSummary.substring(companyName.length).trim()
+        cleanSummary = cleanSummary.replace(/^[,\s\-–—]*(offers|provides|is|operates|builds|creates|develops|designs|delivers|enables|helps|powers|supports)\s+/i, "").trim()
+        cleanSummary = cleanSummary.replace(/^[,\s\-–—:]+/, "").trim()
+      }
+      const firstSentence = cleanSummary.split(/[.!?]/)[0]?.trim()
+      if (firstSentence && firstSentence.length < 150 && firstSentence.length > 10) {
+        return tagPhrase ? `${firstSentence} (${tagPhrase})` : firstSentence
+      }
+      const snippet = cleanSummary.substring(0, 100).trim()
+      if (snippet.length > 10) {
+        return tagPhrase ? `${snippet}... (${tagPhrase})` : `${snippet}...`
+      }
+    }
+    return tagPhrase
+  }
+
+  const uIndustryContext = getIndustryContext(u.company_summary, uIndustryTags, u.company_name)
+  const vIndustryContext = getIndustryContext(v.company_summary, vIndustryTags, v.company_name)
+
+  // Check for needs matching (most important)
+  const uNeedsMatch = uOffers.some((t) => vWants.includes(t))
+  const vNeedsMatch = vOffers.some((t) => uWants.includes(t))
+  const needsMatch = uNeedsMatch || vNeedsMatch
+  const matchedNeed = uNeedsMatch 
+    ? uOffers.find(t => vWants.includes(t))
+    : vOffers.find(t => uWants.includes(t))
+
   let line: string
 
-  if (uNeedsClients && vBuyer) {
+  // Industry fit takes precedence for commercial matches (when one needs clients)
+  if ((uNeedsClients || vNeedsClients) && industryOverlap >= 0.3 && matchedIndustries.length > 0) {
+    const industryName = matchedIndustries[0]
+    const seller = uNeedsClients ? u : v
+    const buyer = uNeedsClients ? v : u
+    const sellerLabel = formatDisplayName(seller)
+    const buyerCompany = buyer.company_name || formatDisplayName(buyer, "their organization")
+    const productHint = seller.company_summary 
+      ? seller.company_summary.split(/[.;]/)[0].slice(0, 60).trim()
+      : seller.event_offer_tags?.[0] || "their product"
+    
+    line = `${sellerLabel} builds ${productHint} for ${industryName}; ${buyerCompany} is in ${industryName}—direct fit.`
+  } else if (needsMatch && matchedNeed && industryOverlap >= 0.2) {
+    // Both needs and industry match - explain both
+    const needer = uNeedsMatch ? v : u
+    const offerer = uNeedsMatch ? u : v
+    const neederLabel = formatDisplayName(needer)
+    const offererLabel = formatDisplayName(offerer)
+    const offererCompany = offerer.company_name || "their company"
+    const industryPhrase = matchedIndustries.length > 0 
+      ? ` Both work in ${matchedIndustries[0]?.replace(/_/g, " ")}.`
+      : (offerer.company_summary ? ` ${offererCompany} operates in ${offerer.company_summary.split(/[.;]/)[0].slice(0, 60).trim()}.` : "")
+    line = `${offererLabel} offers ${matchedNeed.replace(/_/g, " ")}${industryPhrase} Specifically matches ${neederLabel}'s need${needer.business_need_text ? `: "${needer.business_need_text.substring(0, 60)}${needer.business_need_text.length > 60 ? "..." : ""}"` : ""}.`
+  } else if (needsMatch && matchedNeed) {
+    // Needs match but no strong industry match
+    const needer = uNeedsMatch ? v : u
+    const offerer = uNeedsMatch ? u : v
+    const neederLabel = formatDisplayName(needer)
+    const offererLabel = formatDisplayName(offerer)
+    line = `${offererLabel} offers ${matchedNeed.replace(/_/g, " ")}${needer.business_need_text ? `, which matches ${neederLabel}'s need: "${needer.business_need_text.substring(0, 60)}${needer.business_need_text.length > 60 ? "..." : ""}"` : `, which ${neederLabel} is seeking`}.`
+  } else if (industryOverlap >= 0.2 && matchedIndustries.length > 0) {
+    // Industry match but no specific needs match
+    const industryName = matchedIndustries[0]?.replace(/_/g, " ")
+    const uCompany = u.company_name || "their company"
+    const vCompany = v.company_name || "their company"
+    const industryContext = uIndustryContext || vIndustryContext
+    if (industryContext) {
+      const companyWithContext = uIndustryContext ? uCompany : vCompany
+      const contextText = industryContext.split("(")[0].trim()
+      // Avoid duplicating company name if it's already in the context
+      const companyLower = companyWithContext.toLowerCase()
+      const contextLower = contextText.toLowerCase()
+      if (contextLower.startsWith(companyLower) || contextLower.includes(` ${companyLower} `) || contextLower.includes(` ${companyLower}.`)) {
+        // Company name already in context, just use the context
+        line = `${contextText}; perfect to compare notes and explore opportunities.`
+      } else {
+        // Add company name prefix
+        line = `${companyWithContext} ${contextText.toLowerCase().startsWith("operates") || contextText.toLowerCase().startsWith("is") ? contextText : `operates in ${contextText}`}; perfect to compare notes and explore opportunities.`
+      }
+    } else {
+      line = `Both work in ${industryName}; perfect to compare notes and explore opportunities.`
+    }
+  } else if (uNeedsClients && vBuyer) {
     line = `${uLabel} is seeking clients; ${vRole} likely controls budgets or could benefit from the services.`
   } else if (vNeedsClients && uBuyer) {
     line = `${vLabel} is seeking clients; ${uRole} likely collaborates with or hires providers like them.`
@@ -235,7 +360,14 @@ export const buildMatchExplanation = (
   } else if (anyWantJobs(vWants) && uOffers.includes("mentorship")) {
     line = `${vLabel} is exploring roles; ${uLabel} mentors in that space—ideal conversation starter.`
   } else {
-    line = `High overlap between ${uLabel} and ${vLabel}—worth a quick introduction.`
+    // Fallback: explain shared interests or role similarity instead of generic "high overlap"
+    if (hobby) {
+      line = `Shared interest in ${hobby}—worth connecting to explore common ground.`
+    } else if (uRole && vRole && uRole !== "their organization" && vRole !== "their organization") {
+      line = `${uLabel} has a similar role${u.company_name ? ` at ${u.company_name}` : ""}—worth a five-minute intro to exchange insights.`
+    } else {
+      line = `${uLabel} and ${vLabel} have complementary backgrounds—worth exploring potential collaboration.`
+    }
   }
 
   if (hobby) {

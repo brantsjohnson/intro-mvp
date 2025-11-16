@@ -28,7 +28,7 @@ export function AccordionSection({
         <AccordionItem value="item-1" className="border-none">
           <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-elevation">
             <AccordionTrigger className="text-left hover:no-underline py-4 px-6 bg-card">
-              <span className="text-lg font-medium bg-gradient-to-r from-[#EC874E] to-[#BF341E] bg-clip-text text-transparent">{title}</span>
+              <span className="text-lg font-medium text-accent">{title}</span>
             </AccordionTrigger>
             <AccordionContent className="pb-4 px-6 text-white bg-card">
               {children}

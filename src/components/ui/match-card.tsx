@@ -4,6 +4,15 @@ import { PresenceAvatar } from "@/components/ui/presence-avatar"
 import { ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+interface StructuredMatchExplanation {
+  connection_type: string
+  reason_title: string
+  reason_summary: string
+  shared_tags: string[]
+  helpfulness_bullets: string[]
+  suggested_icebreaker: string
+}
+
 interface MatchCardProps {
   name: string
   jobTitle: string
@@ -14,6 +23,8 @@ interface MatchCardProps {
   isPresent?: boolean
   onClick: () => void
   className?: string
+  structuredExplanation?: StructuredMatchExplanation
+  connectionType?: string
 }
 
 export function MatchCard({ 
@@ -25,26 +36,11 @@ export function MatchCard({
   summary, 
   isPresent = false,
   onClick,
-  className 
+  className,
+  structuredExplanation,
+  connectionType
 }: MatchCardProps) {
-  const getMatchBasisColor = (basis: string) => {
-    switch (basis) {
-      case 'career':
-        return 'bg-orange-500/20 text-orange-400 border-orange-500/30'
-      case 'personality':
-        return 'bg-orange-500/20 text-orange-400 border-orange-500/30'
-      case 'interests':
-        return 'bg-orange-500/20 text-orange-400 border-orange-500/30'
-      default:
-        return 'bg-muted text-muted-foreground border-border'
-    }
-  }
-
-  const formatMatchBases = (bases: string[]) => {
-    return bases.map(basis => 
-      basis.charAt(0).toUpperCase() + basis.slice(1)
-    ).join(' / ')
-  }
+  const hasStructuredData = structuredExplanation && structuredExplanation.reason_summary
 
   return (
     <Card 
@@ -66,26 +62,27 @@ export function MatchCard({
           <div className="flex-1 min-w-0">
             {/* Name and Arrow Row */}
             <div className="flex items-center justify-between mb-1">
-              <h3 className="font-medium text-foreground truncate pr-2">
-                {name}
-              </h3>
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <h3 className="font-medium text-foreground truncate">
+                  {name}
+                </h3>
+                {jobTitle && (
+                  <span className="text-sm text-muted-foreground">·</span>
+                )}
+                <span className="text-sm text-muted-foreground truncate">
+                  {jobTitle}
+                  {company && ` at ${company}`}
+                </span>
+              </div>
               <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
             </div>
             
-            {/* Job Title and Company - Allow wrapping */}
+            {/* Simple summary format */}
             <div className="mb-2 pr-7">
-              <p className="text-sm text-muted-foreground break-words">
-                {jobTitle}
-                {company && ` at ${company}`}
+              <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
+                {summary}
               </p>
             </div>
-            
-            {/* Match Badge omitted per product feedback */}
-            
-            {/* Summary - limited to two lines */}
-            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
-              {summary}
-            </p>
           </div>
         </div>
       </CardContent>

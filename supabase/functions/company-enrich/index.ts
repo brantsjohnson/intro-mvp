@@ -33,9 +33,27 @@ async function fetchHtml(url: string): Promise<string | null> {
 }
 
 function extractMeta(html: string, name: string, attr: "name" | "property" = "name"): string | null {
-  const re = new RegExp(`<meta[^>]+${attr}=["']${name}["'][^>]+content=["']([^"']+)["'][^>]*>`, "i")
-  const m = html.match(re)
-  return m?.[1]?.trim() || null
+  // Match when attribute comes before content (common)
+  const primary = new RegExp(
+    `<meta[^>]+${attr}=["']${name}["'][^>]*content=["']([^"']+)["'][^>]*>`,
+    "i"
+  )
+  const primaryMatch = html.match(primary)
+  if (primaryMatch?.[1]) {
+    return primaryMatch[1].trim()
+  }
+
+  // Match when content appears before the attribute (some sites use this order)
+  const alternate = new RegExp(
+    `<meta[^>]+content=["']([^"']+)["'][^>]*${attr}=["']${name}["'][^>]*>`,
+    "i"
+  )
+  const altMatch = html.match(alternate)
+  if (altMatch?.[1]) {
+    return altMatch[1].trim()
+  }
+
+  return null
 }
 
 function extractTitle(html: string): string | null {
@@ -131,6 +149,8 @@ serve(async (req) => {
   try {
     const body = await req.json()
     const raw = String(body?.url || "")
+    console.log('[company-enrich] Received request for URL:', raw)
+    
     if (!raw) {
       return new Response(JSON.stringify({ ok: false, error: "url required" }), {
         status: 400,
@@ -138,20 +158,32 @@ serve(async (req) => {
       })
     }
     const norm = normalizeUrl(raw)
+    console.log('[company-enrich] Normalized URL:', norm.url, 'Domain:', norm.domain)
+    
     const html = await fetchHtml(norm.url)
+    console.log('[company-enrich] Fetched HTML, length:', html?.length || 0)
+    
     const companyName = bestCompanyName(norm.domain, html)
     const description = bestDescription(html) || ""
+    
+    console.log('[company-enrich] Extracted name:', companyName, 'Description:', description.substring(0, 50))
+    
+    const response = {
+      ok: true,
+      domain: norm.domain,
+      url: norm.url,
+      company_name: companyName,
+      company_description: description
+    }
+    
+    console.log('[company-enrich] Returning response:', JSON.stringify(response))
+    
     return new Response(
-      JSON.stringify({
-        ok: true,
-        domain: norm.domain,
-        url: norm.url,
-        company_name: companyName,
-        company_description: description
-      }),
+      JSON.stringify(response),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
   } catch (e) {
+    console.error('[company-enrich] Error:', e)
     return new Response(JSON.stringify({ ok: false, error: String(e) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" }

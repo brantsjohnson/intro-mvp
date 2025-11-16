@@ -436,7 +436,10 @@ export function NewOnboardingFlow() {
     try {
       const { data: session } = await supabase.auth.getSession()
       const token = session.session?.access_token
-      const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/company-enrich`, {
+      const enrichUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/company-enrich`
+      console.log('[enrichCompany] Calling enrichment for:', companyUrl)
+      
+      const res = await fetch(enrichUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -447,6 +450,7 @@ export function NewOnboardingFlow() {
       
       if (res.ok) {
         const enriched = await res.json()
+        console.log('[enrichCompany] Enrichment response:', enriched)
         // Use the company name that the edge function extracted from the website
         // This is the real company name from meta tags, JSON-LD, or title tags
         if (enriched.company_name) {
@@ -460,8 +464,16 @@ export function NewOnboardingFlow() {
           }
         }
         // Always update company summary/description when URL changes
-        setCompanySummary(enriched.company_description || null)
+        if (enriched.company_description) {
+          console.log('[enrichCompany] Setting summary:', enriched.company_description)
+          setCompanySummary(enriched.company_description)
+        } else {
+          console.log('[enrichCompany] No description in response')
+          setCompanySummary(null)
+        }
       } else {
+        const errorText = await res.text()
+        console.error('[enrichCompany] API call failed:', res.status, errorText)
         // If API call fails, fallback to domain name
         const domain = companyUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
         const domainName = domain.split('.')[0]
@@ -471,7 +483,7 @@ export function NewOnboardingFlow() {
         setCompanySummary(null) // Clear summary if enrichment fails
       }
     } catch (e) {
-      console.warn("company_enrich_failed", e)
+      console.error("[enrichCompany] Error:", e)
       // On error, fallback to domain name
       const domain = companyUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
       const domainName = domain.split('.')[0]
@@ -731,13 +743,18 @@ export function NewOnboardingFlow() {
       // Use the company name from state (which may have been auto-populated or manually edited)
       // If user edited it, use their edited value; otherwise try to enrich if needed
       let companyNameToSave = companyName.trim() || null
+      let companySummaryToSave = companySummary || null
       
-      // If URL exists but no company name, try to enrich (but don't block on it)
-      if (company && /[.]/.test(company) && !companyNameToSave) {
+      // If URL exists, always try to enrich to ensure we have summary (but don't block on it)
+      // This ensures that even if user manually edited the name, we still get the summary
+      if (company && /[.]/.test(company)) {
         try {
           const { data: session } = await supabase.auth.getSession()
           const token = session.session?.access_token
-          const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/company-enrich`, {
+          const enrichUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/company-enrich`
+          console.log('[handleCompleteProfile] Enriching on submit for:', company, 'Current summary:', companySummaryToSave)
+          
+          const res = await fetch(enrichUrl, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -745,15 +762,27 @@ export function NewOnboardingFlow() {
             },
             body: JSON.stringify({ url: company })
           })
+          
           if (res.ok) {
             const enriched = await res.json()
-            // Update company name if we don't have one yet
+            console.log('[handleCompleteProfile] Enrichment response:', enriched)
+            // Update company name if we don't have one yet (don't overwrite user's manual entry)
             if (!companyNameToSave && enriched.company_name) {
               companyNameToSave = enriched.company_name
             }
+            // Always update company summary if we don't have one yet (this is the key fix)
+            if (!companySummaryToSave && enriched.company_description) {
+              console.log('[handleCompleteProfile] Setting summary from enrichment:', enriched.company_description)
+              companySummaryToSave = enriched.company_description
+            } else {
+              console.log('[handleCompleteProfile] Summary already exists or not in response. Current:', companySummaryToSave, 'Enriched:', enriched.company_description)
+            }
+          } else {
+            const errorText = await res.text()
+            console.error('[handleCompleteProfile] Enrichment failed:', res.status, errorText)
           }
         } catch (e) {
-          console.warn("company_enrich_failed (non-blocking):", e)
+          console.error("[handleCompleteProfile] Enrichment error (non-blocking):", e)
         }
       }
 
@@ -772,6 +801,7 @@ export function NewOnboardingFlow() {
         career_title: jobTitle,
         company_name: companyNameToSave || null,
         company_url: company || null,
+        company_summary: companySummaryToSave || null,
         career_years_experience: yearsExpInt,
         expertise_summary: expertiseArray.join(", "),
       }
@@ -1145,7 +1175,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="e.g. John"
-                className={`mt-1 rounded-xl bg-muted/40 ${validationErrors.firstName ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-xl bg-input ${validationErrors.firstName ? 'border-destructive' : ''}`}
                 required
               />
               {validationErrors.firstName && (
@@ -1170,7 +1200,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="e.g. Doe"
-                className={`mt-1 rounded-xl bg-muted/40 ${validationErrors.lastName ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-xl bg-input ${validationErrors.lastName ? 'border-destructive' : ''}`}
                 required
               />
               {validationErrors.lastName && (
@@ -1207,7 +1237,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="e.g. Software Engineer"
-                className={`mt-1 rounded-xl bg-muted/40 ${validationErrors.jobTitle ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-xl bg-input ${validationErrors.jobTitle ? 'border-destructive' : ''}`}
                 required
               />
               {validationErrors.jobTitle && (
@@ -1237,8 +1267,8 @@ export function NewOnboardingFlow() {
                     }}
                     className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
                       yearsExperience === option
-                        ? 'bg-primary text-white'
-                        : 'bg-muted text-foreground hover:bg-muted/80 border border-border'
+                        ? 'gradient-primary text-primary-foreground'
+                        : 'bg-card text-foreground hover:bg-card/80 border border-border'
                     } ${validationErrors.yearsExperience ? 'border-destructive' : ''}`}
                   >
                     {option}
@@ -1282,7 +1312,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="https://company.com"
-                className={`mt-1 rounded-xl bg-muted/40 ${companyUrlError ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-xl bg-input ${companyUrlError ? 'border-destructive' : ''}`}
               />
               {companyUrlError && (
                 <p className="text-xs text-destructive mt-1">{companyUrlError}</p>
@@ -1307,7 +1337,7 @@ export function NewOnboardingFlow() {
                       }
                     }}
                     placeholder="Company name"
-                    className={`mt-1 rounded-xl bg-muted/40 ${validationErrors.company ? 'border-destructive' : ''}`}
+                    className={`mt-1 rounded-xl bg-input ${validationErrors.company ? 'border-destructive' : ''}`}
                   />
                 </div>
               )}
@@ -1334,8 +1364,8 @@ export function NewOnboardingFlow() {
                         onClick={() => addSuggestedExpertise(expertise)}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                           areasOfExpertise.includes(expertise)
-                            ? 'bg-primary text-white border border-primary'
-                            : 'bg-muted/60 text-foreground hover:bg-muted/80 border border-border'
+                            ? 'gradient-primary text-primary-foreground border border-primary'
+                            : 'bg-card/60 text-foreground hover:bg-card/80 border border-border'
                         }`}
                       >
                         {expertise}
@@ -1375,13 +1405,13 @@ export function NewOnboardingFlow() {
                   onChange={(e) => setExpertiseInput(e.target.value)}
                   onKeyDown={handleExpertiseKeyDown}
                   placeholder="Type and press Enter to add expertise"
-                  className={`mt-1 rounded-xl pr-10 bg-muted/40 ${validationErrors.areasOfExpertise ? 'border-destructive' : ''}`}
+                  className={`mt-1 rounded-xl pr-10 bg-input ${validationErrors.areasOfExpertise ? 'border-destructive' : ''}`}
                 />
                 {expertiseInput.trim() && (
                   <button
                     type="button"
                     onClick={addCustomExpertise}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg gradient-primary text-primary-foreground text-xs font-medium hover:opacity-90"
                   >
                     +
                   </button>
@@ -1598,7 +1628,7 @@ export function NewOnboardingFlow() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col relative">
+    <div className="min-h-screen bg-cover bg-center text-foreground flex flex-col relative" style={{ backgroundImage: "url('/background.jpg')" }}>
       {/* Loading/Redirecting overlay */}
       {(isLoading || isRedirecting) && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
@@ -1631,7 +1661,7 @@ export function NewOnboardingFlow() {
 
       {/* Main Content Area - Centered with max 512px */}
       <div className={`flex-1 flex items-center justify-center px-6 ${currentStep === 0 ? '' : 'md:items-center items-start pt-8 md:pt-0'} pb-48`}>
-        <div className={`w-full max-w-lg transition-all duration-300 animate-fade-up`}>
+        <div className={`w-full max-w-lg transition-all duration-300 animate-fade-up rounded-2xl bg-card backdrop-blur-xl border border-border shadow-card p-6`}>
           {/* Adaptive Q&A Content */}
           {showAdaptiveQnA ? (
             <div className="space-y-6">
@@ -1717,7 +1747,7 @@ export function NewOnboardingFlow() {
       )}
 
       {/* Fixed Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-card border-t-2 border-border shadow-2xl px-6 z-[100] py-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-[rgba(12,26,20,0.65)] backdrop-blur-[10px] border-t border-border shadow-2xl px-6 z-[100] py-4">
         <div className="max-w-lg mx-auto">
           <div className="flex gap-4 items-center">
             {/* Back Button */}

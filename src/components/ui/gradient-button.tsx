@@ -8,13 +8,13 @@ const gradientButtonVariants = cva(
   {
     variants: {
       variant: {
-        default: "gradient-primary text-white shadow-modern hover:opacity-90",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        default: "gradient-primary text-primary-foreground shadow-card hover:opacity-90",
+        secondary: "bg-card border border-border text-foreground hover:bg-card/80",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border-border bg-background/50 hover:bg-accent hover:text-accent-foreground ring-subtle",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+        outline: "border border-border bg-card hover:bg-card/80 hover:text-foreground",
+        ghost: "hover:bg-card/50 hover:text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        filled: "gradient-primary text-white shadow-modern hover:opacity-90",
+        filled: "gradient-primary text-primary-foreground shadow-card hover:opacity-90",
       },
       size: {
         default: "h-12 px-6 py-3",

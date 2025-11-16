@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { canonicalizeRole, deriveBuyerPersona, isLeadershipTitle, normalizeCompanyInput } from "./lib/personas.ts"
 
 // -----------------------------------------------------------------------------
 // Types
@@ -70,6 +71,11 @@ interface ScoreBreakdown {
     tagOverlap: number
     roleBonus: number
     wantFit?: number
+    personaBoost?: number
+    personaBases?: string[]
+    viewerRole?: { role_function: string; role_seniority: string; confidence: number }
+    candidateRole?: { role_function: string; role_seniority: string; confidence: number }
+    viewerPersona?: { sector: string; buyer_functions: string[]; leader_required: boolean }
   }
 }
 
@@ -146,15 +152,20 @@ function jaccardSimilarity(setA: Set<string>, setB: Set<string>): number {
 }
 
 function deterministicCompare(a: ScoredCandidate, b: ScoredCandidate): number {
-  // Primary: WantFit descending
-  if (b.breakdown.wantFit !== a.breakdown.wantFit) {
-    return b.breakdown.wantFit - a.breakdown.wantFit
-  }
-  // Secondary: TotalScore descending
+  // Primary: TotalScore descending (includes all boosts: wantFit, mutualValue, relationshipFit, personaBoost)
+  // This ensures persona-aware matches rank higher
   if (b.breakdown.totalScore !== a.breakdown.totalScore) {
     return b.breakdown.totalScore - a.breakdown.totalScore
   }
-  // Tertiary: RelationshipFit descending
+  // Secondary: WantFit descending
+  if (b.breakdown.wantFit !== a.breakdown.wantFit) {
+    return b.breakdown.wantFit - a.breakdown.wantFit
+  }
+  // Tertiary: MutualValue descending
+  if (b.breakdown.mutualValue !== a.breakdown.mutualValue) {
+    return b.breakdown.mutualValue - a.breakdown.mutualValue
+  }
+  // Quaternary: RelationshipFit descending
   if (b.breakdown.relationshipFit !== a.breakdown.relationshipFit) {
     return b.breakdown.relationshipFit - a.breakdown.relationshipFit
   }
@@ -771,10 +782,11 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
     poolSize: candidates.length
   })
 
-  // Score all candidates
+  // Score all candidates (continuous ranking - NO thresholds, all candidates scored and ranked)
   const scored = scoreCandidates(viewerProfile, want, candidates)
 
-  // Select top 3 deterministically
+  // Select top 3 deterministically (continuous ranking: sort by score, take top N)
+  // No minimum score requirement - candidates compete relatively, not absolutely
   let selected = selectTopN(scored, SUGGESTIONS_PER_USER, want)
 
   // Guarantee 3 matches if we have enough candidates
@@ -828,11 +840,12 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
   // Upsert matches
   const inserted = await upsertMatches(supabase, eventId, userId, selected, want)
 
-  // Debug logging for match breakdown
+  // Debug logging for match breakdown with persona intelligence
   console.log("debug_match_breakdown", {
     eventId,
     userId,
     want,
+    viewerPersona: selected[0]?.breakdown.wantFitComponents.viewerPersona,
     matches: selected.map((m) => ({
       candidateId: m.candidate.id,
       name: `${m.candidate.firstName} ${m.candidate.lastName}`,
@@ -842,7 +855,14 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
         wantFit: m.breakdown.wantFit.toFixed(3),
         mutualValue: m.breakdown.mutualValue.toFixed(3),
         relationshipFit: m.breakdown.relationshipFit.toFixed(3),
+        totalScore: m.breakdown.totalScore.toFixed(3),
         roleBonus: m.breakdown.wantFitComponents.roleBonus,
+        personaBoost: m.breakdown.wantFitComponents.personaBoost?.toFixed(3),
+        personaBases: m.breakdown.wantFitComponents.personaBases,
+      },
+      roles: {
+        viewer: m.breakdown.wantFitComponents.viewerRole,
+        candidate: m.breakdown.wantFitComponents.candidateRole,
       },
     })),
   })
@@ -1024,6 +1044,29 @@ function scoreCandidates(
   want: ViewerWant,
   candidates: CandidateProfile[]
 ): ScoredCandidate[] {
+  // Compute viewer persona once (cached for all candidates)
+  const viewerRole = canonicalizeRole(viewerProfile.jobTitle)
+  const viewerTextForSector = [
+    viewerProfile.businessNeed ?? "",
+    normalizeCompanyInput(viewerProfile.company) ?? "",
+    (viewerProfile.needTags ?? []).join(",")
+  ].join(" ")
+  
+  // Map want.kind to intent for persona derivation
+  const intentMap: Record<WantKind, string> = {
+    find_clients: "commercial",
+    find_partners: "commercial",
+    find_talent: "recruiting",
+    find_job: "job_seeking",
+    find_investors: "commercial",
+    find_users: "general",
+    find_press: "general",
+    learn_skill: "mentorship",
+    general: "general"
+  }
+  const viewerIntent = intentMap[want.kind] || "general"
+  const viewerPersona = deriveBuyerPersona(viewerTextForSector, viewerRole, viewerIntent)
+
   return candidates.map((candidate) => {
     const wantFitComponents = computeWantFit(want, viewerProfile, candidate)
 
@@ -1031,6 +1074,7 @@ function scoreCandidates(
     const mutualValue = computeMutualValue(viewerProfile, candidate)
     const relationshipFit = computeRelationshipFit(viewerProfile, candidate)
 
+    // Base score calculation (no thresholds - continuous ranking)
     let totalScore: number
 
     switch (want.kind) {
@@ -1059,6 +1103,148 @@ function scoreCandidates(
         break
     }
 
+    // ============================================================
+    // Buyer-Persona Intelligence Layer - Business Pillar Boosts
+    // ============================================================
+    // These boosts are clamped within +0.08 cap
+    let personaBoost = 0
+    const personaBases: string[] = []
+
+    // Canonicalize candidate role
+    const candidateRole = canonicalizeRole(candidate.jobTitle)
+    const candidateCompanyLower = normalizeCompanyInput(candidate.company ?? "").toLowerCase()
+    const candidateIndustryTags = candidate.industryTags ?? []
+    const candidateConnectionTypes = (candidate.connectionTypes ?? []).map(canon)
+
+    // Seller (commercial:clients) - match buyer functions and leadership
+    if (want.kind === "find_clients" && viewerPersona.leader_required) {
+      // Candidate function matches buyer functions
+      if (viewerPersona.buyer_functions.includes(candidateRole.role_function)) {
+        personaBoost += 0.03
+        personaBases.push("buyer_function_match")
+      }
+      
+      // Leadership title when leader_required
+      if (isLeadershipTitle(candidateRole.role_seniority)) {
+        personaBoost += 0.02
+        personaBases.push("leadership_match")
+      }
+      
+      // Sector match (viewer sector tokens ↔ candidate tags/company)
+      if (viewerPersona.sector !== "unknown" && candidateIndustryTags.length > 0) {
+        const sectorTokens = viewerPersona.sector.split("_")
+        const sectorMatch = sectorTokens.some(token => 
+          candidateIndustryTags.some(tag => tag.toLowerCase().includes(token)) ||
+          candidateCompanyLower.includes(token)
+        )
+        if (sectorMatch) {
+          personaBoost += 0.01
+          personaBases.push("sector_match")
+        }
+      }
+    }
+
+    // Partner matching (commercial:partners) - prioritize partnership/BD roles and execs
+    if (want.kind === "find_partners") {
+      const isPartnershipy = candidateRole.role_function === "partnerships" || 
+        (candidate.jobTitle?.toLowerCase().includes("partnership") ?? false) ||
+        (candidate.jobTitle?.toLowerCase().includes("alliances") ?? false) ||
+        (candidate.jobTitle?.toLowerCase().includes("biz dev") ?? false) ||
+        (candidate.jobTitle?.toLowerCase().includes("business development") ?? false) ||
+        candidateConnectionTypes.some(t => t.includes("partnership"))
+      
+      const wantsPartners = candidateConnectionTypes.some(t => 
+        t.includes("partnership") || t.includes("partners")
+      )
+      
+      // Strong boost for partnership-focused roles
+      if (isPartnershipy && isLeadershipTitle(candidateRole.role_seniority)) {
+        personaBoost += 0.05
+        personaBases.push("partnership_exec_match")
+      } else if (isPartnershipy) {
+        personaBoost += 0.04
+        personaBases.push("partnership_role_match")
+      } else if (isLeadershipTitle(candidateRole.role_seniority) && wantsPartners) {
+        personaBoost += 0.03
+        personaBases.push("exec_wants_partners")
+      } else if (isLeadershipTitle(candidateRole.role_seniority)) {
+        personaBoost += 0.02
+        personaBases.push("exec_for_partnerships")
+      }
+      
+      // Same function boost (partners often collaborate within same domain)
+      if (viewerRole.role_function === candidateRole.role_function && 
+          viewerRole.role_function !== "unknown") {
+        personaBoost += 0.02
+        personaBases.push("same_function_partner")
+      }
+    }
+
+    // Job-seeking: recruiter or hiring manager in same function
+    if (want.kind === "find_job") {
+      const candidateIsRecruiter = candidateRole.role_function === "hr_talent" || 
+        (candidate.jobTitle?.toLowerCase().includes("recruiter") ?? false)
+      const candidateIsHiring = candidateIsRecruiter || 
+        candidateConnectionTypes.includes("recruit") ||
+        (candidate.needTags ?? []).some(t => t.toLowerCase().includes("hiring"))
+      
+      if (candidateIsRecruiter && candidateRole.role_function === viewerRole.role_function) {
+        personaBoost += 0.06
+        personaBases.push("recruiter_function_match")
+      } else if (candidateIsHiring && candidateRole.role_function === viewerRole.role_function) {
+        personaBoost += 0.04
+        personaBases.push("hiring_manager_function_match")
+      } else if (candidateRole.role_function === viewerRole.role_function && isLeadershipTitle(candidateRole.role_seniority)) {
+        personaBoost += 0.03
+        personaBases.push("hiring_leader_function_match")
+      }
+    }
+
+    // Recruiter: candidate is job seeker / role match
+    if (want.kind === "find_talent") {
+      if (candidateConnectionTypes.includes("find_job") || candidateConnectionTypes.includes("job_seeking")) {
+        if (candidateRole.role_function === viewerRole.role_function) {
+          personaBoost += 0.05
+          personaBases.push("job_seeker_function_match")
+        }
+      }
+    }
+
+    // Mentorship: same function + seniority gap ≥3y
+    if (want.kind === "learn_skill") {
+      if (candidateRole.role_function === viewerRole.role_function) {
+        const viewerYears = viewerProfile.careerYears ?? 0
+        const candidateYears = candidate.careerYears ?? 0
+        const seniorityGap = candidateYears - viewerYears
+        if (seniorityGap >= 3) {
+          personaBoost += 0.04
+          personaBases.push("mentor_seniority_gap")
+        }
+      }
+    }
+
+    // Penalties: clear off-function pair with no product/industry rationale
+    if (viewerRole.role_function !== "unknown" && candidateRole.role_function !== "unknown") {
+      const functionMismatch = viewerRole.role_function !== candidateRole.role_function
+      const industryOverlap = jaccardSimilarity(
+        new Set((viewerProfile.industryTags ?? []).map(canon)),
+        new Set(candidateIndustryTags.map(canon))
+      )
+      const noIndustryOverlap = industryOverlap < 0.1
+      const noNeedMatch = !mutualValue || mutualValue < 0.2
+      
+      // Only penalize if there's no clear reason for the mismatch
+      if (functionMismatch && noIndustryOverlap && noNeedMatch && 
+          viewerRole.role_function !== "exec" && candidateRole.role_function !== "exec") {
+        personaBoost -= 0.02
+        personaBases.push("function_mismatch_penalty")
+      }
+    }
+
+    // Clamp persona boost to stay within +0.08 total cap
+    personaBoost = Math.max(-0.02, Math.min(0.08, personaBoost))
+    totalScore = Math.max(0, Math.min(1, totalScore + personaBoost))
+
     return {
       candidate,
       breakdown: {
@@ -1066,7 +1252,14 @@ function scoreCandidates(
         mutualValue,
         relationshipFit,
         totalScore,
-        wantFitComponents
+        wantFitComponents: {
+          ...wantFitComponents,
+          personaBoost,
+          personaBases,
+          viewerRole,
+          candidateRole,
+          viewerPersona
+        }
       }
     }
   })
@@ -1128,10 +1321,19 @@ async function upsertMatches(
         relationshipFit: match.breakdown.relationshipFit,
         totalScore: match.breakdown.totalScore,
         wantFitComponents: match.breakdown.wantFitComponents,
-        want: want
+        want: want,
+        // Buyer-Persona Intelligence Layer data
+        role_canonicalization: {
+          viewer: match.breakdown.wantFitComponents.viewerRole,
+          candidate: match.breakdown.wantFitComponents.candidateRole
+        },
+        buyer_persona: match.breakdown.wantFitComponents.viewerPersona,
+        persona_boost: match.breakdown.wantFitComponents.personaBoost,
+        persona_bases: match.breakdown.wantFitComponents.personaBases,
+        selection_rule_version: "business_pool_persona_v1"
       },
       match_explanation_text: buildReasonSummary(want, match),
-      match_algorithm_version: "v2_want_first"
+      match_algorithm_version: "v3_persona_intelligence"
     }
   })
 

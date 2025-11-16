@@ -4,7 +4,7 @@ import { refreshEventMatchExplanations } from "@/lib/matching/refresh-explanatio
 
 export async function POST(request: NextRequest) {
   try {
-    const { eventId, userIds } = await request.json()
+    const { eventId, userIds, force } = await request.json()
 
     if (!eventId || typeof eventId !== "string") {
       return NextResponse.json({ error: "eventId is required" }, { status: 400 })
@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
       eventId,
       {
         userIds: Array.isArray(userIds) ? userIds.filter((id): id is string => typeof id === "string") : undefined,
+        force: Boolean(force),
       }
     )
 
@@ -33,6 +34,7 @@ export async function POST(request: NextRequest) {
       updated,
       skipped,
       durationMs,
+      forceApplied: Boolean(force),
     })
   } catch (error: any) {
     console.error("Backfill explanations error:", error)

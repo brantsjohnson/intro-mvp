@@ -11,6 +11,7 @@ import {
 export type RefreshOptions = {
   userIds?: string[]
   override?: MatchExplanationOptions
+  force?: boolean
 }
 
 type Supabase = SupabaseClient<Database>
@@ -84,14 +85,14 @@ export const refreshEventMatchExplanations = async (
       supabase
         .from("attendance")
         .select(
-          "business_need_text,event_offer_tags,event_want_tags,connection_followups_json,attendee_first_name,attendee_last_name"
+          "business_need_text,event_offer_tags,event_want_tags,event_industry_tags,connection_followups_json,attendee_first_name,attendee_last_name"
         )
         .eq("event_id", eventId)
         .eq("user_id", userId)
         .maybeSingle(),
       supabase
         .from("users")
-        .select("first_name,last_name,hobbies,career_title,company_name,offer_tags,want_tags")
+        .select("first_name,last_name,hobbies,career_title,company_name,company_summary,offer_tags,want_tags,industry_tags")
         .eq("user_id", userId)
         .maybeSingle(),
     ])
@@ -100,6 +101,11 @@ export const refreshEventMatchExplanations = async (
       attendeeCache.set(userId, null)
       return null
     }
+
+    // Merge industry tags from user and event
+    const userIndustryTags = user?.industry_tags && Array.isArray(user.industry_tags) ? user.industry_tags : []
+    const eventIndustryTags = attendance?.event_industry_tags && Array.isArray(attendance.event_industry_tags) ? attendance.event_industry_tags : []
+    const mergedIndustryTags = Array.from(new Set([...userIndustryTags, ...eventIndustryTags].map(t => t.toLowerCase())))
 
     const snapshot: AttendeeSnapshot = {
       user_id: userId,
@@ -118,6 +124,9 @@ export const refreshEventMatchExplanations = async (
         undefined,
       career_title: user?.career_title ?? undefined,
       company_name: user?.company_name ?? undefined,
+      company_summary: user?.company_summary ?? undefined,
+      industry_tags: userIndustryTags.length > 0 ? userIndustryTags : undefined,
+      event_industry_tags: mergedIndustryTags.length > 0 ? mergedIndustryTags : undefined,
     }
 
     attendeeCache.set(userId, snapshot)
@@ -140,10 +149,14 @@ export const refreshEventMatchExplanations = async (
     }
 
     const generated = buildMatchExplanation(left, right, mergedOptions).trim()
+    if (!generated) {
+      continue
+    }
+
     if (
-      !generated ||
-      (!shouldRewriteMatchExplanation(connection.match_explanation_text, mergedOptions) &&
-        connection.match_explanation_text === generated)
+      !options.force &&
+      !shouldRewriteMatchExplanation(connection.match_explanation_text, mergedOptions) &&
+      connection.match_explanation_text === generated
     ) {
       continue
     }
@@ -180,14 +193,14 @@ export const refreshEventMatchExplanations = async (
 
     return {
       updated: updatedCount,
-      skipped: relevantConnections.length - updatedCount,
+      skipped: options.force ? 0 : relevantConnections.length - updatedCount,
       durationMs: Date.now() - start,
     }
   }
 
   return {
     updated: 0,
-    skipped: relevantConnections.length,
+    skipped: options.force ? 0 : relevantConnections.length,
     durationMs: Date.now() - start,
   }
 }

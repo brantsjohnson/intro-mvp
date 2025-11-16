@@ -316,7 +316,7 @@ export function MessagesPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading messages...</p>
@@ -326,7 +326,7 @@ export function MessagesPage() {
   }
 
   return (
-    <div className="min-h-screen gradient-bg flex flex-col">
+    <div className="min-h-screen bg-cover bg-center bg-fixed flex flex-col" style={{ backgroundImage: "url('/background.jpg')" }}>
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
@@ -486,7 +486,7 @@ export function MessagesPage() {
                                 </span>
                               )}
                               {unreadCount > 0 && (
-                                <span className="inline-flex items-center justify-center rounded-full bg-[#BF341E] px-2 py-0.5 text-[11px] font-medium text-white">
+                                <span className="inline-flex items-center justify-center rounded-full bg-accent px-2 py-0.5 text-[11px] font-medium text-white">
                                   {unreadCount > 99 ? "99+" : unreadCount}
                                 </span>
                               )}

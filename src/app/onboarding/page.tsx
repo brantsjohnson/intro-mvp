@@ -6,8 +6,8 @@ export const dynamic = 'force-dynamic'
 
 export default function OnboardingPage() {
   return (
-    <div className="min-h-screen gradient-bg">
-      <Suspense fallback={<div className="min-h-screen gradient-bg flex items-center justify-center">Loading...</div>}>
+    <div className="min-h-screen bg-cover bg-center bg-fixed" style={{ backgroundImage: "url('/background.jpg')" }}>
+      <Suspense fallback={<div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>Loading...</div>}>
         <NewOnboardingFlow />
       </Suspense>
     </div>
