@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import OpenAI from "https://esm.sh/openai@4"
 import { canonicalizeRole, deriveBuyerPersona, isLeadershipTitle, normalizeCompanyInput } from "./lib/personas.ts"
 
 // -----------------------------------------------------------------------------
@@ -90,6 +91,7 @@ interface ScoredCandidate {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables")
@@ -107,6 +109,15 @@ function getClient() {
       }
     }
   })
+}
+
+// Initialize OpenAI client (optional)
+function getOpenAIClient(): OpenAI | null {
+  if (!OPENAI_API_KEY) {
+    console.warn("OPENAI_API_KEY not set, will use hardcoded explanations")
+    return null
+  }
+  return new OpenAI({ apiKey: OPENAI_API_KEY })
 }
 
 // -----------------------------------------------------------------------------
@@ -838,7 +849,7 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
   })
 
   // Upsert matches
-  const inserted = await upsertMatches(supabase, eventId, userId, selected, want)
+  const inserted = await upsertMatches(supabase, eventId, userId, selected, want, viewerProfile)
 
   // Debug logging for match breakdown with persona intelligence
   console.log("debug_match_breakdown", {
@@ -867,13 +878,20 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
     })),
   })
 
+  // Generate reason summaries for return (sequential to avoid rate limits)
+  const reasonSummaries = []
+  for (const s of selected) {
+    const summary = await buildReasonSummary(want, s, viewerProfile)
+    reasonSummaries.push(summary)
+  }
+
   return {
     processed: selected.length,
     inserted,
-    matches: selected.map((s) => ({
+    matches: selected.map((s, index) => ({
       id: s.candidate.id,
       score: s.breakdown.totalScore,
-      reason_summary: buildReasonSummary(want, s)
+      reason_summary: reasonSummaries[index]
     }))
   }
 }
@@ -1288,7 +1306,8 @@ async function upsertMatches(
   eventId: string,
   viewerId: string,
   matches: ScoredCandidate[],
-  want: ViewerWant
+  want: ViewerWant,
+  viewerProfile: ViewerProfile
 ): Promise<number> {
   // Delete existing matches for this viewer only
   await supabase
@@ -1302,8 +1321,15 @@ async function upsertMatches(
     return 0
   }
 
+  // Generate explanations for all matches (sequential to avoid rate limits)
+  const explanations = []
+  for (const match of matches) {
+    const explanation = await buildReasonSummary(want, match, viewerProfile)
+    explanations.push(explanation)
+  }
+
   // Insert new matches
-  const rows = matches.map((match) => {
+  const rows = matches.map((match, index) => {
     const pair = viewerId < match.candidate.id
       ? { a: viewerId, b: match.candidate.id }
       : { a: match.candidate.id, b: viewerId }
@@ -1332,7 +1358,7 @@ async function upsertMatches(
         persona_bases: match.breakdown.wantFitComponents.personaBases,
         selection_rule_version: "business_pool_persona_v1"
       },
-      match_explanation_text: buildReasonSummary(want, match),
+      match_explanation_text: explanations[index],
       match_algorithm_version: "v3_persona_intelligence"
     }
   })
@@ -1346,7 +1372,119 @@ async function upsertMatches(
   return rows.length
 }
 
-function buildReasonSummary(want: ViewerWant, match: ScoredCandidate): string {
+async function generateExplanationWithOpenAI(
+  want: ViewerWant,
+  match: ScoredCandidate,
+  viewerProfile?: ViewerProfile
+): Promise<string | null> {
+  const openai = getOpenAIClient()
+  if (!openai) {
+    return null // Fallback to hardcoded
+  }
+
+  const candidate = match.candidate
+  const candidateName = candidate.firstName || candidate.lastName 
+    ? `${candidate.firstName || ""} ${candidate.lastName || ""}`.trim() 
+    : candidate.jobTitle || "This person"
+  const candidateTitle = candidate.jobTitle || "professional"
+  const candidateCompany = candidate.company || "their company"
+  const candidateSummary = candidate.companySummary || "Not specified"
+  
+  const viewerName = viewerProfile?.firstName || viewerProfile?.lastName
+    ? `${viewerProfile.firstName || ""} ${viewerProfile.lastName || ""}`.trim()
+    : viewerProfile?.jobTitle || "You"
+  const viewerTitle = viewerProfile?.jobTitle || "professional"
+  const viewerCompany = viewerProfile?.company || "your company"
+
+  const systemPrompt = `You are a networking assistant helping explain why two attendees at a business event should meet.
+
+Generate a short, natural explanation (max 140 characters) that:
+- Highlights why these two people should connect based on the viewer's goals
+- Mentions specific overlaps (industries, needs/offers, roles, or shared interests)
+- Is conversational and engaging, not robotic
+- Avoids generic phrases like "high overlap" or "worth a quick introduction"
+- Focuses on concrete value they can provide each other
+- Uses "you" to refer to the viewer and the candidate's name/title when relevant
+
+Be specific and concise. Keep it under 140 characters.`
+
+  const wantKindLabels: Record<WantKind, string> = {
+    find_clients: "clients",
+    find_partners: "partners",
+    find_talent: "talent",
+    find_job: "a job",
+    find_investors: "investors",
+    find_users: "users",
+    find_press: "press",
+    learn_skill: "to learn",
+    general: "connections"
+  }
+
+  const wantLabel = wantKindLabels[want.kind] || want.kind
+
+  const userPrompt = `Viewer (You):
+- Name: ${viewerName}
+- Role: ${viewerTitle}
+- Company: ${viewerCompany}
+- Looking for: ${wantLabel}${want.topic ? ` in ${want.topic}` : ""}
+- Goals/Tags: ${want.tags.length > 0 ? want.tags.slice(0, 5).join(", ") : "Not specified"}
+- Business need: ${viewerProfile?.businessNeed || "Not specified"}
+- Industries: ${(viewerProfile?.industryTags || []).length > 0 ? viewerProfile.industryTags.slice(0, 3).join(", ") : "Not specified"}
+- Can offer: ${(viewerProfile?.offerTags || []).length > 0 ? viewerProfile.offerTags.slice(0, 3).join(", ") : "Not specified"}
+
+Candidate (Recommended Match):
+- Name: ${candidateName}
+- Role: ${candidateTitle}
+- Company: ${candidateCompany}
+- Company Summary: ${candidateSummary}
+- Industries: ${(candidate.industryTags || []).length > 0 ? candidate.industryTags.slice(0, 3).join(", ") : "Not specified"}
+- Can offer: ${(candidate.offerTags || []).length > 0 ? candidate.offerTags.slice(0, 3).join(", ") : "Not specified"}
+- Looking for: ${(candidate.wantTags || []).length > 0 ? candidate.wantTags.slice(0, 3).join(", ") : "Not specified"}
+
+Generate a short explanation (max 140 characters) of why the viewer should meet this candidate.`
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini",
+      temperature: 0.7,
+      max_tokens: 50, // Rough estimate: ~2.5 tokens per character for 140 characters
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ]
+    })
+
+    const explanation = response.choices[0]?.message?.content?.trim()
+    if (!explanation) return null
+
+    // Ensure it's not too long (max 140 characters)
+    if (explanation.length > 140) {
+      // Truncate to 140 characters, trying to end at a word boundary
+      let truncated = explanation.substring(0, 137)
+      const lastSpace = truncated.lastIndexOf(' ')
+      if (lastSpace > 100) {
+        truncated = truncated.substring(0, lastSpace)
+      }
+      return truncated + "..."
+    }
+
+    return explanation
+  } catch (error) {
+    console.warn("OpenAI API error:", error)
+    return null // Fallback to hardcoded
+  }
+}
+
+async function buildReasonSummary(want: ViewerWant, match: ScoredCandidate, viewerProfile?: ViewerProfile): Promise<string> {
+  // Try OpenAI first
+  const aiExplanation = await generateExplanationWithOpenAI(want, match, viewerProfile)
+  if (aiExplanation) {
+    return aiExplanation
+  }
+
+  // Fallback to hardcoded logic
+  console.warn("OpenAI explanation failed, using hardcoded fallback")
+  
   const candidate = match.candidate
   const name = candidate.firstName || candidate.jobTitle || "They"
   const title = candidate.jobTitle || "professional"
