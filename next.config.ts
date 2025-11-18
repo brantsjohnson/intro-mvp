@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     turbo: {
-      root: "/Users/brantsjohnson/Desktop/intro-mvp"
+      root: process.cwd()
     }
   }
 };
