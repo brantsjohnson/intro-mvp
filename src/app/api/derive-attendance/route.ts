@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { refreshEventMatchExplanations } from '@/lib/matching/refresh-explanations'
 import OpenAI from 'openai'
 
 export async function POST(request: NextRequest) {
@@ -603,9 +602,6 @@ If confidence is below 50, set the type to null. Only return data you're reasona
         
         if (matchResponse.ok) {
           console.log('Matching triggered after profile update')
-          await refreshEventMatchExplanations(supabase, eventId, {
-            userIds: [userId],
-          })
         } else {
           console.warn('Failed to trigger matching after profile update:', await matchResponse.text())
         }
