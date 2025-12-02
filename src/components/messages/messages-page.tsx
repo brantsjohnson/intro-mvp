@@ -348,27 +348,14 @@ export function MessagesPage() {
               )}
             </div>
 
-            {/* Right: Message icon + New Message button */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => router.push(`/messages?eventId=${eventId || ''}`)}
-                className="relative w-10 h-10 rounded-full flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20 gradient-primary"
-                style={{
-                  border: 'none'
-                }}
-                aria-label="Open messages"
-              >
-                <MessageSquare className="h-5 w-5 text-primary-foreground pointer-events-none" />
-              </button>
-              
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <GradientButton asChild className="rounded-full">
-                  <DialogTrigger className="flex items-center justify-center p-2">
-                    <MailPlus className="h-4 w-4" aria-hidden="true" />
-                    <span className="sr-only">New message</span>
-                  </DialogTrigger>
-                </GradientButton>
+            {/* Right: New Message button */}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <GradientButton asChild className="rounded-full">
+                <DialogTrigger className="flex items-center justify-center p-2">
+                  <MailPlus className="h-4 w-4" aria-hidden="true" />
+                  <span className="sr-only">New message</span>
+                </DialogTrigger>
+              </GradientButton>
 
               <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
@@ -432,8 +419,7 @@ export function MessagesPage() {
                   )}
                 </div>
               </DialogContent>
-              </Dialog>
-            </div>
+            </Dialog>
           </div>
         </div>
       </header>
