@@ -432,7 +432,8 @@ export function MessagesPage() {
                   )}
                 </div>
               </DialogContent>
-            </Dialog>
+              </Dialog>
+            </div>
           </div>
         </div>
       </header>
