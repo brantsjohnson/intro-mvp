@@ -47,94 +47,96 @@
 :root {
   --radius: 1rem; /* rounded-2xl equivalent */
   /* Core surfaces */
-  --background: #E0DFDC; /* warm paper */
-  --foreground: #111111;
-  --card: #F2F2F2; /* light gray cards */
-  --card-foreground: #111111;
-  --popover: #F2F2F2;
-  --popover-foreground: #111111;
-  /* Borders & subtle dividers */
-  --border: #E0E0DD;
-  --input: #F2F2F2; /* light gray input background */
-  --ring: rgba(156, 76, 5, 0.25); /* ember-tinted focus ring */
+  --background: #08090c; /* deep charcoal */
+  --foreground: #f4f4f5; /* soft near-white */
+  --card: #15161a; /* slate card background */
+  --card-foreground: #f4f4f5;
+  --popover: #15161a;
+  --popover-foreground: #f4f4f5;
+  /* Borders & inputs */
+  --border: #27272f; /* thin, cool border */
+  --input: #111218; /* input bg, slightly darker than card */
+  --ring: rgba(244, 244, 245, 0.22); /* subtle light ring on dark */
   /* Text */
-  --muted-foreground: #777777;
-  --muted: #F7F7F6;
+  --muted-foreground: #9ca3af; /* muted text */
+  --muted: #101116; /* darker strip / section background */
   /* Buttons */
-  --primary: #111111; /* neutral dark for buttons */
-  --primary-dark: #0A0A0A; /* darker for gradient if needed */
-  --primary-foreground: #F7F7F6; /* light text on dark button */
-  --secondary: #F7F7F6;
-  --secondary-foreground: #111111;
-  /* Rare accent (warm ember) */
-  --accent: #9C4C05;
-  --accent-foreground: #F7F7F6;
-  --destructive: #BF341E; /* keep red for destructive actions */
+  --primary: #f4f4f5; /* light gray */
+  --primary-dark: #e4e4e7; /* hover state */
+  --primary-foreground: #111827; /* dark text on light button */
+  --secondary: #15161a; /* card color */
+  --secondary-foreground: #f4f4f5; /* foreground text */
+  /* Accent – brand ember */
+  --accent: #9c4c05;
+  --accent-foreground: #fefce8;
+  --destructive: #ef4444; /* updated red */
+  --destructive-foreground: #f9fafb;
   /* Shadows */
-  --shadow-color: rgba(0, 0, 0, 0.1);
-  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.06);
-  --shadow-card: 0 2px 4px rgba(0,0,0,0.06), 0 6px 18px rgba(0,0,0,0.04);
+  --shadow-color: rgba(0, 0, 0, 0.6);
+  --shadow-soft: 0 16px 45px rgba(0, 0, 0, 0.75);
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.6), 0 10px 35px rgba(0,0,0,0.65);
   /* Charts */
   --chart-1: #1A2C24;
   --chart-2: #9C4C05;
   --chart-3: #4B915A;
   --chart-4: #0B3E16;
-  --chart-5: #777777;
+  --chart-5: #9ca3af;
   /* Sidebar */
-  --sidebar: #E0DFDC;
-  --sidebar-foreground: #111111;
-  --sidebar-primary: #111111;
-  --sidebar-primary-foreground: #F7F7F6;
-  --sidebar-accent: #F7F7F6;
-  --sidebar-accent-foreground: #111111;
-  --sidebar-border: #E0E0DD;
-  --sidebar-ring: rgba(156, 76, 5, 0.25);
+  --sidebar: #08090c;
+  --sidebar-foreground: #f4f4f5;
+  --sidebar-primary: #f4f4f5;
+  --sidebar-primary-foreground: #111827;
+  --sidebar-accent: #15161a;
+  --sidebar-accent-foreground: #f4f4f5;
+  --sidebar-border: #27272f;
+  --sidebar-ring: rgba(244, 244, 245, 0.22);
 }
 
 .dark {
   /* Core surfaces */
-  --background: #E0DFDC; /* warm paper */
-  --foreground: #111111;
-  --card: #F2F2F2; /* light gray cards */
-  --card-foreground: #111111;
-  --popover: #F2F2F2;
-  --popover-foreground: #111111;
-  /* Borders & subtle dividers */
-  --border: #E0E0DD;
-  --input: #F2F2F2; /* light gray input background */
-  --ring: rgba(156, 76, 5, 0.25); /* ember-tinted focus ring */
+  --background: #08090c; /* deep charcoal */
+  --foreground: #f4f4f5; /* soft near-white */
+  --card: #15161a; /* slate card background */
+  --card-foreground: #f4f4f5;
+  --popover: #15161a;
+  --popover-foreground: #f4f4f5;
+  /* Borders & inputs */
+  --border: #27272f; /* thin, cool border */
+  --input: #111218; /* input bg, slightly darker than card */
+  --ring: rgba(244, 244, 245, 0.22); /* subtle light ring on dark */
   /* Text */
-  --muted-foreground: #777777;
-  --muted: #F7F7F6;
+  --muted-foreground: #9ca3af; /* muted text */
+  --muted: #101116; /* darker strip / section background */
   /* Buttons */
-  --primary: #111111; /* neutral dark for buttons */
-  --primary-dark: #0A0A0A; /* darker for gradient if needed */
-  --primary-foreground: #F7F7F6; /* light text on dark button */
-  --secondary: #F7F7F6;
-  --secondary-foreground: #111111;
-  /* Rare accent (warm ember) */
-  --accent: #9C4C05;
-  --accent-foreground: #F7F7F6;
-  --destructive: #BF341E; /* keep red for destructive actions */
+  --primary: #f4f4f5; /* light gray */
+  --primary-dark: #e4e4e7; /* hover state */
+  --primary-foreground: #111827; /* dark text on light button */
+  --secondary: #15161a; /* card color */
+  --secondary-foreground: #f4f4f5; /* foreground text */
+  /* Accent – brand ember */
+  --accent: #9c4c05;
+  --accent-foreground: #fefce8;
+  --destructive: #ef4444; /* updated red */
+  --destructive-foreground: #f9fafb;
   /* Shadows */
-  --shadow-color: rgba(0, 0, 0, 0.1);
-  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.06);
-  --shadow-card: 0 2px 4px rgba(0,0,0,0.06), 0 6px 18px rgba(0,0,0,0.04);
+  --shadow-color: rgba(0, 0, 0, 0.6);
+  --shadow-soft: 0 16px 45px rgba(0, 0, 0, 0.75);
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.6), 0 10px 35px rgba(0,0,0,0.65);
   /* Charts */
   --chart-1: #1A2C24;
   --chart-2: #9C4C05;
   --chart-3: #4B915A;
   --chart-4: #0B3E16;
-  --chart-5: #777777;
+  --chart-5: #9ca3af;
   /* Sidebar */
-  --sidebar: #E0DFDC;
-  --sidebar-foreground: #111111;
-  --sidebar-primary: #111111;
-  --sidebar-primary-foreground: #F7F7F6;
-  --sidebar-accent: #F7F7F6;
-  --sidebar-accent-foreground: #111111;
-  --sidebar-border: #E0E0DD;
-  --sidebar-ring: rgba(156, 76, 5, 0.25);
+  --sidebar: #08090c;
+  --sidebar-foreground: #f4f4f5;
+  --sidebar-primary: #f4f4f5;
+  --sidebar-primary-foreground: #111827;
+  --sidebar-accent: #15161a;
+  --sidebar-accent-foreground: #f4f4f5;
+  --sidebar-border: #27272f;
+  --sidebar-ring: rgba(244, 244, 245, 0.22);
 }
 
 @layer base {
@@ -150,7 +152,7 @@
 @layer utilities {
   /* Custom gradient utilities */
   .gradient-primary {
-    background: var(--primary); /* solid dark for primary buttons */
+    background: var(--primary); /* light gray for primary buttons */
   }
   
   .gradient-accent {
@@ -176,7 +178,13 @@
   
   /* Custom ring utilities */
   .ring-subtle {
-    @apply ring-1 ring-black/5;
+    @apply ring-1 ring-white/10;
+  }
+  
+  /* Cinematic header gradient */
+  .header-gradient {
+    background: radial-gradient(circle at 0% 0%, #2a173c 0, transparent 55%),
+                linear-gradient(to bottom, #1c1524 0%, #08090c 55%);
   }
   
   /* Typography scale */

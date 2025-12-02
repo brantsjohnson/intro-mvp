@@ -8,7 +8,7 @@ const changaOne = Changa_One({ weight: "400", subsets: ["latin"] })
 
 export default function AuthPage() {
   return (
-    <div className="min-h-screen bg-cover bg-center bg-fixed" style={{ backgroundImage: "url('/background.jpg')" }}>
+    <div className="min-h-screen bg-background">
       {/* Top hero section to match main site */}
       <div className="px-4 pt-6 sm:pt-8 lg:pt-10 pb-2 sm:pb-3 lg:pb-4 relative">
         <div className="relative z-10 text-center">

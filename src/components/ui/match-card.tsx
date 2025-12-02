@@ -45,7 +45,7 @@ export function MatchCard({
   return (
     <Card 
       className={cn(
-        "bg-card border-border shadow-elevation cursor-pointer hover:shadow-lg transition-shadow",
+        "bg-card border-border shadow-elevation cursor-pointer hover:shadow-soft transition-shadow",
         className
       )}
       onClick={onClick}
