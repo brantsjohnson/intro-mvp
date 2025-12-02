@@ -47,98 +47,94 @@
 :root {
   --radius: 1rem; /* rounded-2xl equivalent */
   /* Core surfaces */
-  --background: #0C1A14; /* dark forest */
-  --foreground: #F6F7F4;
-  --card: #2A302F; /* muted deep pine green */
-  --card-foreground: #F6F7F4;
-  --popover: #2A302F;
-  --popover-foreground: #F6F7F4;
+  --background: #E0DFDC; /* warm paper */
+  --foreground: #111111;
+  --card: #FFFFFF; /* white cards */
+  --card-foreground: #111111;
+  --popover: #FFFFFF;
+  --popover-foreground: #111111;
   /* Borders & subtle dividers */
-  --border: #30423A;
-  --input: rgba(255, 255, 255, 0.15); /* lighter input background for visibility */
-  --ring: rgba(127, 167, 148, 0.3);
+  --border: #E0E0DD;
+  --input: #FFFFFF; /* white input background */
+  --ring: rgba(156, 76, 5, 0.25); /* ember-tinted focus ring */
   /* Text */
-  --muted-foreground: #A9B1AA;
-  --muted: #2A302F;
+  --muted-foreground: #777777;
+  --muted: #F7F7F6;
   /* Buttons */
-  --primary: #1A2C24; /* deep green gradient start */
-  --primary-dark: #0C1A14; /* gradient end */
-  --primary-foreground: #F6F7F4;
-  --secondary: #2A302F;
-  --secondary-foreground: #F6F7F4;
+  --primary: #111111; /* neutral dark for buttons */
+  --primary-dark: #0A0A0A; /* darker for gradient if needed */
+  --primary-foreground: #F7F7F6; /* light text on dark button */
+  --secondary: #F7F7F6;
+  --secondary-foreground: #111111;
   /* Rare accent (warm ember) */
   --accent: #9C4C05;
-  --accent-foreground: #F6F7F4;
+  --accent-foreground: #F7F7F6;
   --destructive: #BF341E; /* keep red for destructive actions */
   /* Shadows */
-  --shadow-color: rgba(0, 0, 0, 0.5);
-  --shadow-soft: 0 6px 24px rgba(0, 0, 0, 0.35);
-  --shadow-card: 0 2px 12px rgba(0,0,0,0.32);
-  /* Transparency */
-  --glass-alpha: rgba(42, 48, 47, 0.72);
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-card: 0 2px 4px rgba(0,0,0,0.06), 0 6px 18px rgba(0,0,0,0.04);
   /* Charts */
   --chart-1: #1A2C24;
   --chart-2: #9C4C05;
   --chart-3: #4B915A;
   --chart-4: #0B3E16;
-  --chart-5: #A9B1AA;
+  --chart-5: #777777;
   /* Sidebar */
-  --sidebar: #0C1A14;
-  --sidebar-foreground: #F6F7F4;
-  --sidebar-primary: #1A2C24;
-  --sidebar-primary-foreground: #F6F7F4;
-  --sidebar-accent: #2A302F;
-  --sidebar-accent-foreground: #F6F7F4;
-  --sidebar-border: #30423A;
-  --sidebar-ring: rgba(127, 167, 148, 0.3);
+  --sidebar: #E0DFDC;
+  --sidebar-foreground: #111111;
+  --sidebar-primary: #111111;
+  --sidebar-primary-foreground: #F7F7F6;
+  --sidebar-accent: #F7F7F6;
+  --sidebar-accent-foreground: #111111;
+  --sidebar-border: #E0E0DD;
+  --sidebar-ring: rgba(156, 76, 5, 0.25);
 }
 
 .dark {
   /* Core surfaces */
-  --background: #0C1A14; /* dark forest */
-  --foreground: #F6F7F4;
-  --card: #2A302F; /* muted deep pine green */
-  --card-foreground: #F6F7F4;
-  --popover: #2A302F;
-  --popover-foreground: #F6F7F4;
+  --background: #E0DFDC; /* warm paper */
+  --foreground: #111111;
+  --card: #FFFFFF; /* white cards */
+  --card-foreground: #111111;
+  --popover: #FFFFFF;
+  --popover-foreground: #111111;
   /* Borders & subtle dividers */
-  --border: #30423A;
-  --input: rgba(255, 255, 255, 0.15); /* lighter input background for visibility */
-  --ring: rgba(127, 167, 148, 0.3);
+  --border: #E0E0DD;
+  --input: #FFFFFF; /* white input background */
+  --ring: rgba(156, 76, 5, 0.25); /* ember-tinted focus ring */
   /* Text */
-  --muted-foreground: #A9B1AA;
-  --muted: #2A302F;
+  --muted-foreground: #777777;
+  --muted: #F7F7F6;
   /* Buttons */
-  --primary: #1A2C24; /* deep green gradient start */
-  --primary-dark: #0C1A14; /* gradient end */
-  --primary-foreground: #F6F7F4;
-  --secondary: #2A302F;
-  --secondary-foreground: #F6F7F4;
+  --primary: #111111; /* neutral dark for buttons */
+  --primary-dark: #0A0A0A; /* darker for gradient if needed */
+  --primary-foreground: #F7F7F6; /* light text on dark button */
+  --secondary: #F7F7F6;
+  --secondary-foreground: #111111;
   /* Rare accent (warm ember) */
   --accent: #9C4C05;
-  --accent-foreground: #F6F7F4;
+  --accent-foreground: #F7F7F6;
   --destructive: #BF341E; /* keep red for destructive actions */
   /* Shadows */
-  --shadow-color: rgba(0, 0, 0, 0.5);
-  --shadow-soft: 0 6px 24px rgba(0, 0, 0, 0.35);
-  --shadow-card: 0 2px 12px rgba(0,0,0,0.32);
-  /* Transparency */
-  --glass-alpha: rgba(42, 48, 47, 0.72);
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-card: 0 2px 4px rgba(0,0,0,0.06), 0 6px 18px rgba(0,0,0,0.04);
   /* Charts */
   --chart-1: #1A2C24;
   --chart-2: #9C4C05;
   --chart-3: #4B915A;
   --chart-4: #0B3E16;
-  --chart-5: #A9B1AA;
+  --chart-5: #777777;
   /* Sidebar */
-  --sidebar: #0C1A14;
-  --sidebar-foreground: #F6F7F4;
-  --sidebar-primary: #1A2C24;
-  --sidebar-primary-foreground: #F6F7F4;
-  --sidebar-accent: #2A302F;
-  --sidebar-accent-foreground: #F6F7F4;
-  --sidebar-border: #30423A;
-  --sidebar-ring: rgba(127, 167, 148, 0.3);
+  --sidebar: #E0DFDC;
+  --sidebar-foreground: #111111;
+  --sidebar-primary: #111111;
+  --sidebar-primary-foreground: #F7F7F6;
+  --sidebar-accent: #F7F7F6;
+  --sidebar-accent-foreground: #111111;
+  --sidebar-border: #E0E0DD;
+  --sidebar-ring: rgba(156, 76, 5, 0.25);
 }
 
 @layer base {
@@ -154,16 +150,11 @@
 @layer utilities {
   /* Custom gradient utilities */
   .gradient-primary {
-    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    background: var(--primary); /* solid dark for primary buttons */
   }
   
   .gradient-accent {
     background: linear-gradient(135deg, var(--accent), #6E3303);
-  }
-  
-  .gradient-card {
-    background: rgba(42,48,47,0.72);
-    backdrop-filter: blur(12px);
   }
   
   .gradient-success {
@@ -185,7 +176,7 @@
   
   /* Custom ring utilities */
   .ring-subtle {
-    @apply ring-1 ring-white/5;
+    @apply ring-1 ring-black/5;
   }
   
   /* Typography scale */
@@ -219,12 +210,6 @@
     animation: gradientShift 8s ease infinite;
   }
   
-  /* Moving gradient background */
-  .gradient-bg {
-    background: linear-gradient(-45deg, #0C1A14, #1A2C24, #0C1A14, #1A2C24);
-    background-size: 400% 400%;
-    animation: gradientShift 15s ease infinite;
-  }
   
   /* Progress bar gradient */
   .gradient-progress {

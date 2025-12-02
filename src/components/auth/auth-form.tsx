@@ -114,8 +114,8 @@ export function AuthForm() {
       <CardContent className="p-6 space-y-6">
         {/* Header */}
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">WELCOME!</h2>
-          <p className="text-white text-left">Log in/Sign up</p>
+          <h2 className="text-2xl font-bold text-foreground mb-2">WELCOME!</h2>
+          <p className="text-foreground text-left">Log in/Sign up</p>
         </div>
 
         {/* LinkedIn OAuth */}
@@ -256,7 +256,7 @@ export function AuthForm() {
         <div className="text-center">
           <button
             onClick={() => setIsSignUp(!isSignUp)}
-            className="text-sm text-gray-400"
+            className="text-sm text-muted-foreground"
           >
             {isSignUp ? (
               <>

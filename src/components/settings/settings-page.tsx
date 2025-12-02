@@ -379,8 +379,8 @@ export function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#411E14] px-4">
-        <div className="flex flex-col items-center gap-3 text-white/70">
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin" />
           <p>Loading your settings…</p>
         </div>
@@ -390,12 +390,12 @@ export function SettingsPage() {
 
   if (!profile) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#411E14] px-4">
-        <Card className="w-full max-w-md border-none bg-black/60 text-center text-white shadow-lg">
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <Card className="w-full max-w-md border border-border bg-card text-center shadow-lg">
           <CardHeader>
-            <CardTitle>Profile not found</CardTitle>
+            <CardTitle className="text-foreground">Profile not found</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4 text-white/70">
+          <CardContent className="space-y-4 text-muted-foreground">
             <p>We couldn’t find your profile details. Please complete onboarding to continue.</p>
             <Button onClick={() => router.push("/onboarding")}>Go to onboarding</Button>
           </CardContent>
@@ -405,15 +405,15 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-cover bg-center bg-fixed pb-16" style={{ backgroundImage: "url('/background.jpg')" }}>
-      <header className="sticky top-0 z-10 border-b border-border bg-card/50 backdrop-blur-sm">
+    <div className="min-h-screen bg-background pb-16">
+      <header className="sticky top-0 z-10 border-b border-border bg-card">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
           <button
             aria-label="Go back"
             onClick={() => router.back()}
             className="flex h-10 w-10 items-center justify-center rounded-full shadow-elevation transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary gradient-primary"
           >
-            <ArrowLeft className="h-5 w-5 text-white" />
+            <ArrowLeft className="h-5 w-5 text-primary-foreground" />
           </button>
           <h1 className="text-lg font-semibold text-foreground sm:text-xl">Profile Settings</h1>
           <div className="h-10 w-10" />
@@ -451,7 +451,9 @@ export function SettingsPage() {
                 <button
                   onClick={handleTogglePresence}
                   disabled={isPresenceUpdating}
-                  className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-elevation transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4B915A]"
+                  className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-elevation transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4B915A] ${
+                    selectedAttendance.checkedInAt ? "text-white" : "text-foreground"
+                  }`}
                   style={{
                     background: selectedAttendance.checkedInAt
                       ? "linear-gradient(135deg, #4B915A 0%, #0B3E16 100%)"

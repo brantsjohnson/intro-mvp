@@ -1114,7 +1114,7 @@ export function NewOnboardingFlow() {
               {photoUrl && (
                 <button
                   onClick={handleRemovePhoto}
-                  className="absolute -top-2 -right-2 rounded-full bg-destructive text-white p-1.5 hover:bg-destructive/90 transition-colors"
+                  className="absolute -top-2 -right-2 rounded-full bg-destructive text-destructive-foreground p-1.5 hover:bg-destructive/90 transition-colors"
                   type="button"
                 >
                   <X className="w-4 h-4" />
@@ -1381,7 +1381,7 @@ export function NewOnboardingFlow() {
                   {customExpertise.map((expertise) => (
                     <div
                       key={expertise}
-                      className="px-3 py-1.5 rounded-full text-xs font-medium bg-primary text-white flex items-center gap-2"
+                      className="px-3 py-1.5 rounded-full text-xs font-medium bg-primary text-primary-foreground flex items-center gap-2"
                     >
                       {expertise}
                       <button
@@ -1628,10 +1628,10 @@ export function NewOnboardingFlow() {
   }
 
   return (
-    <div className="min-h-screen bg-cover bg-center text-foreground flex flex-col relative" style={{ backgroundImage: "url('/background.jpg')" }}>
+    <div className="min-h-screen bg-background text-foreground flex flex-col relative">
       {/* Loading/Redirecting overlay */}
       {(isLoading || isRedirecting) && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-background/95 z-50 flex items-center justify-center">
           <div className="bg-card border border-border rounded-lg p-8 text-center shadow-elevation">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
             <h3 className="text-lg font-semibold text-foreground mb-2">
@@ -1661,7 +1661,7 @@ export function NewOnboardingFlow() {
 
       {/* Main Content Area - Centered with max 512px */}
       <div className={`flex-1 flex items-center justify-center px-6 ${currentStep === 0 ? '' : 'md:items-center items-start pt-8 md:pt-0'} pb-48`}>
-        <div className={`w-full max-w-lg transition-all duration-300 animate-fade-up rounded-2xl bg-card backdrop-blur-xl border border-border shadow-card p-6`}>
+        <div className={`w-full max-w-lg transition-all duration-300 animate-fade-up rounded-2xl bg-card border border-border shadow-card p-6`}>
           {/* Adaptive Q&A Content */}
           {showAdaptiveQnA ? (
             <div className="space-y-6">
@@ -1747,7 +1747,7 @@ export function NewOnboardingFlow() {
       )}
 
       {/* Fixed Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[rgba(12,26,20,0.65)] backdrop-blur-[10px] border-t border-border shadow-2xl px-6 z-[100] py-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-2xl px-6 z-[100] py-4">
         <div className="max-w-lg mx-auto">
           <div className="flex gap-4 items-center">
             {/* Back Button */}
@@ -1770,7 +1770,7 @@ export function NewOnboardingFlow() {
                 ? isLoading 
                 : !isStepValid() || isLoading || isLoadingQuestion
               } 
-              className="flex-1 h-16 rounded-2xl text-lg font-medium gradient-primary text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
+              className="flex-1 h-16 rounded-2xl text-lg font-medium gradient-primary text-primary-foreground hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
             >
               {isLoading || isLoadingQuestion ? (
                 <span className="flex items-center gap-2 justify-center">
