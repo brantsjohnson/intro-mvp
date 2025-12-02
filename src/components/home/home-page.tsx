@@ -1423,11 +1423,7 @@ export function HomePage() {
                         )
                       })}
                     </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      When you scan someone or send a manual request, it will appear here for quick access.
-                    </p>
-                  )}
+                  ) : null}
                 </CardContent>
               </Card>
             )}
