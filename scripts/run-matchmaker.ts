@@ -27,31 +27,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   }
 })
 
-async function main() {
-  const eventCode = process.argv[2]
-  
-  if (!eventCode) {
-    console.error("❌ Usage: npx tsx scripts/run-matchmaker.ts <EVENT_CODE>")
-    console.error("   Example: npx tsx scripts/run-matchmaker.ts DEMO2024")
-    process.exit(1)
-  }
-
-  console.log(`🔍 Looking up event: ${eventCode}`)
-  
-  // Get event ID from event code
-  const { data: event, error: eventError } = await supabase
-    .from("events")
-    .select("event_id, event_name, event_code")
-    .eq("event_code", eventCode.toUpperCase())
-    .single()
-
-  if (eventError || !event) {
-    console.error(`❌ Event not found: ${eventCode}`)
-    process.exit(1)
-  }
-
-  console.log(`✅ Found event: ${event.event_name} (${event.event_code})`)
-  console.log(`📋 Getting all users in this event...\n`)
+async function matchEvent(event: { event_id: string; event_name: string; event_code: string }) {
+  console.log(`\n🎯 Processing event: ${event.event_name} (${event.event_code})`)
+  console.log(`📋 Getting all users in this event...`)
 
   // Get all users who have attendance for this event
   const { data: attendance, error: attendanceError } = await supabase
@@ -61,17 +39,17 @@ async function main() {
 
   if (attendanceError) {
     console.error("❌ Error fetching attendance:", attendanceError)
-    process.exit(1)
+    return { success: 0, errors: 1 }
   }
 
   if (!attendance || attendance.length === 0) {
     console.log("⚠️  No users found in this event")
-    return
+    return { success: 0, errors: 0 }
   }
 
   const userIds = [...new Set(attendance.map(a => a.user_id))]
-  console.log(`📊 Found ${userIds.length} unique users\n`)
-  console.log(`🚀 Starting matching for all users...\n`)
+  console.log(`📊 Found ${userIds.length} unique users`)
+  console.log(`🚀 Starting AI-based matching for all users...\n`)
 
   const matchmakerUrl = `${SUPABASE_URL}/functions/v1/matchmaker`
   let successCount = 0
@@ -95,6 +73,7 @@ async function main() {
         body: JSON.stringify({
           event_id: event.event_id,
           user_id: userId,
+          force_recompute: true, // Force rematch
         }),
       })
 
@@ -121,7 +100,7 @@ async function main() {
     }
   }
 
-  console.log(`\n✨ Matching complete!`)
+  console.log(`\n✨ Event ${event.event_code} complete!`)
   console.log(`   ✅ Success: ${successCount} users`)
   console.log(`   ❌ Errors: ${errorCount} users`)
   
@@ -132,8 +111,69 @@ async function main() {
       console.log(`   ... and ${errors.length - 5} more`)
     }
   }
+
+  return { success: successCount, errors: errorCount }
+}
+
+async function main() {
+  const eventCode = process.argv[2]
+  
+  let events: Array<{ event_id: string; event_name: string; event_code: string }> = []
+
+  if (eventCode) {
+    // Single event mode
+    console.log(`🔍 Looking up event: ${eventCode}`)
+    
+    const { data: event, error: eventError } = await supabase
+      .from("events")
+      .select("event_id, event_name, event_code")
+      .eq("event_code", eventCode.toUpperCase())
+      .single()
+
+    if (eventError || !event) {
+      console.error(`❌ Event not found: ${eventCode}`)
+      process.exit(1)
+    }
+
+    events = [event]
+  } else {
+    // All events mode
+    console.log(`🔍 Fetching all events...`)
+    
+    const { data: allEvents, error: eventsError } = await supabase
+      .from("events")
+      .select("event_id, event_name, event_code")
+      .order("event_starts_at", { ascending: false })
+
+    if (eventsError) {
+      console.error("❌ Error fetching events:", eventsError)
+      process.exit(1)
+    }
+
+    if (!allEvents || allEvents.length === 0) {
+      console.log("⚠️  No events found")
+      return
+    }
+
+    events = allEvents
+    console.log(`✅ Found ${events.length} event(s)\n`)
+  }
+
+  let totalSuccess = 0
+  let totalErrors = 0
+
+  for (const event of events) {
+    const result = await matchEvent(event)
+    totalSuccess += result.success
+    totalErrors += result.errors
+  }
+
+  console.log(`\n\n🎉 All events complete!`)
+  console.log(`   ✅ Total Success: ${totalSuccess} users`)
+  console.log(`   ❌ Total Errors: ${totalErrors} users`)
 }
 
 main().catch(console.error)
+
 
 

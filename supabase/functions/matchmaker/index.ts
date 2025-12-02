@@ -1,200 +1,98 @@
-// @ts-nocheck
-import { serve } from "https://deno.land/std/http/server.ts"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-import { canonicalizeRole, deriveBuyerPersona, isLeadershipTitle, normalizeCompanyInput } from "./lib/personas.ts"
+import OpenAI from "https://esm.sh/openai@4"
+import { loadCandidateProfiles } from "./lib/profiles.ts"
+import { CandidateProfile } from "./lib/types.ts"
 
 // -----------------------------------------------------------------------------
-// Types
+// Constants & Configuration
 // -----------------------------------------------------------------------------
 
-type WantKind =
-  | "find_clients"
-  | "find_partners"
-  | "find_talent"
-  | "find_job"
-  | "find_investors"
-  | "find_users"
-  | "find_press"
-  | "learn_skill"
-  | "general"
-
-interface ViewerWant {
-  kind: WantKind
-  topic?: string
-  rawText: string
-  tags: string[]
+const CORS_HEADERS = {
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 }
-
-interface ViewerProfile {
-  id: string
-  firstName: string | null
-  lastName: string | null
-  jobTitle: string | null
-  company: string | null
-  companySummary: string | null
-  companyUrl?: string | null
-  careerYears: number | null
-  offerEmbedding: number[] | null
-  needEmbedding: number[] | null
-  profileEmbedding: number[] | null
-  eventNeedEmbedding?: number[] | null
-  eventOfferEmbedding?: number[] | null
-  offerTags: string[]
-  wantTags: string[]
-  needTags: string[]
-  industryTags: string[]
-  hobbyTags: string[]
-  hobbies: string[]
-  businessNeed: string | null
-  whyAttending: string | null
-  roleIntent: string | null
-  availabilityStatus: string | null
-  personalityEmbedding: number[] | null
-  connectionTypes: string[] | null
-  followUps: Record<string, string> | null
-  linkedinSkills: string[]
-}
-
-interface CandidateProfile extends ViewerProfile {
-  eventId: string
-  offerSummary: string | null
-  wantSummary: string | null
-}
-
-interface ScoreBreakdown {
-  wantFit: number
-  mutualValue: number
-  relationshipFit: number
-  totalScore: number
-  wantFitComponents: {
-    semantic: number
-    tagOverlap: number
-    roleBonus: number
-    wantFit?: number
-    personaBoost?: number
-    personaBases?: string[]
-    viewerRole?: { role_function: string; role_seniority: string; confidence: number }
-    candidateRole?: { role_function: string; role_seniority: string; confidence: number }
-    viewerPersona?: { sector: string; buyer_functions: string[]; leader_required: boolean }
-  }
-}
-
-interface ScoredCandidate {
-  candidate: CandidateProfile
-  breakdown: ScoreBreakdown
-}
-
-// -----------------------------------------------------------------------------
-// Environment & Client
-// -----------------------------------------------------------------------------
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")
+const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini"
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables")
 }
 
-function getClient() {
-  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+if (!OPENAI_API_KEY) {
+  throw new Error("Missing OPENAI_API_KEY environment variable")
+}
+
+// -----------------------------------------------------------------------------
+// Supabase Client
+// -----------------------------------------------------------------------------
+
+function getSupabaseClient() {
+  return createClient(SUPABASE_URL!, SERVICE_ROLE_KEY!, {
     auth: {
       autoRefreshToken: false,
-      persistSession: false
+      persistSession: false,
     },
     global: {
       headers: {
-        "x-client-info": "intro-matchmaker-v2"
-      }
-    }
+        "x-client-info": "intro-matchmaker-ai-v1",
+      },
+    },
   })
 }
 
 // -----------------------------------------------------------------------------
-// Constants
+// Types
 // -----------------------------------------------------------------------------
 
-const SUGGESTIONS_PER_USER = 3
-
-// -----------------------------------------------------------------------------
-// Helper Functions
-// -----------------------------------------------------------------------------
-
-const canon = (value?: string | null): string => {
-  if (!value) return ""
-  return value.toLowerCase().trim().replace(/[^a-z0-9_]+/g, "_")
+interface MatchResult {
+  match_user_id: string
+  explanation: string
+  match_reasons: string[]
 }
 
-const tokenize = (text?: string | null): string[] => {
-  if (!text) return []
-  return text.toLowerCase().split(/[^a-z0-9]+/g).filter((token) => token.length > 2)
+interface ProcessResult {
+  userId: string
+  matchesCreated: number
+  matchesUpdated: number
+  error?: string
+  diagnostic?: {
+    candidateCount: number
+    aiMatchesReturned: number
+    validMatchesCount: number
+    validationIssues?: string[]
+  }
 }
 
-function cosineSimilarity(a: number[], b: number[]): number {
-  if (!a || !b || a.length === 0 || b.length === 0 || a.length !== b.length) return 0
-  let dotProduct = 0
-  let normA = 0
-  let normB = 0
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i]
-    normA += a[i] * a[i]
-    normB += b[i] * b[i]
-  }
-  if (normA === 0 || normB === 0) return 0
-  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB))
-}
-
-function jaccardSimilarity(setA: Set<string>, setB: Set<string>): number {
-  if (setA.size === 0 && setB.size === 0) return 1
-  if (setA.size === 0 || setB.size === 0) return 0
-  const intersection = new Set([...setA].filter((x) => setB.has(x)))
-  const union = new Set([...setA, ...setB])
-  return intersection.size / union.size
-}
-
-function deterministicCompare(a: ScoredCandidate, b: ScoredCandidate): number {
-  // Primary: TotalScore descending (includes all boosts: wantFit, mutualValue, relationshipFit, personaBoost)
-  // This ensures persona-aware matches rank higher
-  if (b.breakdown.totalScore !== a.breakdown.totalScore) {
-    return b.breakdown.totalScore - a.breakdown.totalScore
-  }
-  // Secondary: WantFit descending
-  if (b.breakdown.wantFit !== a.breakdown.wantFit) {
-    return b.breakdown.wantFit - a.breakdown.wantFit
-  }
-  // Tertiary: MutualValue descending
-  if (b.breakdown.mutualValue !== a.breakdown.mutualValue) {
-    return b.breakdown.mutualValue - a.breakdown.mutualValue
-  }
-  // Quaternary: RelationshipFit descending
-  if (b.breakdown.relationshipFit !== a.breakdown.relationshipFit) {
-    return b.breakdown.relationshipFit - a.breakdown.relationshipFit
-  }
-  // Finally: Stable ID ascending
-  return a.candidate.id.localeCompare(b.candidate.id)
+interface ResponseBody {
+  ok: boolean
+  event_id: string
+  user_id: string
+  matches_created: number
+  matches_updated: number
+  diagnostic?: ProcessResult["diagnostic"]
 }
 
 // -----------------------------------------------------------------------------
 // HTTP Handler
 // -----------------------------------------------------------------------------
 
-const CORS_HEADERS = {
-  "Content-Type": "application/json",
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
-}
-
-serve(async (req) => {
-  console.log("matchmaker_v2_invoked", {
+serve(async (req: Request) => {
+  console.log("matchmaker_invoked", {
     method: req.method,
     url: req.url,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   })
 
   // Handle OPTIONS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
-      headers: CORS_HEADERS
+      headers: CORS_HEADERS,
     })
   }
 
@@ -204,7 +102,7 @@ serve(async (req) => {
       JSON.stringify({ ok: false, error: "Method Not Allowed" }),
       {
         status: 405,
-        headers: CORS_HEADERS
+        headers: CORS_HEADERS,
       }
     )
   }
@@ -217,1167 +115,610 @@ serve(async (req) => {
       JSON.stringify({ ok: false, error: "Invalid JSON" }),
       {
         status: 400,
-        headers: CORS_HEADERS
+        headers: CORS_HEADERS,
       }
     )
   }
 
   const eventId = payload?.event_id
   const userId = payload?.user_id
-  const forceRecompute = payload?.force_recompute === true
 
   if (!eventId || !userId) {
     return new Response(
-      JSON.stringify({ ok: false, error: "event_id and user_id required" }),
+      JSON.stringify({ ok: false, error: "event_id and user_id are required" }),
       {
         status: 400,
-        headers: CORS_HEADERS
+        headers: CORS_HEADERS,
       }
     )
   }
 
   const started = Date.now()
   try {
-    const result = await processUser(eventId, userId, forceRecompute)
+    const result = await processUserMatching(eventId, userId)
     const runtime = Date.now() - started
 
     return new Response(
       JSON.stringify({
-        ok: result.processed > 0,
         ...result,
-        runtime_ms: runtime
+        runtime_ms: runtime,
       }),
       {
         status: 200,
-        headers: CORS_HEADERS
+        headers: CORS_HEADERS,
       }
     )
   } catch (error: any) {
-    console.error("matchmaker_v2_error", {
+    console.error("matchmaker_error", {
       eventId,
       userId,
       error: error?.message ?? String(error),
-      stack: error?.stack
+      stack: error?.stack,
     })
     return new Response(
-      JSON.stringify({ ok: false, error: error?.message ?? String(error) }),
+      JSON.stringify({
+        ok: false,
+        error: error?.message ?? String(error),
+      }),
       {
         status: 500,
-        headers: CORS_HEADERS
+        headers: CORS_HEADERS,
       }
     )
   }
 })
 
 // -----------------------------------------------------------------------------
-// Load Viewer
-// -----------------------------------------------------------------------------
-
-const PROFILE_SELECT = `
-  event_id,
-  user_id,
-  business_need_text,
-  why_attending_text,
-  event_role_intent,
-  event_availability_status,
-  event_need_tags,
-  event_offer_tags,
-  event_industry_tags,
-  event_hobby_tags,
-  profile_embedding,
-  event_need_embedding,
-  event_offer_embedding,
-  connection_types_selected,
-  connection_followups_json,
-  users:user_id (
-    user_id,
-    first_name,
-    last_name,
-    career_title,
-    company_name,
-    company_summary,
-    company_url,
-    career_years_experience,
-    offer_summary_text,
-    want_summary_text,
-    offer_embedding,
-    need_embedding,
-    profile_embedding,
-    offer_tags,
-    want_tags,
-    need_tags,
-    industry_tags,
-    hobby_tags,
-    hobbies,
-    linkedin_skills,
-    personality_embedding
-  )
-`
-
-function mergeUnique(...lists: (string[] | null | undefined)[]): string[] {
-  const seen = new Set<string>()
-  const merged: string[] = []
-  for (const list of lists) {
-    if (!list) continue
-    for (const item of list) {
-      if (!item) continue
-      const lower = item.toLowerCase()
-      if (!seen.has(lower)) {
-        seen.add(lower)
-        merged.push(item)
-      }
-    }
-  }
-  return merged
-}
-
-async function loadViewerProfile(
-  supabase: any,
-  eventId: string,
-  userId: string
-): Promise<ViewerProfile | null> {
-  const { data, error } = await supabase
-    .from("attendance")
-    .select(PROFILE_SELECT)
-    .eq("event_id", eventId)
-    .eq("user_id", userId)
-    .maybeSingle()
-
-  if (error || !data) {
-    console.error("viewer_load_error", { eventId, userId, error: error?.message })
-    return null
-  }
-
-  if (!data.users) {
-    console.warn("viewer_user_missing", { eventId, userId })
-    return null
-  }
-
-  const user = data.users
-  const attendance = data
-
-  return {
-    id: user.user_id,
-    firstName: user.first_name ?? null,
-    lastName: user.last_name ?? null,
-    jobTitle: user.career_title ?? null,
-    company: user.company_name ?? null,
-    companySummary: user.company_summary ?? null,
-    companyUrl: user.company_url ?? null,
-    careerYears: user.career_years_experience ?? null,
-    offerEmbedding: user.offer_embedding ?? null,
-    needEmbedding: user.need_embedding ?? null,
-    profileEmbedding: attendance.profile_embedding ?? user.profile_embedding ?? null,
-    eventNeedEmbedding: attendance.event_need_embedding ?? null,
-    eventOfferEmbedding: attendance.event_offer_embedding ?? null,
-    offerTags: mergeUnique(user.offer_tags, attendance.event_offer_tags),
-    wantTags: mergeUnique(user.want_tags, attendance.event_want_tags),
-    needTags: mergeUnique(user.need_tags, attendance.event_need_tags),
-    industryTags: mergeUnique(user.industry_tags, attendance.event_industry_tags),
-    hobbyTags: mergeUnique(user.hobby_tags, attendance.event_hobby_tags),
-    hobbies: mergeUnique(user.hobbies, attendance.event_hobby_tags),
-    businessNeed: attendance.business_need_text ?? null,
-    whyAttending: attendance.why_attending_text ?? null,
-    roleIntent: attendance.event_role_intent ?? null,
-    availabilityStatus: attendance.event_availability_status ?? null,
-    personalityEmbedding: user.personality_embedding ?? null,
-    connectionTypes: attendance.connection_types_selected ?? null,
-    followUps: (attendance.connection_followups_json as Record<string, string>) ?? null,
-    linkedinSkills: user.linkedin_skills || []
-  }
-}
-
-// -----------------------------------------------------------------------------
-// Want Detection
-// -----------------------------------------------------------------------------
-
-function detectWant(profile: ViewerProfile): ViewerWant {
-  const checkboxTokens = (profile.connectionTypes ?? []).map(canon)
-
-  const combinedText = [
-    profile.businessNeed ?? "",
-    profile.whyAttending ?? "",
-    (profile.wantTags || []).join(" "),
-    (profile.needTags || []).join(" ")
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase()
-
-  const allTags = mergeUnique(
-    profile.wantTags,
-    profile.needTags,
-    profile.offerTags,
-    profile.industryTags
-  )
-
-  const containsAny = (text: string, phrases: string[]): boolean =>
-    phrases.some((p) => text.includes(p))
-
-  // ---- Heuristic buckets (domain-agnostic) ----
-
-  // Clients / customers / sponsors
-  if (
-    checkboxTokens.includes("clients") ||
-    checkboxTokens.includes("commercial") ||
-    containsAny(combinedText, [
-      "clients",
-      "customers",
-      "buyers",
-      "sponsors",
-      "new business",
-      "sales leads",
-      "find customers",
-      "get more customers",
-      "grow revenue"
-    ])
-  ) {
-    return {
-      kind: "find_clients",
-      topic: extractTopic(profile),
-      rawText: combinedText,
-      tags: allTags
-    }
-  }
-
-  // Partnerships / collaborators
-  if (
-    checkboxTokens.includes("partnerships") ||
-    containsAny(combinedText, [
-      "partner",
-      "partnership",
-      "collaborate",
-      "collaboration",
-      "co-sell",
-      "co market",
-      "channel partner"
-    ])
-  ) {
-    return {
-      kind: "find_partners",
-      topic: extractTopic(profile),
-      rawText: combinedText,
-      tags: allTags
-    }
-  }
-
-  // Hiring talent
-  if (
-    checkboxTokens.includes("hiring") ||
-    containsAny(combinedText, [
-      "hire",
-      "hiring",
-      "talent",
-      "recruit",
-      "add to my team",
-      "fill roles"
-    ])
-  ) {
-    return {
-      kind: "find_talent",
-      topic: extractTopic(profile),
-      rawText: combinedText,
-      tags: allTags
-    }
-  }
-
-  // Job seeking
-  if (
-    checkboxTokens.includes("job_seeking") ||
-    containsAny(combinedText, [
-      "find a job",
-      "job search",
-      "looking for a role",
-      "open to work",
-      "job opportunity"
-    ])
-  ) {
-    return {
-      kind: "find_job",
-      topic: extractTopic(profile),
-      rawText: combinedText,
-      tags: allTags
-    }
-  }
-
-  // Investors / funding
-  if (
-    checkboxTokens.includes("investment") ||
-    containsAny(combinedText, [
-      "investor",
-      "fundraise",
-      "raise money",
-      "raise capital",
-      "vc",
-      "angel",
-      "seed round",
-      "series a"
-    ])
-  ) {
-    return {
-      kind: "find_investors",
-      topic: extractTopic(profile),
-      rawText: combinedText,
-      tags: allTags
-    }
-  }
-
-  // Users / beta users / testers
-  if (
-    checkboxTokens.includes("beta_users") ||
-    containsAny(combinedText, [
-      "beta",
-      "pilot",
-      "early users",
-      "testers",
-      "user feedback",
-      "product feedback"
-    ])
-  ) {
-    return {
-      kind: "find_users",
-      topic: extractTopic(profile),
-      rawText: combinedText,
-      tags: allTags
-    }
-  }
-
-  // Press / media
-  if (
-    checkboxTokens.includes("press") ||
-    containsAny(combinedText, [
-      "press",
-      "media",
-      "journalist",
-      "pr",
-      "publicity",
-      "coverage"
-    ])
-  ) {
-    return {
-      kind: "find_press",
-      topic: extractTopic(profile),
-      rawText: combinedText,
-      tags: allTags
-    }
-  }
-
-  // Learn a skill / mentorship (ANY industry)
-  if (
-    checkboxTokens.includes("mentorship") ||
-    checkboxTokens.includes("technical_mentor") ||
-    containsAny(combinedText, [
-      "learn",
-      "mentor",
-      "mentorship",
-      "improve my skills",
-      "skill up",
-      "get better at",
-      "coaching"
-    ])
-  ) {
-    return {
-      kind: "learn_skill",
-      topic: extractTopic(profile),
-      rawText: combinedText,
-      tags: allTags
-    }
-  }
-
-  // Fallback: general networking
-  return {
-    kind: "general",
-    topic: extractTopic(profile),
-    rawText: combinedText,
-    tags: allTags
-  }
-}
-
-function extractTopic(profile: ViewerProfile): string | undefined {
-  // Try to extract topic from industry tags, company summary, or need tags
-  const industryTags = profile.industryTags || []
-  if (industryTags.length > 0) {
-    return industryTags.slice(0, 2).join(" / ")
-  }
-
-  const companySummary = profile.companySummary
-  if (companySummary) {
-    // Extract first meaningful phrase
-    const firstSentence = companySummary.split(/[.!?]/)[0]?.trim()
-    if (firstSentence && firstSentence.length < 100) {
-      return firstSentence
-    }
-  }
-
-  const needTags = profile.needTags || []
-  if (needTags.length > 0) {
-    return needTags.slice(0, 2).join(" / ")
-  }
-
-  return undefined
-}
-
-// -----------------------------------------------------------------------------
 // Main Processing Function
 // -----------------------------------------------------------------------------
 
-async function processUser(eventId: string, userId: string, forceRecompute: boolean) {
-  const supabase = getClient()
-
-  // Load viewer profile
-  const viewerProfile = await loadViewerProfile(supabase, eventId, userId)
-  if (!viewerProfile) {
-    return { processed: 0, inserted: 0, reason: "viewer_not_found" }
-  }
-
-  // Detect want
-  const want = detectWant(viewerProfile)
-  console.log("viewer_want_detected", {
-    eventId,
-    userId,
-    wantKind: want.kind,
-    topic: want.topic,
-    tagsCount: want.tags.length
-  })
-
-  // Check idempotence: if user already has 3 matches, check if recomputation is needed
-  const { data: existingMatches } = await supabase
-    .from("connections")
-    .select("a_id,b_id,match_score,created_at")
-    .eq("event_id", eventId)
-    .eq("connection_kind", "system_match")
-    .or(`a_id.eq.${userId},b_id.eq.${userId}`)
-    .order("created_at", { ascending: false })
-    .limit(1)
-
-  const existingCount = existingMatches?.length ?? 0
+async function processUserMatching(
+  eventId: string,
+  userId: string
+): Promise<ResponseBody> {
+  const supabase = getSupabaseClient()
   
-  if (!forceRecompute && existingCount >= SUGGESTIONS_PER_USER) {
-    // Check if recomputation is needed due to new attendees or profile updates
-    const lastMatchTime = existingMatches?.[0]?.created_at
-    
-    if (lastMatchTime) {
-      // Check for new attendees since last match
-      const { data: newAttendees } = await supabase
-        .from("attendance")
-        .select("user_id, created_at")
-        .eq("event_id", eventId)
-        .neq("user_id", userId)
-        .gt("created_at", lastMatchTime)
-        .limit(1)
-
-      // Check for profile updates since last match
-      const { data: updatedProfiles } = await supabase
-        .from("attendance")
-        .select("user_id, last_profile_change_at")
-        .eq("event_id", eventId)
-        .neq("user_id", userId)
-        .not("last_profile_change_at", "is", null)
-        .gt("last_profile_change_at", lastMatchTime)
-        .limit(1)
-
-      const hasNewAttendees = (newAttendees?.length ?? 0) > 0
-      const hasUpdatedProfiles = (updatedProfiles?.length ?? 0) > 0
-
-      if (!hasNewAttendees && !hasUpdatedProfiles) {
-        console.log("skip_recompute_no_changes", {
-          eventId,
-          userId,
-          existingCount,
-          lastMatchTime,
-          reason: "no_new_attendees_or_updates"
-        })
-        return {
-          processed: existingCount,
-          inserted: 0,
-          reason: "no_changes_detected"
-        }
-      }
-
-      console.log("recompute_needed", {
-        eventId,
-        userId,
-        existingCount,
-        lastMatchTime,
-        hasNewAttendees,
-        hasUpdatedProfiles,
-        reason: "new_attendees_or_updates_detected"
-      })
-    } else {
-      // No last match time, but we have matches - proceed with recomputation
-      console.log("recompute_no_timestamp", {
-        eventId,
-        userId,
-        existingCount,
-        reason: "no_match_timestamp_found"
-      })
-    }
+  // Verify OpenAI API key is available
+  if (!OPENAI_API_KEY || OPENAI_API_KEY.trim() === "") {
+    console.error("OPENAI_API_KEY is missing or empty")
+    throw new Error("OpenAI API key is not configured. Please set OPENAI_API_KEY in Supabase project settings.")
   }
+  
+  // Initialize OpenAI client - this will make actual API calls
+  const openai = new OpenAI({ apiKey: OPENAI_API_KEY })
+  console.log(`✅ OpenAI client initialized successfully`)
+  console.log(`📊 Using model: ${OPENAI_MODEL}`)
+  console.log(`🔑 API key present: ${OPENAI_API_KEY ? 'Yes' : 'No'} (length: ${OPENAI_API_KEY?.length || 0})`)
+  console.log(`Processing matching for user ${userId} in event ${eventId}`)
 
-  // Build candidate pool
-  const { data: allAttendance } = await supabase
+  // Get all attendees for the event to find candidates
+  const { data: allAttendees, error: attendeesError } = await supabase
     .from("attendance")
     .select("user_id")
     .eq("event_id", eventId)
-    .neq("user_id", userId)
 
-  if (!allAttendance || allAttendance.length === 0) {
-    return { processed: 0, inserted: 0, reason: "no_candidates" }
+  if (attendeesError) {
+    throw new Error(`Failed to load attendees for event_id ${eventId}: ${attendeesError.message}`)
   }
 
-  const candidateUserIds = allAttendance.map((a: any) => a.user_id).filter(Boolean)
-  
-  // Load candidate profiles
-  const { data: candidateData } = await supabase
-    .from("attendance")
-    .select(PROFILE_SELECT)
-    .eq("event_id", eventId)
-    .in("user_id", candidateUserIds)
-
-  if (!candidateData || candidateData.length === 0) {
-    return { processed: 0, inserted: 0, reason: "no_candidate_profiles" }
+  if (!allAttendees || allAttendees.length === 0) {
+    throw new Error(`No attendees found for event_id ${eventId}`)
   }
 
-  const candidates: CandidateProfile[] = candidateData
-    .filter((row: any) => row.users) // Must have user data
-    .map((row: any) => {
-      const user = row.users
-      return {
-        eventId: row.event_id,
-        id: user.user_id,
-        firstName: user.first_name ?? null,
-        lastName: user.last_name ?? null,
-        jobTitle: user.career_title ?? null,
-        company: user.company_name ?? null,
-        companySummary: user.company_summary ?? null,
-        companyUrl: user.company_url ?? null,
-        careerYears: user.career_years_experience ?? null,
-        offerEmbedding: user.offer_embedding ?? null,
-        needEmbedding: user.need_embedding ?? null,
-        profileEmbedding: row.profile_embedding ?? user.profile_embedding ?? null,
-        eventNeedEmbedding: row.event_need_embedding ?? null,
-        eventOfferEmbedding: row.event_offer_embedding ?? null,
-        offerTags: mergeUnique(user.offer_tags, row.event_offer_tags),
-        wantTags: mergeUnique(user.want_tags, row.event_want_tags),
-        needTags: mergeUnique(user.need_tags, row.event_need_tags),
-        industryTags: mergeUnique(user.industry_tags, row.event_industry_tags),
-        hobbyTags: mergeUnique(user.hobby_tags, row.event_hobby_tags),
-        hobbies: mergeUnique(user.hobbies, row.event_hobby_tags),
-        businessNeed: row.business_need_text ?? null,
-        whyAttending: row.why_attending_text ?? null,
-        roleIntent: row.event_role_intent ?? null,
-        availabilityStatus: row.event_availability_status ?? null,
-        personalityEmbedding: user.personality_embedding ?? null,
-        connectionTypes: row.connection_types_selected ?? null,
-        followUps: (row.connection_followups_json as Record<string, string>) ?? null,
-        linkedinSkills: user.linkedin_skills || [],
-        offerSummary: user.offer_summary_text ?? null,
-        wantSummary: user.want_summary_text ?? null
-      }
-    })
+  // Get candidate user IDs (all other users in the event)
+  const candidateUserIds = allAttendees
+    .map((a: { user_id: string }) => a.user_id)
+    .filter((id: string) => id !== userId)
 
-  console.log("candidate_pool_built", {
-    eventId,
-    userId,
-    poolSize: candidates.length
-  })
-
-  // Score all candidates (continuous ranking - NO thresholds, all candidates scored and ranked)
-  const scored = scoreCandidates(viewerProfile, want, candidates)
-
-  // Select top 3 deterministically (continuous ranking: sort by score, take top N)
-  // No minimum score requirement - candidates compete relatively, not absolutely
-  let selected = selectTopN(scored, SUGGESTIONS_PER_USER, want)
-
-  // Guarantee 3 matches if we have enough candidates
-  if (candidates.length >= SUGGESTIONS_PER_USER && selected.length < SUGGESTIONS_PER_USER) {
-    console.warn("FORCE_FILL_MATCHES", {
-      eventId,
-      userId,
-      availableCandidates: candidates.length,
-      selectedCount: selected.length,
-      attempting_fill: true
-    })
-
-    const selectedIds = new Set(selected.map((s) => s.candidate.id))
-    const remaining = scored
-      .filter((s) => !selectedIds.has(s.candidate.id))
-      .sort(deterministicCompare)
-
-    const needed = SUGGESTIONS_PER_USER - selected.length
-    if (remaining.length >= needed) {
-      selected = [...selected, ...remaining.slice(0, needed)]
-      console.log("FORCE_FILL_MATCHES_SUCCESS", {
-        eventId,
-        userId,
-        filled: needed,
-        final_count: selected.length
-      })
-    } else {
-      console.error("FORCE_FILL_MATCHES_FAILED", {
-        eventId,
-        userId,
-        needed,
-        available: remaining.length,
-        total_candidates: candidates.length
-      })
+  if (candidateUserIds.length === 0) {
+    return {
+      ok: true,
+      event_id: eventId,
+      user_id: userId,
+      matches_created: 0,
+      matches_updated: 0,
+      diagnostic: {
+        candidateCount: 0,
+        aiMatchesReturned: 0,
+        validMatchesCount: 0,
+      },
     }
   }
 
-  console.log("matches_selected", {
+  // Process matches for this single user
+  const result = await processUserMatches(
+    supabase,
+    openai,
     eventId,
     userId,
-    selectedCount: selected.length,
-    wantKind: want.kind,
-    poolSize: candidates.length,
-    top3Scores: selected.slice(0, 3).map((s) => ({
-      id: s.candidate.id,
-      wantFit: Number(s.breakdown.wantFit.toFixed(3)),
-      totalScore: Number(s.breakdown.totalScore.toFixed(3))
-    }))
-  })
-
-  // Upsert matches
-  const inserted = await upsertMatches(supabase, eventId, userId, selected, want)
-
-  // Debug logging for match breakdown with persona intelligence
-  console.log("debug_match_breakdown", {
-    eventId,
-    userId,
-    want,
-    viewerPersona: selected[0]?.breakdown.wantFitComponents.viewerPersona,
-    matches: selected.map((m) => ({
-      candidateId: m.candidate.id,
-      name: `${m.candidate.firstName} ${m.candidate.lastName}`,
-      title: m.candidate.jobTitle,
-      company: m.candidate.company,
-      breakdown: {
-        wantFit: m.breakdown.wantFit.toFixed(3),
-        mutualValue: m.breakdown.mutualValue.toFixed(3),
-        relationshipFit: m.breakdown.relationshipFit.toFixed(3),
-        totalScore: m.breakdown.totalScore.toFixed(3),
-        roleBonus: m.breakdown.wantFitComponents.roleBonus,
-        personaBoost: m.breakdown.wantFitComponents.personaBoost?.toFixed(3),
-        personaBases: m.breakdown.wantFitComponents.personaBases,
-      },
-      roles: {
-        viewer: m.breakdown.wantFitComponents.viewerRole,
-        candidate: m.breakdown.wantFitComponents.candidateRole,
-      },
-    })),
-  })
+    candidateUserIds
+  )
 
   return {
-    processed: selected.length,
-    inserted,
-    matches: selected.map((s) => ({
-      id: s.candidate.id,
-      score: s.breakdown.totalScore,
-      reason_summary: buildReasonSummary(want, s)
-    }))
+    ok: true,
+    event_id: eventId,
+    user_id: userId,
+    matches_created: result.matchesCreated,
+    matches_updated: result.matchesUpdated,
+    diagnostic: result.diagnostic,
   }
 }
 
 // -----------------------------------------------------------------------------
-// Scoring Functions
+// Process Matches for a Single User
 // -----------------------------------------------------------------------------
 
-function computeWantFit(
-  viewerWant: ViewerWant,
-  viewerProfile: ViewerProfile,
-  candidate: CandidateProfile
-): ScoreBreakdown["wantFitComponents"] {
-  // 1) Semantic similarity: viewer need ↔ candidate offer
-  const viewerNeedEmbedding =
-    viewerProfile.eventNeedEmbedding ?? viewerProfile.needEmbedding
-  const candidateOfferEmbedding =
-    candidate.eventOfferEmbedding ?? candidate.offerEmbedding
-
-  let semantic = 0
-  if (viewerNeedEmbedding && candidateOfferEmbedding) {
-    semantic = Math.max(0, cosineSimilarity(viewerNeedEmbedding, candidateOfferEmbedding))
-  }
-
-  // 2) Tag overlap between want tags and candidate's offer / industry / skills
-  const viewerWantTags = new Set(viewerWant.tags.map(canon))
-
-  const candidateTagSet = new Set(
-    mergeUnique(
-      candidate.offerTags,
-      candidate.industryTags,
-      candidate.linkedinSkills
-    ).map(canon)
-  )
-
-  const tagOverlap = jaccardSimilarity(viewerWantTags, candidateTagSet)
-
-  // 3) Role + intent bonus
-  let roleBonus = 0
-
-  const title = (candidate.jobTitle || "").toLowerCase()
-  const connectionTokens = (candidate.connectionTypes ?? []).map(canon)
-
-  // Helper flags
-  const isExec =
-    title.includes("founder") ||
-    title.includes("co-founder") ||
-    title.includes("ceo") ||
-    title.includes("cto") ||
-    title.includes("cpo") ||
-    title.includes("chief") ||
-    title.includes("vp") ||
-    title.includes("head") ||
-    title.includes("director")
-
-  const isPartnershipy =
-    title.includes("partnership") ||
-    title.includes("alliances") ||
-    title.includes("biz dev") ||
-    title.includes("business development") ||
-    title.includes("ecosystem")
-
-  const isBuyerFacing =
-    title.includes("sales") ||
-    title.includes("account executive") ||
-    title.includes("ae") ||
-    title.includes("customer success") ||
-    title.includes("cs") ||
-    title.includes("growth")
-
-  const wantsPartners = connectionTokens.includes("partnerships")
-  const wantsClients = connectionTokens.includes("clients") || connectionTokens.includes("commercial")
-  const wantsInvestment = connectionTokens.includes("investment")
-  const wantsMentorship = connectionTokens.includes("mentorship")
-
-  if (viewerWant.kind === "find_clients") {
-    // Buyers / decision-makers in any industry
-    if (isExec && isBuyerFacing) roleBonus = 0.25
-    else if (isExec || isBuyerFacing) roleBonus = 0.18
-  } else if (viewerWant.kind === "find_partners") {
-    // People who can actually *partner* with you
-    if (isExec && isPartnershipy) roleBonus = 0.25
-    else if (isPartnershipy || (isExec && wantsPartners)) roleBonus = 0.2
-    else if (isExec) roleBonus = 0.12
-  } else if (viewerWant.kind === "find_talent") {
-    if (title.includes("recruiter") || title.includes("talent") || title.includes("people ops") || title.includes("hr")) {
-      roleBonus = 0.18
-    }
-  } else if (viewerWant.kind === "find_investors") {
-    if (
-      title.includes("investor") ||
-      title.includes("vc") ||
-      title.includes("angel") ||
-      title.includes("fund") ||
-      wantsInvestment
-    ) {
-      roleBonus = 0.25
-    }
-  } else if (viewerWant.kind === "learn_skill") {
-    // Senior / experienced people make better mentors
-    if (isExec || title.includes("principal") || title.includes("lead") || title.includes("senior") || wantsMentorship) {
-      roleBonus = 0.18
-    }
-  }
-
-  // Normalize roleBonus to [0, 1] and fold in
-  const normalizedRole = Math.max(0, Math.min(1, 0.5 + roleBonus))
-  const wantFit = Math.max(
-    0,
-    Math.min(1, 0.65 * semantic + 0.25 * tagOverlap + 0.10 * normalizedRole)
-  )
-
-  return { semantic, tagOverlap, roleBonus, wantFit }
-}
-
-function computeMutualValue(
-  viewerProfile: ViewerProfile,
-  candidate: CandidateProfile
-): number {
-  // Semantic: viewer offer -> candidate need
-  const viewerOfferEmbedding = viewerProfile.eventOfferEmbedding ?? viewerProfile.offerEmbedding
-  const candidateNeedEmbedding = candidate.eventNeedEmbedding ?? candidate.needEmbedding
-
-  let semantic = 0
-  if (viewerOfferEmbedding && candidateNeedEmbedding) {
-    semantic = Math.max(0, cosineSimilarity(viewerOfferEmbedding, candidateNeedEmbedding))
-  }
-
-  // Tag overlap
-  const viewerOfferTags = new Set((viewerProfile.offerTags || []).map(canon))
-  const candidateNeedTags = new Set((candidate.needTags || []).map(canon))
-  const tagOverlap = jaccardSimilarity(viewerOfferTags, candidateNeedTags)
-
-  // Shared industry
-  const viewerIndustryTags = new Set((viewerProfile.industryTags || []).map(canon))
-  const candidateIndustryTags = new Set((candidate.industryTags || []).map(canon))
-  const sharedIndustry = jaccardSimilarity(viewerIndustryTags, candidateIndustryTags)
-
-  return 0.5 * semantic + 0.3 * tagOverlap + 0.2 * sharedIndustry
-}
-
-function computeRelationshipFit(
-  viewerProfile: ViewerProfile,
-  candidate: CandidateProfile
-): number {
-  // Shared interests
-  const viewerHobbies = new Set([
-    ...(viewerProfile.hobbyTags || []),
-    ...(viewerProfile.hobbies || [])
-  ].map(canon))
-  const candidateHobbies = new Set([
-    ...(candidate.hobbyTags || []),
-    ...(candidate.hobbies || [])
-  ].map(canon))
-  const sharedInterests = jaccardSimilarity(viewerHobbies, candidateHobbies)
-
-  // Personality similarity (if embeddings exist)
-  let personality = 0
-  if (viewerProfile.personalityEmbedding && candidate.personalityEmbedding) {
-    personality = Math.max(0, cosineSimilarity(viewerProfile.personalityEmbedding, candidate.personalityEmbedding))
-  }
-
-  return 0.5 * sharedInterests + 0.5 * personality
-}
-
-function scoreCandidates(
-  viewerProfile: ViewerProfile,
-  want: ViewerWant,
-  candidates: CandidateProfile[]
-): ScoredCandidate[] {
-  // Compute viewer persona once (cached for all candidates)
-  const viewerRole = canonicalizeRole(viewerProfile.jobTitle)
-  const viewerTextForSector = [
-    viewerProfile.businessNeed ?? "",
-    normalizeCompanyInput(viewerProfile.company) ?? "",
-    (viewerProfile.needTags ?? []).join(",")
-  ].join(" ")
-  
-  // Map want.kind to intent for persona derivation
-  const intentMap: Record<WantKind, string> = {
-    find_clients: "commercial",
-    find_partners: "commercial",
-    find_talent: "recruiting",
-    find_job: "job_seeking",
-    find_investors: "commercial",
-    find_users: "general",
-    find_press: "general",
-    learn_skill: "mentorship",
-    general: "general"
-  }
-  const viewerIntent = intentMap[want.kind] || "general"
-  const viewerPersona = deriveBuyerPersona(viewerTextForSector, viewerRole, viewerIntent)
-
-  return candidates.map((candidate) => {
-    const wantFitComponents = computeWantFit(want, viewerProfile, candidate)
-
-    const wantFit = wantFitComponents.wantFit
-    const mutualValue = computeMutualValue(viewerProfile, candidate)
-    const relationshipFit = computeRelationshipFit(viewerProfile, candidate)
-
-    // Base score calculation (no thresholds - continuous ranking)
-    let totalScore: number
-
-    switch (want.kind) {
-      case "find_partners":
-        // For partners: mutual value is key
-        totalScore = 0.45 * wantFit + 0.4 * mutualValue + 0.15 * relationshipFit
-        break
-
-      case "find_clients":
-        // For clients: "can they buy" dominates, but still require some mutual fit
-        totalScore = 0.6 * wantFit + 0.3 * mutualValue + 0.1 * relationshipFit
-        break
-
-      case "find_investors":
-        totalScore = 0.55 * wantFit + 0.3 * mutualValue + 0.15 * relationshipFit
-        break
-
-      case "learn_skill":
-        // For mentors: relationship/personality matters more
-        totalScore = 0.4 * wantFit + 0.25 * mutualValue + 0.35 * relationshipFit
-        break
-
-      default:
-        // General networking
-        totalScore = 0.5 * wantFit + 0.3 * mutualValue + 0.2 * relationshipFit
-        break
-    }
-
-    // ============================================================
-    // Buyer-Persona Intelligence Layer - Business Pillar Boosts
-    // ============================================================
-    // These boosts are clamped within +0.08 cap
-    let personaBoost = 0
-    const personaBases: string[] = []
-
-    // Canonicalize candidate role
-    const candidateRole = canonicalizeRole(candidate.jobTitle)
-    const candidateCompanyLower = normalizeCompanyInput(candidate.company ?? "").toLowerCase()
-    const candidateIndustryTags = candidate.industryTags ?? []
-    const candidateConnectionTypes = (candidate.connectionTypes ?? []).map(canon)
-
-    // Seller (commercial:clients) - match buyer functions and leadership
-    if (want.kind === "find_clients" && viewerPersona.leader_required) {
-      // Candidate function matches buyer functions
-      if (viewerPersona.buyer_functions.includes(candidateRole.role_function)) {
-        personaBoost += 0.03
-        personaBases.push("buyer_function_match")
-      }
-      
-      // Leadership title when leader_required
-      if (isLeadershipTitle(candidateRole.role_seniority)) {
-        personaBoost += 0.02
-        personaBases.push("leadership_match")
-      }
-      
-      // Sector match (viewer sector tokens ↔ candidate tags/company)
-      if (viewerPersona.sector !== "unknown" && candidateIndustryTags.length > 0) {
-        const sectorTokens = viewerPersona.sector.split("_")
-        const sectorMatch = sectorTokens.some(token => 
-          candidateIndustryTags.some(tag => tag.toLowerCase().includes(token)) ||
-          candidateCompanyLower.includes(token)
-        )
-        if (sectorMatch) {
-          personaBoost += 0.01
-          personaBases.push("sector_match")
-        }
-      }
-    }
-
-    // Partner matching (commercial:partners) - prioritize partnership/BD roles and execs
-    if (want.kind === "find_partners") {
-      const isPartnershipy = candidateRole.role_function === "partnerships" || 
-        (candidate.jobTitle?.toLowerCase().includes("partnership") ?? false) ||
-        (candidate.jobTitle?.toLowerCase().includes("alliances") ?? false) ||
-        (candidate.jobTitle?.toLowerCase().includes("biz dev") ?? false) ||
-        (candidate.jobTitle?.toLowerCase().includes("business development") ?? false) ||
-        candidateConnectionTypes.some(t => t.includes("partnership"))
-      
-      const wantsPartners = candidateConnectionTypes.some(t => 
-        t.includes("partnership") || t.includes("partners")
-      )
-      
-      // Strong boost for partnership-focused roles
-      if (isPartnershipy && isLeadershipTitle(candidateRole.role_seniority)) {
-        personaBoost += 0.05
-        personaBases.push("partnership_exec_match")
-      } else if (isPartnershipy) {
-        personaBoost += 0.04
-        personaBases.push("partnership_role_match")
-      } else if (isLeadershipTitle(candidateRole.role_seniority) && wantsPartners) {
-        personaBoost += 0.03
-        personaBases.push("exec_wants_partners")
-      } else if (isLeadershipTitle(candidateRole.role_seniority)) {
-        personaBoost += 0.02
-        personaBases.push("exec_for_partnerships")
-      }
-      
-      // Same function boost (partners often collaborate within same domain)
-      if (viewerRole.role_function === candidateRole.role_function && 
-          viewerRole.role_function !== "unknown") {
-        personaBoost += 0.02
-        personaBases.push("same_function_partner")
-      }
-    }
-
-    // Job-seeking: recruiter or hiring manager in same function
-    if (want.kind === "find_job") {
-      const candidateIsRecruiter = candidateRole.role_function === "hr_talent" || 
-        (candidate.jobTitle?.toLowerCase().includes("recruiter") ?? false)
-      const candidateIsHiring = candidateIsRecruiter || 
-        candidateConnectionTypes.includes("recruit") ||
-        (candidate.needTags ?? []).some(t => t.toLowerCase().includes("hiring"))
-      
-      if (candidateIsRecruiter && candidateRole.role_function === viewerRole.role_function) {
-        personaBoost += 0.06
-        personaBases.push("recruiter_function_match")
-      } else if (candidateIsHiring && candidateRole.role_function === viewerRole.role_function) {
-        personaBoost += 0.04
-        personaBases.push("hiring_manager_function_match")
-      } else if (candidateRole.role_function === viewerRole.role_function && isLeadershipTitle(candidateRole.role_seniority)) {
-        personaBoost += 0.03
-        personaBases.push("hiring_leader_function_match")
-      }
-    }
-
-    // Recruiter: candidate is job seeker / role match
-    if (want.kind === "find_talent") {
-      if (candidateConnectionTypes.includes("find_job") || candidateConnectionTypes.includes("job_seeking")) {
-        if (candidateRole.role_function === viewerRole.role_function) {
-          personaBoost += 0.05
-          personaBases.push("job_seeker_function_match")
-        }
-      }
-    }
-
-    // Mentorship: same function + seniority gap ≥3y
-    if (want.kind === "learn_skill") {
-      if (candidateRole.role_function === viewerRole.role_function) {
-        const viewerYears = viewerProfile.careerYears ?? 0
-        const candidateYears = candidate.careerYears ?? 0
-        const seniorityGap = candidateYears - viewerYears
-        if (seniorityGap >= 3) {
-          personaBoost += 0.04
-          personaBases.push("mentor_seniority_gap")
-        }
-      }
-    }
-
-    // Penalties: clear off-function pair with no product/industry rationale
-    if (viewerRole.role_function !== "unknown" && candidateRole.role_function !== "unknown") {
-      const functionMismatch = viewerRole.role_function !== candidateRole.role_function
-      const industryOverlap = jaccardSimilarity(
-        new Set((viewerProfile.industryTags ?? []).map(canon)),
-        new Set(candidateIndustryTags.map(canon))
-      )
-      const noIndustryOverlap = industryOverlap < 0.1
-      const noNeedMatch = !mutualValue || mutualValue < 0.2
-      
-      // Only penalize if there's no clear reason for the mismatch
-      if (functionMismatch && noIndustryOverlap && noNeedMatch && 
-          viewerRole.role_function !== "exec" && candidateRole.role_function !== "exec") {
-        personaBoost -= 0.02
-        personaBases.push("function_mismatch_penalty")
-      }
-    }
-
-    // Clamp persona boost to stay within +0.08 total cap
-    personaBoost = Math.max(-0.02, Math.min(0.08, personaBoost))
-    totalScore = Math.max(0, Math.min(1, totalScore + personaBoost))
-
-    return {
-      candidate,
-      breakdown: {
-        wantFit,
-        mutualValue,
-        relationshipFit,
-        totalScore,
-        wantFitComponents: {
-          ...wantFitComponents,
-          personaBoost,
-          personaBases,
-          viewerRole,
-          candidateRole,
-          viewerPersona
-        }
-      }
-    }
-  })
-}
-
-// -----------------------------------------------------------------------------
-// Selection
-// -----------------------------------------------------------------------------
-
-function selectTopN(
-  scored: ScoredCandidate[],
-  n: number,
-  _want?: ViewerWant
-): ScoredCandidate[] {
-  const sorted = [...scored].sort(deterministicCompare)
-  if (sorted.length >= n) return sorted.slice(0, n)
-  return sorted
-}
-
-// -----------------------------------------------------------------------------
-// Upsert Matches
-// -----------------------------------------------------------------------------
-
-async function upsertMatches(
-  supabase: any,
+async function processUserMatches(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  openai: OpenAI,
   eventId: string,
-  viewerId: string,
-  matches: ScoredCandidate[],
-  want: ViewerWant
-): Promise<number> {
-  // Delete existing matches for this viewer only
-  await supabase
+  userId: string,
+  candidateUserIds: string[]
+): Promise<ProcessResult> {
+  console.log(`Processing matches for user ${userId} in event ${eventId}`)
+  
+  // Load target user profile - use CandidateProfile to get offerSummary/wantSummary
+  // This filters by event_id from the attendance table
+  const viewerProfiles = await loadCandidateProfiles(supabase, eventId, [userId])
+  if (!viewerProfiles || viewerProfiles.length === 0) {
+    throw new Error(`Failed to load profile for user ${userId} in event ${eventId}. User may not be registered for this event.`)
+  }
+  const viewer = viewerProfiles[0]
+  
+  // Verify the viewer's event_id matches
+  if (viewer.eventId !== eventId) {
+    throw new Error(`User ${userId} profile loaded for wrong event. Expected ${eventId}, got ${viewer.eventId}`)
+  }
+
+  // Load all candidate profiles (filtered by event_id from attendance table)
+  const candidateProfiles = await loadCandidateProfiles(
+    supabase,
+    eventId,
+    candidateUserIds
+  )
+
+  console.log(`Loaded ${candidateProfiles.length} candidate profiles for user ${userId} in event ${eventId}`)
+  
+  // Verify all candidates belong to the correct event
+  const wrongEventCandidates = candidateProfiles.filter(c => c.eventId !== eventId)
+  if (wrongEventCandidates.length > 0) {
+    console.warn(`Found ${wrongEventCandidates.length} candidates with mismatched event_id`)
+  }
+
+  if (candidateProfiles.length === 0) {
+    console.log(`No candidates found for user ${userId} (need at least 2 users in event to create matches)`)
+    return {
+      userId,
+      matchesCreated: 0,
+      matchesUpdated: 0,
+    }
+  }
+  
+  if (candidateProfiles.length < 3) {
+    console.log(`Only ${candidateProfiles.length} candidate(s) available (will return up to ${candidateProfiles.length} matches)`)
+  }
+
+  // Delete all existing system matches for this user FIRST (clean slate before rematching)
+  console.log(`Deleting existing system matches for user ${userId}...`)
+  const { data: existingMatches, error: selectError } = await supabase
     .from("connections")
-    .delete()
+    .select("connection_id")
     .eq("event_id", eventId)
     .eq("connection_kind", "system_match")
-    .or(`a_id.eq.${viewerId},b_id.eq.${viewerId}`)
+    .or(`a_id.eq.${userId},b_id.eq.${userId}`)
 
-  if (matches.length === 0) {
-    return 0
-  }
+  const existingCount = existingMatches?.length || 0
+  
+  if (existingCount > 0) {
+    const { error: deleteError } = await supabase
+      .from("connections")
+      .delete()
+      .eq("event_id", eventId)
+      .eq("connection_kind", "system_match")
+      .or(`a_id.eq.${userId},b_id.eq.${userId}`)
 
-  // Insert new matches
-  const rows = matches.map((match) => {
-    const pair = viewerId < match.candidate.id
-      ? { a: viewerId, b: match.candidate.id }
-      : { a: match.candidate.id, b: viewerId }
-
-    return {
-      event_id: eventId,
-      a_id: pair.a,
-      b_id: pair.b,
-      connection_kind: "system_match",
-      created_by_user_id: viewerId,
-      match_score: match.breakdown.totalScore,
-      match_score_breakdown_json: {
-        wantFit: match.breakdown.wantFit,
-        mutualValue: match.breakdown.mutualValue,
-        relationshipFit: match.breakdown.relationshipFit,
-        totalScore: match.breakdown.totalScore,
-        wantFitComponents: match.breakdown.wantFitComponents,
-        want: want,
-        // Buyer-Persona Intelligence Layer data
-        role_canonicalization: {
-          viewer: match.breakdown.wantFitComponents.viewerRole,
-          candidate: match.breakdown.wantFitComponents.candidateRole
-        },
-        buyer_persona: match.breakdown.wantFitComponents.viewerPersona,
-        persona_boost: match.breakdown.wantFitComponents.personaBoost,
-        persona_bases: match.breakdown.wantFitComponents.personaBases,
-        selection_rule_version: "business_pool_persona_v1"
-      },
-      match_explanation_text: buildReasonSummary(want, match),
-      match_algorithm_version: "v3_persona_intelligence"
+    if (deleteError) {
+      console.error(`Failed to delete existing matches for user ${userId}:`, deleteError)
+      throw new Error(`Failed to delete existing matches: ${deleteError.message}`)
     }
-  })
-
-  const { error } = await supabase.from("connections").insert(rows)
-  if (error) {
-    console.error("upsert_matches_error", { eventId, viewerId, error: error.message })
-    throw error
+    console.log(`Deleted ${existingCount} existing match(es) for user ${userId}`)
+  } else {
+    console.log(`No existing matches found for user ${userId}`)
   }
 
-  return rows.length
+  // Get AI matches
+  console.log(`Calling AI to find matches for user ${userId}...`)
+  const aiMatchesResult = await getAIMatchesWithDiagnostics(openai, viewer, candidateProfiles)
+  const aiMatches = aiMatchesResult.matches
+  const diagnostics = aiMatchesResult.diagnostics
+  console.log(`AI returned ${aiMatches.length} matches for user ${userId}`)
+
+  if (aiMatches.length === 0) {
+    return {
+      userId,
+      matchesCreated: 0,
+      matchesUpdated: 0,
+      diagnostic: {
+        candidateCount: candidateProfiles.length,
+        aiMatchesReturned: diagnostics.rawMatchesCount,
+        validMatchesCount: 0,
+        validationIssues: diagnostics.validationIssues.length > 0 ? diagnostics.validationIssues : undefined,
+      },
+    }
+  }
+
+  // Create new connections for all AI matches
+  let matchesCreated = 0
+
+  for (const match of aiMatches) {
+    const [aId, bId] = userId < match.match_user_id
+      ? [userId, match.match_user_id]
+      : [match.match_user_id, userId]
+
+    const connectionData: any = {
+      event_id: eventId,
+      a_id: aId,
+      b_id: bId,
+      connection_kind: "system_match",
+      match_explanation_text: match.explanation,
+      match_algorithm_version: "ai-v1",
+    }
+
+    const { error: insertError } = await supabase
+      .from("connections")
+      .insert(connectionData)
+
+    if (insertError) {
+      console.error(
+        `Failed to create connection for ${userId}/${match.match_user_id}:`,
+        insertError
+      )
+      // Log the error but continue with other matches
+      continue
+    }
+
+    matchesCreated++
+    console.log(`Created match: ${userId} <-> ${match.match_user_id}`)
+  }
+  
+  console.log(`Successfully created ${matchesCreated} out of ${aiMatches.length} matches`)
+
+  return {
+    userId,
+    matchesCreated,
+    matchesUpdated: 0, // Always 0 since we replace, not update
+    diagnostic: {
+      candidateCount: candidateProfiles.length,
+      aiMatchesReturned: diagnostics.rawMatchesCount,
+      validMatchesCount: aiMatches.length,
+      validationIssues: diagnostics.validationIssues.length > 0 ? diagnostics.validationIssues : undefined,
+    },
+  }
 }
 
-function buildReasonSummary(want: ViewerWant, match: ScoredCandidate): string {
-  const candidate = match.candidate
-  const name = candidate.firstName || candidate.jobTitle || "They"
-  const title = candidate.jobTitle || "professional"
-  const company = candidate.company || "their company"
+// -----------------------------------------------------------------------------
+// AI Matching Logic
+// -----------------------------------------------------------------------------
 
-  const wantKindLabels: Record<WantKind, string> = {
-    find_clients: "clients",
-    find_partners: "partners",
-    find_talent: "talent",
-    find_job: "a job",
-    find_investors: "investors",
-    find_users: "users",
-    find_press: "press",
-    learn_skill: "to learn",
-    general: "connections"
-  }
-
-  const wantLabel = wantKindLabels[want.kind] || want.kind
-  const topicPhrase = want.topic ? ` in ${want.topic}` : ""
-
-  if (want.kind === "learn_skill") {
-    return `${name} (${title} at ${company}) can help you learn${topicPhrase ? ` ${want.topic}` : ""} with their experience.`
-  }
-
-  if (want.kind === "find_clients") {
-    return `You want ${wantLabel}; ${name} (${title} at ${company}) could be a potential customer${topicPhrase}.`
-  }
-
-  if (want.kind === "find_partners") {
-    return `You want ${wantLabel}; ${name} (${title} at ${company}) could be a good collaborator${topicPhrase}.`
-  }
-
-  return `You want ${wantLabel}; ${name} (${title} at ${company}) matches your needs${topicPhrase}.`
+async function getAIMatches(
+  openai: OpenAI,
+  viewer: CandidateProfile,
+  candidates: CandidateProfile[]
+): Promise<MatchResult[]> {
+  const result = await getAIMatchesWithDiagnostics(openai, viewer, candidates)
+  return result.matches
 }
+
+async function getAIMatchesWithDiagnostics(
+  openai: OpenAI,
+  viewer: CandidateProfile,
+  candidates: CandidateProfile[]
+): Promise<{ matches: MatchResult[]; diagnostics: { rawMatchesCount: number; validationIssues: string[] } }> {
+  const diagnostics: { rawMatchesCount: number; validationIssues: string[] } = {
+    rawMatchesCount: 0,
+    validationIssues: [],
+  }
+  const systemPrompt = `You are an expert matchmaker for business networking events. Your job is to analyze a person's needs and wants, then find the top 3 best matches from a list of candidates.
+
+You receive structured JSON:
+{
+  "viewer": { "id": "...", "firstName": "...", "wantSummary": "...", ... },
+  "candidates": [ { "id": "...", "firstName": "...", "offerSummary": "...", ... }, ... ],
+  "suggestionsPerUser": 3
+}
+
+CRITICAL: Use candidates[i].id EXACTLY for match_user_id. Do not modify, abbreviate, or transform it in any way.
+
+Focus on:
+1. Person 1's wants and needs (especially wantSummary and wantTags)
+2. How each candidate can help Person 1 achieve their goals
+3. Shared interests, complementary skills, and industry overlap
+4. Mutual benefit potential
+
+Return exactly 3 matches ranked by how well they help Person 1. Each match should have:
+- match_user_id: Use candidate.id EXACTLY as provided (required - must match exactly)
+- explanation: A clear, specific explanation (2-3 sentences) focused on why this match will help Person 1. Write from Person 1's perspective: "This match will help you because..."
+- match_reasons: An array of 2-4 specific reasons why this is a good match
+
+Output JSON only, no markdown, no code blocks. Format:
+{
+  "matches": [
+    {
+      "match_user_id": "use-candidate-id-exactly-as-provided",
+      "explanation": "...",
+      "match_reasons": ["reason1", "reason2", ...]
+    },
+    ...
+  ]
+}`
+
+  // Prepare structured JSON payload
+  const payload = {
+    viewer: {
+      id: viewer.id,
+      firstName: viewer.firstName,
+      lastName: viewer.lastName,
+      jobTitle: viewer.jobTitle,
+      company: viewer.company,
+      companySummary: viewer.companySummary,
+      companyUrl: viewer.companyUrl,
+      careerYears: viewer.careerYears,
+      wantSummary: viewer.wantSummary,
+      wantTags: viewer.wantTags,
+      offerSummary: viewer.offerSummary,
+      offerTags: viewer.offerTags,
+      needTags: viewer.needTags,
+      industryTags: viewer.industryTags,
+      hobbies: viewer.hobbies,
+      hobbyTags: viewer.hobbyTags,
+      businessNeed: viewer.businessNeed,
+      whyAttending: viewer.whyAttending,
+      roleIntent: viewer.roleIntent,
+      availabilityStatus: viewer.availabilityStatus,
+    },
+    candidates: candidates.map(c => ({
+      id: c.id,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      jobTitle: c.jobTitle,
+      company: c.company,
+      companySummary: c.companySummary,
+      companyUrl: c.companyUrl,
+      careerYears: c.careerYears,
+      offerSummary: c.offerSummary,
+      offerTags: c.offerTags,
+      wantSummary: c.wantSummary,
+      wantTags: c.wantTags,
+      needTags: c.needTags,
+      industryTags: c.industryTags,
+      hobbies: c.hobbies,
+      hobbyTags: c.hobbyTags,
+      businessNeed: c.businessNeed,
+      whyAttending: c.whyAttending,
+      roleIntent: c.roleIntent,
+      availabilityStatus: c.availabilityStatus,
+    })),
+    suggestionsPerUser: 3,
+  }
+
+  const userPrompt = `Here is structured JSON for the viewer and candidates.
+
+Use candidate.id as the only source of truth for match_user_id.
+
+Find the top 3 best matches for Person 1. Focus on how each candidate can help Person 1 achieve their goals, especially their wants: ${viewer.wantSummary || "See wantTags below"}.
+
+${JSON.stringify(payload, null, 2)}`
+
+  try {
+    console.log(`Calling OpenAI API with model ${OPENAI_MODEL}...`)
+    console.log(`Payload size: ${JSON.stringify(payload).length} characters`)
+    
+    const response = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      temperature: 0.7,
+      max_tokens: 1500,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: { type: "json_object" },
+    })
+    
+    console.log(`OpenAI API call successful. Usage: ${JSON.stringify(response.usage)}`)
+
+    const content = response.choices[0]?.message?.content
+    if (!content) {
+      console.warn("No content in OpenAI response")
+      console.warn("Response:", JSON.stringify(response, null, 2))
+      return []
+    }
+    
+    console.log(`OpenAI response length: ${content.length} characters`)
+
+    const parsed = JSON.parse(content)
+    const matches = parsed.matches || []
+    diagnostics.rawMatchesCount = matches.length
+
+    console.log(`Parsed ${matches.length} matches from AI response`)
+
+    // Validate and normalize matches
+    const validMatches: MatchResult[] = []
+    // Normalize all candidate IDs to trimmed strings for robust comparison
+    const candidateIds = new Set(candidates.map(c => String(c.id).trim()))
+    
+    console.log(`Candidate IDs (normalized): ${Array.from(candidateIds).slice(0, 5).join(', ')}...`)
+    
+    for (const match of matches.slice(0, 3)) {
+      const matchUserId = String(match.match_user_id || "").trim()
+      
+      if (!matchUserId) {
+        const issue = `Match missing match_user_id: ${JSON.stringify(match)}`
+        console.warn(issue)
+        diagnostics.validationIssues.push(issue)
+        continue
+      }
+      
+      if (!candidateIds.has(matchUserId)) {
+        // Try name-based fallback matching (Fix 2)
+        const nameMatch = candidates.find(c => {
+          const fullName = [c.firstName, c.lastName].filter(Boolean).join(" ").toLowerCase().trim()
+          const matchUserIdLower = matchUserId.toLowerCase().trim()
+          return (
+            fullName &&
+            (matchUserIdLower.includes(fullName) || fullName.includes(matchUserIdLower))
+          )
+        })
+        
+        if (nameMatch) {
+          const fallbackId = String(nameMatch.id).trim()
+          console.warn(`Using name-based fallback: AI returned "${matchUserId}" but matched to ID "${fallbackId}" (${nameMatch.firstName} ${nameMatch.lastName})`)
+          diagnostics.validationIssues.push(`ID mismatch resolved via name fallback: "${matchUserId}" -> "${fallbackId}"`)
+          
+          // Use the fallback ID
+          const finalMatchUserId = fallbackId
+          
+          if (!match.explanation) {
+            const issue = `Match missing explanation for user ${finalMatchUserId}`
+            console.warn(issue)
+            diagnostics.validationIssues.push(issue)
+            continue
+          }
+          
+          validMatches.push({
+            match_user_id: finalMatchUserId,
+            explanation: String(match.explanation).trim(),
+            match_reasons: Array.isArray(match.match_reasons)
+              ? match.match_reasons.map(String)
+              : [],
+          })
+          continue
+        }
+        
+        // No fallback match found - log detailed error
+        const issue = `Match user_id "${matchUserId}" not found in candidate list. Sample candidate IDs: ${Array.from(candidateIds).slice(0, 5).join(", ")}`
+        console.warn(issue)
+        diagnostics.validationIssues.push(issue)
+        continue
+      }
+      
+      // ID matched successfully
+      if (!match.explanation) {
+        const issue = `Match missing explanation for user ${matchUserId}`
+        console.warn(issue)
+        diagnostics.validationIssues.push(issue)
+        continue
+      }
+      
+      validMatches.push({
+        match_user_id: matchUserId,
+        explanation: String(match.explanation).trim(),
+        match_reasons: Array.isArray(match.match_reasons)
+          ? match.match_reasons.map(String)
+          : [],
+      })
+    }
+
+    console.log(`Validated ${validMatches.length} matches`)
+    return { matches: validMatches, diagnostics }
+  } catch (error) {
+    console.error("AI matching failed:", error)
+    if (error instanceof Error) {
+      console.error("Error details:", error.message, error.stack)
+      
+      // Check for specific OpenAI API errors
+      if (error.message.includes("API key") || error.message.includes("authentication")) {
+        diagnostics.validationIssues.push(`OpenAI API authentication error: ${error.message}. Check OPENAI_API_KEY in Supabase project settings.`)
+      } else if (error.message.includes("rate limit") || error.message.includes("quota")) {
+        diagnostics.validationIssues.push(`OpenAI API rate limit/quota error: ${error.message}`)
+      } else {
+        diagnostics.validationIssues.push(`AI matching error: ${error.message}`)
+      }
+    }
+    return { matches: [], diagnostics }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Helper: Build Profile Text
+// -----------------------------------------------------------------------------
+
+function buildProfileText(profile: CandidateProfile, isViewer: boolean): string {
+  const parts: string[] = []
+
+  parts.push(`User ID: ${profile.id}`)
+  
+  if (profile.firstName || profile.lastName) {
+    parts.push(`Name: ${[profile.firstName, profile.lastName].filter(Boolean).join(" ")}`)
+  }
+
+  if (profile.jobTitle) {
+    parts.push(`Job Title: ${profile.jobTitle}`)
+  }
+
+  if (profile.company) {
+    parts.push(`Company: ${profile.company}`)
+  }
+
+  if (profile.companySummary) {
+    parts.push(`Company Summary: ${profile.companySummary}`)
+  }
+
+  if (profile.companyUrl) {
+    parts.push(`Company URL: ${profile.companyUrl}`)
+  }
+
+  if (profile.careerYears !== null) {
+    parts.push(`Years of Experience: ${profile.careerYears}`)
+  }
+
+  if (isViewer && profile.wantSummary) {
+    parts.push(`\nWHAT THEY WANT (IMPORTANT): ${profile.wantSummary}`)
+  }
+
+  if (profile.wantTags && profile.wantTags.length > 0) {
+    parts.push(`Want Tags: ${profile.wantTags.join(", ")}`)
+  }
+
+  if (isViewer && profile.offerSummary) {
+    parts.push(`What They Offer: ${profile.offerSummary}`)
+  }
+
+  if (profile.offerTags && profile.offerTags.length > 0) {
+    parts.push(`Offer Tags: ${profile.offerTags.join(", ")}`)
+  }
+
+  if (profile.needTags && profile.needTags.length > 0) {
+    parts.push(`Need Tags: ${profile.needTags.join(", ")}`)
+  }
+
+  if (profile.industryTags && profile.industryTags.length > 0) {
+    parts.push(`Industries: ${profile.industryTags.join(", ")}`)
+  }
+
+  if (profile.hobbies && profile.hobbies.length > 0) {
+    parts.push(`Hobbies: ${profile.hobbies.join(", ")}`)
+  }
+
+  if (profile.hobbyTags && profile.hobbyTags.length > 0) {
+    parts.push(`Hobby Tags: ${profile.hobbyTags.join(", ")}`)
+  }
+
+  if (profile.businessNeed) {
+    parts.push(`Business Need: ${profile.businessNeed}`)
+  }
+
+  if (profile.whyAttending) {
+    parts.push(`Why Attending: ${profile.whyAttending}`)
+  }
+
+  if (profile.roleIntent) {
+    parts.push(`Role Intent: ${profile.roleIntent}`)
+  }
+
+  if (profile.availabilityStatus) {
+    parts.push(`Availability: ${profile.availabilityStatus}`)
+  }
+
+  return parts.join("\n")
+}
+
