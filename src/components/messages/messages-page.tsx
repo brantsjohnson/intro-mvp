@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { createClientComponentClient } from "@/lib/supabase"
 import { MessageService, ThreadWithDetails } from "@/lib/message-service-simple"
 import { toast } from "sonner"
-import { ArrowLeft, MailPlus, MessageCircle, Search, Users } from "lucide-react"
+import { ArrowLeft, MailPlus, MessageCircle, MessageSquare, Search, Users } from "lucide-react"
 import { format, isThisYear, isToday } from "date-fns"
 
 interface EventAttendee {
@@ -330,11 +330,17 @@ export function MessagesPage() {
       {/* Header */}
       <header className="border-b border-border bg-card sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
-          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-            <GradientButton onClick={() => router.back()} size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </GradientButton>
+          <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
+            {/* Left: Back button (settings style) */}
+            <button
+              aria-label="Go back"
+              onClick={() => router.back()}
+              className="flex h-10 w-10 items-center justify-center rounded-full shadow-elevation transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary gradient-primary"
+            >
+              <ArrowLeft className="h-5 w-5 text-primary-foreground" />
+            </button>
 
+            {/* Center: Title and subtitle */}
             <div className="flex-1 text-center">
               <h1 className="text-lg font-semibold text-foreground">Messages</h1>
               {eventName && (
@@ -342,13 +348,27 @@ export function MessagesPage() {
               )}
             </div>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <GradientButton asChild>
-                <DialogTrigger className="flex items-center justify-center p-2">
-                  <MailPlus className="h-4 w-4" aria-hidden="true" />
-                  <span className="sr-only">New message</span>
-                </DialogTrigger>
-              </GradientButton>
+            {/* Right: Message icon + New Message button */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => router.push(`/messages?eventId=${eventId || ''}`)}
+                className="relative w-10 h-10 rounded-full flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20 gradient-primary"
+                style={{
+                  border: 'none'
+                }}
+                aria-label="Open messages"
+              >
+                <MessageSquare className="h-5 w-5 text-primary-foreground pointer-events-none" />
+              </button>
+              
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <GradientButton asChild className="rounded-full">
+                  <DialogTrigger className="flex items-center justify-center p-2">
+                    <MailPlus className="h-4 w-4" aria-hidden="true" />
+                    <span className="sr-only">New message</span>
+                  </DialogTrigger>
+                </GradientButton>
 
               <DialogContent className="sm:max-w-lg">
                 <DialogHeader>

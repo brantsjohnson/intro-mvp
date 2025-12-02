@@ -674,16 +674,18 @@ export function UserProfile({ userId }: UserProfileProps) {
       {/* Header */}
       <header className="border-b border-border bg-card sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <GradientButton
+          <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
+            {/* Left: Back button (settings style) */}
+            <button
+              aria-label="Go back"
               onClick={handleBack}
-              variant="filled"
-              size="icon"
+              className="flex h-10 w-10 items-center justify-center rounded-full shadow-elevation transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary gradient-primary"
             >
-              <ArrowLeft className="h-4 w-4" />
-            </GradientButton>
+              <ArrowLeft className="h-5 w-5 text-primary-foreground" />
+            </button>
             
-            <div className="text-center">
+            {/* Center: Title and subtitle */}
+            <div className="flex-1 text-center">
               <h1 className="text-lg font-semibold text-foreground">
                 {profile.first_name} {profile.last_name}
               </h1>
@@ -692,13 +694,18 @@ export function UserProfile({ userId }: UserProfileProps) {
               </p>
             </div>
 
-            <GradientButton
+            {/* Right: Message icon (home style) */}
+            <button
+              type="button"
               onClick={handleMessage}
-              variant="filled"
-              size="icon"
+              className="relative w-10 h-10 rounded-full flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20 gradient-primary"
+              style={{
+                border: 'none'
+              }}
+              aria-label="Open messages"
             >
-              <MessageSquare className="h-4 w-4" />
-            </GradientButton>
+              <MessageSquare className="h-5 w-5 text-primary-foreground pointer-events-none" />
+            </button>
           </div>
         </div>
       </header>

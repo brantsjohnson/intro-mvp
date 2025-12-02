@@ -1118,22 +1118,20 @@ export function HomePage() {
       {/* Header */}
       <header className="border-b border-border bg-card sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center">
-            {/* Left: User avatar with presence indicator */}
-            <button
-              onClick={() => router.push("/settings")}
-              className="focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-full"
-            >
-              <PresenceAvatar
-                src={profile.avatar_url || undefined}
-                fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
-                isPresent={isPresent}
-                size="md"
-              />
-            </button>
-            
-            {/* Right of avatar: Intro wordmark */}
-            <div className="ml-4">
+          <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
+            {/* Left: User avatar with presence indicator + Intro wordmark */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.push("/settings")}
+                className="focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-full"
+              >
+                <PresenceAvatar
+                  src={profile.avatar_url || undefined}
+                  fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
+                  isPresent={isPresent}
+                  size="md"
+                />
+              </button>
               <h1 
                 className="text-2xl font-bold text-accent"
                 style={{ 
@@ -1145,24 +1143,22 @@ export function HomePage() {
             </div>
             
             {/* Right: Message icon with gradient and unread badge */}
-            <div className="ml-auto">
-              <button
-                type="button"
-                onClick={() => router.push(`/messages?eventId=${currentEvent?.id || ''}`)}
-                className="relative w-10 h-10 rounded-full flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20 gradient-primary"
-                style={{
-                  border: 'none'
-                }}
-                aria-label="Open messages"
-              >
-                <MessageSquare className="h-5 w-5 text-primary-foreground pointer-events-none" />
-                {unreadMessageCount > 0 && (
-                  <span className="pointer-events-none absolute -top-1 -right-1 bg-accent text-accent-foreground text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
-                    {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
-                  </span>
-                )}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => router.push(`/messages?eventId=${currentEvent?.id || ''}`)}
+              className="relative w-10 h-10 rounded-full flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20 gradient-primary"
+              style={{
+                border: 'none'
+              }}
+              aria-label="Open messages"
+            >
+              <MessageSquare className="h-5 w-5 text-primary-foreground pointer-events-none" />
+              {unreadMessageCount > 0 && (
+                <span className="pointer-events-none absolute -top-1 -right-1 bg-accent text-accent-foreground text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                  {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
       </header>

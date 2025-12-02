@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2, MessageSquare } from "lucide-react"
 import { toast } from "sonner"
 
 import { createClientComponentClient } from "@/lib/supabase"
@@ -407,7 +407,7 @@ export function SettingsPage() {
   return (
     <div className="min-h-screen bg-background pb-16">
       <header className="sticky top-0 z-10 border-b border-border bg-card">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-4">
           <button
             aria-label="Go back"
             onClick={() => router.back()}
@@ -415,8 +415,18 @@ export function SettingsPage() {
           >
             <ArrowLeft className="h-5 w-5 text-primary-foreground" />
           </button>
-          <h1 className="text-lg font-semibold text-foreground sm:text-xl">Profile Settings</h1>
-          <div className="h-10 w-10" />
+          <h1 className="flex-1 text-center text-lg font-semibold text-foreground sm:text-xl">Profile Settings</h1>
+          <button
+            type="button"
+            onClick={() => router.push(`/messages?eventId=${selectedEventId || ''}`)}
+            className="relative w-10 h-10 rounded-full flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20 gradient-primary"
+            style={{
+              border: 'none'
+            }}
+            aria-label="Open messages"
+          >
+            <MessageSquare className="h-5 w-5 text-primary-foreground pointer-events-none" />
+          </button>
         </div>
       </header>
 
