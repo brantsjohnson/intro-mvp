@@ -1155,7 +1155,7 @@ export function HomePage() {
                 }}
                 aria-label="Open messages"
               >
-                <MessageSquare className="h-5 w-5 text-foreground pointer-events-none" />
+                <MessageSquare className="h-5 w-5 text-primary-foreground pointer-events-none" />
                 {unreadMessageCount > 0 && (
                   <span className="pointer-events-none absolute -top-1 -right-1 bg-accent text-accent-foreground text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
                     {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
