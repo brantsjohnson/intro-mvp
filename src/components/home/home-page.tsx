@@ -1155,9 +1155,9 @@ export function HomePage() {
                 }}
                 aria-label="Open messages"
               >
-                <MessageSquare className="h-5 w-5 text-white pointer-events-none" />
+                <MessageSquare className="h-5 w-5 text-foreground pointer-events-none" />
                 {unreadMessageCount > 0 && (
-                  <span className="pointer-events-none absolute -top-1 -right-1 bg-accent text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                  <span className="pointer-events-none absolute -top-1 -right-1 bg-accent text-accent-foreground text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
                     {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
                   </span>
                 )}
@@ -1256,7 +1256,7 @@ export function HomePage() {
                   <button
                     onClick={togglePresence}
                     disabled={isLoading}
-                    className="px-8 py-3 rounded-lg text-white font-medium text-lg mx-auto block gradient-success"
+                    className="px-8 py-3 rounded-lg text-primary-foreground font-medium text-lg mx-auto block gradient-success"
                     style={{
                       border: 'none'
                     }}

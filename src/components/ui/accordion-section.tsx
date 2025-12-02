@@ -30,7 +30,7 @@ export function AccordionSection({
             <AccordionTrigger className="text-left hover:no-underline py-4 px-6 bg-card">
               <span className="text-lg font-medium text-accent">{title}</span>
             </AccordionTrigger>
-            <AccordionContent className="pb-4 px-6 text-white bg-card">
+            <AccordionContent className="pb-4 px-6 text-foreground bg-card">
               {children}
             </AccordionContent>
           </div>

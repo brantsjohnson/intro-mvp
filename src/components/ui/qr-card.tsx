@@ -77,7 +77,7 @@ export function QRCard({ onScanClick, eventId, className }: QRCardProps) {
         </div>
       ) : qrCodeUrl ? (
         <div className="flex justify-center">
-          <div className="bg-white p-4 rounded-xl shadow-lg">
+          <div className="bg-card p-4 rounded-xl shadow-lg">
             <Image 
               src={qrCodeUrl} 
               alt="Your QR Code" 

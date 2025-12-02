@@ -47,94 +47,94 @@
 :root {
   --radius: 1rem; /* rounded-2xl equivalent */
   /* Core surfaces */
-  --background: #E0DFDC; /* warm paper */
-  --foreground: #111111;
-  --card: #F2F2F2; /* light gray cards */
-  --card-foreground: #111111;
-  --popover: #F2F2F2;
-  --popover-foreground: #111111;
+  --background: #111111; /* very dark gray/black */
+  --foreground: #FFFFFF; /* white text */
+  --card: #2A302F; /* dark gray cards */
+  --card-foreground: #FFFFFF; /* white text on cards */
+  --popover: #2A302F; /* dark gray popovers */
+  --popover-foreground: #FFFFFF; /* white text */
   /* Borders & subtle dividers */
-  --border: #E0E0DD;
-  --input: #F2F2F2; /* light gray input background */
-  --ring: rgba(156, 76, 5, 0.25); /* ember-tinted focus ring */
+  --border: #3A3A3A; /* subtle dark gray border */
+  --input: #2A302F; /* dark gray input background */
+  --ring: rgba(255, 255, 255, 0.2); /* light gray focus ring */
   /* Text */
-  --muted-foreground: #777777;
-  --muted: #F7F7F6;
+  --muted-foreground: #A9B1AA; /* light gray for secondary text */
+  --muted: #2A302F; /* dark gray muted background */
   /* Buttons */
-  --primary: #111111; /* neutral dark for buttons */
-  --primary-dark: #0A0A0A; /* darker for gradient if needed */
-  --primary-foreground: #F7F7F6; /* light text on dark button */
-  --secondary: #F7F7F6;
-  --secondary-foreground: #111111;
-  /* Rare accent (warm ember) */
-  --accent: #9C4C05;
-  --accent-foreground: #F7F7F6;
+  --primary: #2A302F; /* dark gray matching cards */
+  --primary-dark: #1A1A1A; /* darker for gradient if needed */
+  --primary-foreground: #FFFFFF; /* white text on buttons */
+  --secondary: #2A302F; /* dark gray */
+  --secondary-foreground: #FFFFFF; /* white text */
+  /* Neutral accent */
+  --accent: #5A5A5A; /* neutral dark gray */
+  --accent-foreground: #FFFFFF; /* white text */
   --destructive: #BF341E; /* keep red for destructive actions */
   /* Shadows */
-  --shadow-color: rgba(0, 0, 0, 0.1);
-  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.06);
-  --shadow-card: 0 2px 4px rgba(0,0,0,0.06), 0 6px 18px rgba(0,0,0,0.04);
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.2);
+  --shadow-card: 0 2px 4px rgba(0,0,0,0.2), 0 6px 18px rgba(0,0,0,0.15);
   /* Charts */
-  --chart-1: #1A2C24;
-  --chart-2: #9C4C05;
-  --chart-3: #4B915A;
-  --chart-4: #0B3E16;
-  --chart-5: #777777;
+  --chart-1: #4A4A4A;
+  --chart-2: #5A5A5A;
+  --chart-3: #6A6A6A;
+  --chart-4: #3A3A3A;
+  --chart-5: #A9B1AA;
   /* Sidebar */
-  --sidebar: #E0DFDC;
-  --sidebar-foreground: #111111;
-  --sidebar-primary: #111111;
-  --sidebar-primary-foreground: #F7F7F6;
-  --sidebar-accent: #F7F7F6;
-  --sidebar-accent-foreground: #111111;
-  --sidebar-border: #E0E0DD;
-  --sidebar-ring: rgba(156, 76, 5, 0.25);
+  --sidebar: #111111; /* very dark */
+  --sidebar-foreground: #FFFFFF; /* white text */
+  --sidebar-primary: #2A302F; /* dark gray */
+  --sidebar-primary-foreground: #FFFFFF; /* white text */
+  --sidebar-accent: #2A302F; /* dark gray */
+  --sidebar-accent-foreground: #FFFFFF; /* white text */
+  --sidebar-border: #3A3A3A; /* dark gray border */
+  --sidebar-ring: rgba(255, 255, 255, 0.2); /* light gray ring */
 }
 
 .dark {
   /* Core surfaces */
-  --background: #E0DFDC; /* warm paper */
-  --foreground: #111111;
-  --card: #F2F2F2; /* light gray cards */
-  --card-foreground: #111111;
-  --popover: #F2F2F2;
-  --popover-foreground: #111111;
+  --background: #111111; /* very dark gray/black */
+  --foreground: #FFFFFF; /* white text */
+  --card: #2A302F; /* dark gray cards */
+  --card-foreground: #FFFFFF; /* white text on cards */
+  --popover: #2A302F; /* dark gray popovers */
+  --popover-foreground: #FFFFFF; /* white text */
   /* Borders & subtle dividers */
-  --border: #E0E0DD;
-  --input: #F2F2F2; /* light gray input background */
-  --ring: rgba(156, 76, 5, 0.25); /* ember-tinted focus ring */
+  --border: #3A3A3A; /* subtle dark gray border */
+  --input: #2A302F; /* dark gray input background */
+  --ring: rgba(255, 255, 255, 0.2); /* light gray focus ring */
   /* Text */
-  --muted-foreground: #777777;
-  --muted: #F7F7F6;
+  --muted-foreground: #A9B1AA; /* light gray for secondary text */
+  --muted: #2A302F; /* dark gray muted background */
   /* Buttons */
-  --primary: #111111; /* neutral dark for buttons */
-  --primary-dark: #0A0A0A; /* darker for gradient if needed */
-  --primary-foreground: #F7F7F6; /* light text on dark button */
-  --secondary: #F7F7F6;
-  --secondary-foreground: #111111;
-  /* Rare accent (warm ember) */
-  --accent: #9C4C05;
-  --accent-foreground: #F7F7F6;
+  --primary: #2A302F; /* dark gray matching cards */
+  --primary-dark: #1A1A1A; /* darker for gradient if needed */
+  --primary-foreground: #FFFFFF; /* white text on buttons */
+  --secondary: #2A302F; /* dark gray */
+  --secondary-foreground: #FFFFFF; /* white text */
+  /* Neutral accent */
+  --accent: #5A5A5A; /* neutral dark gray */
+  --accent-foreground: #FFFFFF; /* white text */
   --destructive: #BF341E; /* keep red for destructive actions */
   /* Shadows */
-  --shadow-color: rgba(0, 0, 0, 0.1);
-  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.06);
-  --shadow-card: 0 2px 4px rgba(0,0,0,0.06), 0 6px 18px rgba(0,0,0,0.04);
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.2);
+  --shadow-card: 0 2px 4px rgba(0,0,0,0.2), 0 6px 18px rgba(0,0,0,0.15);
   /* Charts */
-  --chart-1: #1A2C24;
-  --chart-2: #9C4C05;
-  --chart-3: #4B915A;
-  --chart-4: #0B3E16;
-  --chart-5: #777777;
+  --chart-1: #4A4A4A;
+  --chart-2: #5A5A5A;
+  --chart-3: #6A6A6A;
+  --chart-4: #3A3A3A;
+  --chart-5: #A9B1AA;
   /* Sidebar */
-  --sidebar: #E0DFDC;
-  --sidebar-foreground: #111111;
-  --sidebar-primary: #111111;
-  --sidebar-primary-foreground: #F7F7F6;
-  --sidebar-accent: #F7F7F6;
-  --sidebar-accent-foreground: #111111;
-  --sidebar-border: #E0E0DD;
-  --sidebar-ring: rgba(156, 76, 5, 0.25);
+  --sidebar: #111111; /* very dark */
+  --sidebar-foreground: #FFFFFF; /* white text */
+  --sidebar-primary: #2A302F; /* dark gray */
+  --sidebar-primary-foreground: #FFFFFF; /* white text */
+  --sidebar-accent: #2A302F; /* dark gray */
+  --sidebar-accent-foreground: #FFFFFF; /* white text */
+  --sidebar-border: #3A3A3A; /* dark gray border */
+  --sidebar-ring: rgba(255, 255, 255, 0.2); /* light gray ring */
 }
 
 @layer base {
@@ -154,7 +154,7 @@
   }
   
   .gradient-accent {
-    background: linear-gradient(135deg, var(--accent), #6E3303);
+    background: var(--accent); /* solid neutral gray */
   }
   
   .gradient-success {
@@ -176,7 +176,7 @@
   
   /* Custom ring utilities */
   .ring-subtle {
-    @apply ring-1 ring-black/5;
+    @apply ring-1 ring-white/10;
   }
   
   /* Typography scale */
