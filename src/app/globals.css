@@ -49,13 +49,13 @@
   /* Core surfaces */
   --background: #E0DFDC; /* warm paper */
   --foreground: #111111;
-  --card: #FFFFFF; /* white cards */
+  --card: #F2F2F2; /* light gray cards */
   --card-foreground: #111111;
-  --popover: #FFFFFF;
+  --popover: #F2F2F2;
   --popover-foreground: #111111;
   /* Borders & subtle dividers */
   --border: #E0E0DD;
-  --input: #FFFFFF; /* white input background */
+  --input: #F2F2F2; /* light gray input background */
   --ring: rgba(156, 76, 5, 0.25); /* ember-tinted focus ring */
   /* Text */
   --muted-foreground: #777777;
@@ -95,13 +95,13 @@
   /* Core surfaces */
   --background: #E0DFDC; /* warm paper */
   --foreground: #111111;
-  --card: #FFFFFF; /* white cards */
+  --card: #F2F2F2; /* light gray cards */
   --card-foreground: #111111;
-  --popover: #FFFFFF;
+  --popover: #F2F2F2;
   --popover-foreground: #111111;
   /* Borders & subtle dividers */
   --border: #E0E0DD;
-  --input: #FFFFFF; /* white input background */
+  --input: #F2F2F2; /* light gray input background */
   --ring: rgba(156, 76, 5, 0.25); /* ember-tinted focus ring */
   /* Text */
   --muted-foreground: #777777;
