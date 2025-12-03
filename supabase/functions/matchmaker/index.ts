@@ -77,6 +77,9 @@ interface ScoreBreakdown {
     viewerRole?: { role_function: string; role_seniority: string; confidence: number }
     candidateRole?: { role_function: string; role_seniority: string; confidence: number }
     viewerPersona?: { sector: string; buyer_functions: string[]; leader_required: boolean }
+    aiExplanation?: string
+    excluded?: boolean
+    exclusionReason?: string
   }
 }
 
@@ -793,8 +796,66 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
     poolSize: candidates.length
   })
 
-  // Score all candidates (continuous ranking - NO thresholds, all candidates scored and ranked)
-  const scored = scoreCandidates(viewerProfile, want, candidates)
+  // Score all candidates using rule-based scoring (for pre-filtering)
+  const initialScored = scoreCandidates(viewerProfile, want, candidates)
+  
+  // Pre-filter to top 25 candidates for AI evaluation
+  const PRE_FILTER_LIMIT = 25
+  const preFilteredCandidates = preFilterCandidates(initialScored, PRE_FILTER_LIMIT)
+  
+  console.log("pre_filtering_complete", {
+    eventId,
+    userId,
+    totalCandidates: candidates.length,
+    preFilteredCount: preFilteredCandidates.length
+  })
+
+  // Try AI matching if available, otherwise use rule-based scoring
+  const openai = getOpenAIClient()
+  let scored: ScoredCandidate[]
+  let usingAI = false
+  
+  if (openai && preFilteredCandidates.length > 0) {
+    try {
+      // Extract candidate profiles from pre-filtered scored candidates
+      const candidateProfiles = preFilteredCandidates.map(s => s.candidate)
+      
+      // Use AI to score the pre-filtered candidates
+      const aiScored = await scoreCandidatesWithAI(viewerProfile, want, candidateProfiles, openai)
+      
+      // Combine AI-scored candidates with remaining candidates (with lower scores)
+      const aiScoredIds = new Set(aiScored.map(s => s.candidate.id))
+      const remainingScored = initialScored.filter(s => !aiScoredIds.has(s.candidate.id))
+      
+      // AI-scored candidates first, then remaining rule-based scored candidates
+      scored = [...aiScored, ...remainingScored]
+      usingAI = true
+      
+      console.log("ai_matching_used", {
+        eventId,
+        userId,
+        aiScoredCount: aiScored.length,
+        remainingCount: remainingScored.length
+      })
+    } catch (error) {
+      console.error("ai_matching_failed_fallback", {
+        eventId,
+        userId,
+        error: error?.message ?? String(error)
+      })
+      // Fallback to rule-based scoring
+      scored = initialScored
+      usingAI = false
+    }
+  } else {
+    // No OpenAI available or no candidates to evaluate
+    scored = initialScored
+    usingAI = false
+    
+    if (!openai) {
+      console.log("ai_matching_skipped_no_openai", { eventId, userId })
+    }
+  }
 
   // Select top 3 deterministically (continuous ranking: sort by score, take top N)
   // No minimum score requirement - candidates compete relatively, not absolutely
@@ -849,7 +910,7 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
   })
 
   // Upsert matches
-  const inserted = await upsertMatches(supabase, eventId, userId, selected, want, viewerProfile)
+  const inserted = await upsertMatches(supabase, eventId, userId, selected, want, viewerProfile, usingAI)
 
   // Debug logging for match breakdown with persona intelligence
   console.log("debug_match_breakdown", {
@@ -1284,6 +1345,76 @@ function scoreCandidates(
 }
 
 // -----------------------------------------------------------------------------
+// Helper Functions for AI Matching
+// -----------------------------------------------------------------------------
+
+function categorizeConnectionType(
+  connectionTypes: string[] | null,
+  businessNeed: string | null
+): string {
+  if (!connectionTypes || connectionTypes.length === 0) {
+    return businessNeed ? "Business Opportunities" : "General Networking"
+  }
+  
+  const types = connectionTypes.map(t => t.toLowerCase())
+  
+  if (types.some(t => t.includes("mentor") || t.includes("mentorship"))) {
+    return "Mentorship"
+  }
+  if (types.some(t => t.includes("recruit") || t.includes("hiring") || t.includes("job"))) {
+    return "Recruiting/Job Seeking"
+  }
+  if (types.some(t => t.includes("client") || t.includes("partner") || t.includes("business"))) {
+    return "Business Opportunities"
+  }
+  
+  return "General Networking"
+}
+
+function determineSeniorityLevel(
+  jobTitle: string | null,
+  careerYears: number | null
+): string {
+  if (!jobTitle) {
+    if (careerYears && careerYears < 2) return "Junior"
+    if (careerYears && careerYears >= 10) return "Senior"
+    return "Mid"
+  }
+  
+  const title = jobTitle.toLowerCase()
+  
+  // Very Senior
+  if (title.includes("ceo") || title.includes("founder") || title.includes("co-founder") ||
+      title.includes("president") || title.includes("chief") || title.includes("vp ") ||
+      title.includes("vice president")) {
+    return "Very Senior"
+  }
+  
+  // Senior
+  if (title.includes("director") || title.includes("head of") || title.includes("senior") ||
+      (careerYears && careerYears >= 8)) {
+    return "Senior"
+  }
+  
+  // Junior
+  if (title.includes("intern") || title.includes("student") || title.includes("junior") ||
+      title.includes("associate") || (careerYears && careerYears < 2)) {
+    return "Junior"
+  }
+  
+  // Mid-level
+  return "Mid"
+}
+
+function preFilterCandidates(
+  scored: ScoredCandidate[],
+  limit: number
+): ScoredCandidate[] {
+  const sorted = [...scored].sort((a, b) => b.breakdown.totalScore - a.breakdown.totalScore)
+  return sorted.slice(0, limit)
+}
+
+// -----------------------------------------------------------------------------
 // Selection
 // -----------------------------------------------------------------------------
 
@@ -1298,6 +1429,287 @@ function selectTopN(
 }
 
 // -----------------------------------------------------------------------------
+// AI-Based Matchmaking with Decision Tree Logic
+// -----------------------------------------------------------------------------
+
+interface AIMatchResult {
+  candidateId: string
+  score: number
+  explanation: string
+  excluded: boolean
+  exclusionReason?: string
+}
+
+async function scoreCandidatesWithAI(
+  viewerProfile: ViewerProfile,
+  want: ViewerWant,
+  candidates: CandidateProfile[],
+  openai: OpenAI
+): Promise<ScoredCandidate[]> {
+  
+  // Determine primary goal from businessNeed or connectionTypes
+  const primaryGoal = viewerProfile.businessNeed || 
+    (viewerProfile.connectionTypes && viewerProfile.connectionTypes.length > 0 
+      ? viewerProfile.connectionTypes[0] 
+      : "General Networking")
+  
+  // Determine connection type category
+  const connectionType = categorizeConnectionType(viewerProfile.connectionTypes, viewerProfile.businessNeed)
+  
+  // Determine seniority level for guardrails
+  const viewerSeniority = determineSeniorityLevel(viewerProfile.jobTitle, viewerProfile.careerYears)
+  
+  // Build comprehensive prompt with decision tree logic
+  const systemPrompt = `You are the Intro Matchmaker AI, an expert system designed to create the most relevant and satisfying professional connections at events. Your primary goal is to find the best possible match (User B) for User A's explicit goal, ensuring practical value by prioritizing contextual fit (Company Specialization + Expertise) over superficial titles. Avoiding mismatches is as important as finding good matches.
+
+================================================================================
+MATCHING RULES (BY PRIORITY)
+================================================================================
+
+PRIORITY 1 (HIGHEST): Business Need (Primary Filter)
+- If User A has a specific business need (e.g., "Need a patent attorney"), the match MUST have their Expertise/Skills AND Company Specialization directly aligned with solving that need.
+- Job Title alone is INSUFFICIENT. You MUST verify both Expertise/Skills AND Company Specialization match the need.
+- Example: If User A needs "patent attorney", a candidate with job title "Attorney" but whose company specializes in employment law should be EXCLUDED.
+
+PRIORITY 2 (HIGH): Contextual Relevance
+- Matching is based on the COMBINATION of Job Title + Expertise/Skills + Company Specialization.
+- You MUST look at these three layers together to determine true capability and domain context.
+- DO NOT rely on job title alone. Always cross-reference with Expertise/Skills and Company Specialization.
+
+PRIORITY 3 (MEDIUM): General Connections
+- If the goal is "General Networking", prioritize matches based on:
+  * Shared Interests/Hobbies (for vibe/chemistry)
+  * Similar Functional Backgrounds/Fields
+  * Aligned Seniority (peers preferred)
+
+PRIORITY 4 (MEDIUM): Business Opportunities
+- Matching requires aligning on a value exchange based on specific needs (e.g., selling, co-founding, partnering).
+- Use Company Specialization and Role Relevance as the primary signals.
+- Look for complementary services, shared customer bases, or specific decision-making roles.
+
+PRIORITY 5 (MEDIUM): Mentorship
+- For mentees, find mentors with:
+  * Relevant Years of Experience
+  * An accessible seniority gap (not too disconnected)
+  * Expertise in the domains they wish to mentor in
+
+PRIORITY 6 (HIGH): Explanation Quality
+- The output MUST generate a clear, concise, and persuasive explanation (max 3 sentences).
+- AVOID simply restating job titles.
+- FOCUS on practical value and contextual evidence (Expertise and Company Specialization).
+- Explain WHY the match is valuable, not just WHAT their title is.
+
+================================================================================
+GUARDRAILS (STRICTLY ENFORCED - NO EXCEPTIONS)
+================================================================================
+
+GUARDRAIL 1: Irrelevant Domain Exclusion
+- STRICTLY EXCLUDE candidates whose company specialization or primary skills CONTRADICT User A's specific need, even if the job title is identical.
+- Example: If User A needs "patent attorney" and a candidate is an "Attorney" but their company specializes in employment law, they MUST be EXCLUDED.
+- Rationale: Prevents useless matches like matching a founder needing IP law with an employment lawyer.
+
+GUARDRAIL 2: Seniority Mismatch
+- STRICTLY AVOID matching very junior users (e.g., Student, IC) with very senior users (e.g., VP, CEO).
+- EXCEPTIONS (only if ALL conditions met):
+  * The senior person is explicitly marked for "Mentorship" OR
+  * The connection type is explicitly 'Recruiting/Job Seeking' with a relevant recruiter
+- Rationale: Prevents the event from being seen as a detractor by senior attendees.
+
+GUARDRAIL 3: Title Overweighting
+- DO NOT assume a job title (e.g., "Marketing Director") automatically equates to a specific expertise (e.g., "SEO expert").
+- Contextual data (Expertise/Skills + Company Specialization) MUST confirm the ability.
+- If you cannot confirm capability from contextual data, score lower or exclude.
+- Rationale: Addresses the problem of assuming capability wrongly based on title alone.
+
+GUARDRAIL 4: Avoid Repetitive Explanations
+- DO NOT generate explanations that just repeat job titles or superficial profile data.
+- FOCUS on value and contextual fit.
+- Explain the SPECIFIC connection between User A's need and User B's demonstrated capability (from Expertise/Skills + Company Specialization).
+- Rationale: Addresses the problem of AI generating wrong or unhelpful explanations.
+
+================================================================================
+OUTPUT FORMAT
+================================================================================
+
+Return a JSON object with this structure:
+{
+  "matches": [
+    {
+      "candidateId": "uuid",
+      "score": 0.0-1.0,
+      "explanation": "Max 3 sentences. Focus on practical value and contextual evidence (Expertise and Company Specialization), NOT job titles. Explain WHY the match is valuable.",
+      "excluded": false
+    }
+  ],
+  "excluded": [
+    {
+      "candidateId": "uuid",
+      "exclusionReason": "Specific reason referencing which guardrail was violated (e.g., 'Company specialization in employment law contradicts need for patent attorney')"
+    }
+  ]
+}
+
+SCORING GUIDELINES:
+- 0.9-1.0: Perfect match (meets all criteria, strong contextual fit, all three layers align)
+- 0.7-0.89: Good match (meets most criteria, good contextual fit)
+- 0.5-0.69: Acceptable match (some fit, may have gaps in one layer)
+- 0.0-0.49: Poor match (should be excluded or scored very low)
+
+REMEMBER: Job Title + Expertise/Skills + Company Specialization must be evaluated TOGETHER. Never rely on job title alone.`
+
+  const userPrompt = `USER A (Viewer) Profile:
+- Name: ${viewerProfile.firstName || ''} ${viewerProfile.lastName || ''}
+- Job Title: ${viewerProfile.jobTitle || 'Not specified'}
+- Company: ${viewerProfile.company || 'Not specified'}
+- Company Specialization: ${viewerProfile.companySummary || 'Not specified'}
+- Years of Experience: ${viewerProfile.careerYears || 'Unknown'}
+- Seniority Level: ${viewerSeniority}
+- Primary Goal: ${primaryGoal}
+- Connection Type: ${connectionType}
+- Business Need: ${viewerProfile.businessNeed || 'Not specified'}
+- Why Attending: ${viewerProfile.whyAttending || 'Not specified'}
+- Expertise/Skills: ${[...viewerProfile.offerTags, ...viewerProfile.linkedinSkills].join(', ') || 'Not specified'}
+- Industries: ${viewerProfile.industryTags.join(', ') || 'Not specified'}
+- Interests/Hobbies: ${[...viewerProfile.hobbyTags, ...viewerProfile.hobbies].join(', ') || 'Not specified'}
+- Looking for: ${viewerProfile.needTags.join(', ') || 'Not specified'}
+- Can offer: ${viewerProfile.offerTags.join(', ') || 'Not specified'}
+
+CANDIDATES TO EVALUATE (${candidates.length} total):
+${candidates.map((c, idx) => `
+${idx + 1}. Candidate ID: ${c.id}
+   - Name: ${c.firstName || ''} ${c.lastName || ''}
+   - Job Title: ${c.jobTitle || 'Not specified'}
+   - Company: ${c.company || 'Not specified'}
+   - Company Specialization: ${c.companySummary || 'Not specified'}
+   - Years of Experience: ${c.careerYears || 'Unknown'}
+   - Expertise/Skills: ${[...c.offerTags, ...c.linkedinSkills].join(', ') || 'Not specified'}
+   - Industries: ${c.industryTags.join(', ') || 'Not specified'}
+   - Interests/Hobbies: ${[...c.hobbyTags, ...c.hobbies].join(', ') || 'Not specified'}
+   - Looking for: ${c.wantTags.join(', ') || 'Not specified'}
+   - Can offer: ${c.offerTags.join(', ') || 'Not specified'}
+   - Connection Types: ${c.connectionTypes?.join(', ') || 'Not specified'}
+`).join('\n')}
+
+Evaluate each candidate following the decision tree rules. Return JSON with matches (sorted by score descending) and excluded candidates.`
+
+  try {
+    console.log("ai_matching_started", {
+      viewerId: viewerProfile.id,
+      candidateCount: candidates.length,
+      connectionType,
+      viewerSeniority
+    })
+
+    const response = await openai.chat.completions.create({
+      model: Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini",
+      temperature: 0.2, // Lower temperature for more consistent scoring
+      max_tokens: 2000, // Adjust based on candidate count
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      response_format: { type: "json_object" }
+    })
+
+    const result = JSON.parse(response.choices[0].message.content)
+    
+    // Create a map of candidate IDs to AI results
+    const aiResultsMap = new Map<string, AIMatchResult>()
+    
+    // Process matches
+    if (result.matches && Array.isArray(result.matches)) {
+      result.matches.forEach((match: AIMatchResult) => {
+        aiResultsMap.set(match.candidateId, match)
+      })
+    }
+    
+    // Process excluded (mark them with score 0)
+    if (result.excluded && Array.isArray(result.excluded)) {
+      result.excluded.forEach((excluded: { candidateId: string; exclusionReason: string }) => {
+        aiResultsMap.set(excluded.candidateId, {
+          candidateId: excluded.candidateId,
+          score: 0,
+          explanation: `Excluded: ${excluded.exclusionReason}`,
+          excluded: true,
+          exclusionReason: excluded.exclusionReason
+        })
+      })
+    }
+    
+    const excludedCount = result.excluded?.length || 0
+    const matchedCount = result.matches?.length || 0
+    
+    console.log("ai_matching_completed", {
+      viewerId: viewerProfile.id,
+      matchedCount,
+      excludedCount,
+      totalEvaluated: candidates.length
+    })
+    
+    // Convert to ScoredCandidate format
+    const scored: ScoredCandidate[] = candidates.map(candidate => {
+      const aiResult = aiResultsMap.get(candidate.id)
+      
+      if (!aiResult) {
+        // Fallback: candidate wasn't in AI response, give neutral score
+        console.warn("ai_matching_missing_candidate", {
+          candidateId: candidate.id,
+          viewerId: viewerProfile.id
+        })
+        return {
+          candidate,
+          breakdown: {
+            wantFit: 0.5,
+            mutualValue: 0.5,
+            relationshipFit: 0.5,
+            totalScore: 0.5,
+            wantFitComponents: {
+              semantic: 0.5,
+              tagOverlap: 0.5,
+              roleBonus: 0,
+              wantFit: 0.5
+            }
+          }
+        }
+      }
+      
+      // Use AI score and explanation
+      return {
+        candidate,
+        breakdown: {
+          wantFit: aiResult.score,
+          mutualValue: aiResult.excluded ? 0 : aiResult.score * 0.8, // Estimate
+          relationshipFit: aiResult.excluded ? 0 : aiResult.score * 0.7, // Estimate
+          totalScore: aiResult.excluded ? 0 : aiResult.score,
+          wantFitComponents: {
+            semantic: aiResult.score,
+            tagOverlap: aiResult.score * 0.8,
+            roleBonus: 0,
+            wantFit: aiResult.score,
+            aiExplanation: aiResult.explanation, // Store explanation for later use
+            excluded: aiResult.excluded,
+            exclusionReason: aiResult.exclusionReason
+          }
+        }
+      }
+    })
+    
+    // Filter out excluded candidates or keep them with score 0 (they'll rank at the bottom)
+    return scored.sort((a, b) => b.breakdown.totalScore - a.breakdown.totalScore)
+    
+  } catch (error) {
+    console.error("ai_matching_error", {
+      viewerId: viewerProfile.id,
+      error: error?.message ?? String(error),
+      stack: error?.stack
+    })
+    // Fallback to original scoring - but we need to return something
+    // This should not happen as we'll handle fallback in processUser
+    throw error
+  }
+}
+
+// -----------------------------------------------------------------------------
 // Upsert Matches
 // -----------------------------------------------------------------------------
 
@@ -1307,7 +1719,8 @@ async function upsertMatches(
   viewerId: string,
   matches: ScoredCandidate[],
   want: ViewerWant,
-  viewerProfile: ViewerProfile
+  viewerProfile: ViewerProfile,
+  usingAI: boolean = false
 ): Promise<number> {
   // Delete existing matches for this viewer only
   await supabase
@@ -1322,10 +1735,23 @@ async function upsertMatches(
   }
 
   // Generate explanations for all matches (sequential to avoid rate limits)
+  // Use AI explanation if available, otherwise generate one
   const explanations = []
   for (const match of matches) {
-    const explanation = await buildReasonSummary(want, match, viewerProfile)
-    explanations.push(explanation)
+    // Check if AI explanation exists
+    const aiExplanation = match.breakdown.wantFitComponents.aiExplanation
+    if (aiExplanation) {
+      explanations.push(aiExplanation)
+      console.log("using_ai_explanation", {
+        eventId,
+        viewerId,
+        candidateId: match.candidate.id
+      })
+    } else {
+      // Fallback to existing explanation generation
+      const explanation = await buildReasonSummary(want, match, viewerProfile)
+      explanations.push(explanation)
+    }
   }
 
   // Insert new matches
@@ -1359,7 +1785,7 @@ async function upsertMatches(
         selection_rule_version: "business_pool_persona_v1"
       },
       match_explanation_text: explanations[index],
-      match_algorithm_version: "v3_persona_intelligence"
+      match_algorithm_version: usingAI ? "v4_ai_decision_tree" : "v3_persona_intelligence"
     }
   })
 
