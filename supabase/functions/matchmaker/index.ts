@@ -853,7 +853,18 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
     usingAI = false
     
     if (!openai) {
-      console.log("ai_matching_skipped_no_openai", { eventId, userId })
+      console.warn("ai_matching_skipped_no_openai", { 
+        eventId, 
+        userId,
+        reason: "OPENAI_API_KEY environment variable is not set in Supabase Edge Function",
+        fix: "Set the OPENAI_API_KEY secret using: supabase secrets set OPENAI_API_KEY"
+      })
+    } else if (preFilteredCandidates.length === 0) {
+      console.log("ai_matching_skipped_no_candidates", { 
+        eventId, 
+        userId,
+        reason: "No pre-filtered candidates available for AI evaluation"
+      })
     }
   }
 
