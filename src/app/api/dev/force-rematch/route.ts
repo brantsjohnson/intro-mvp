@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { refreshEventMatchExplanations } from "@/lib/matching/refresh-explanations"
 
 type MatchmakerPayload = {
   event_id: string
@@ -73,17 +72,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const refreshResult = await refreshEventMatchExplanations(supabase, eventId, {
-      userIds: userId ? [userId] : undefined,
-      force: Boolean(forceBackfill),
-    })
-
     return NextResponse.json({
       success: true,
       eventId,
       userId: payload.user_id ?? null,
       matchmaker: matchmakerJson,
-      explanationsRefresh: refreshResult,
     })
   } catch (error: any) {
     console.error("[force-rematch] error", error)

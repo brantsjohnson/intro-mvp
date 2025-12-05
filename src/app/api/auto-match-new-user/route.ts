@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { refreshEventMatchExplanations } from '@/lib/matching/refresh-explanations'
 
 export async function POST(request: NextRequest) {
   try {
@@ -70,10 +69,6 @@ export async function POST(request: NextRequest) {
     })
 
     const matchmakerResult = await matchmakerResponse.json()
-
-    await refreshEventMatchExplanations(supabase, eventData.id, {
-      userIds: [userId],
-    })
 
     if (!matchmakerResponse.ok) {
       return NextResponse.json({ 

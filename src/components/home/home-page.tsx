@@ -23,7 +23,8 @@ import {
   Plus,
   QrCode,
   UserPlus,
-  ArrowRight
+  ArrowRight,
+  RefreshCw
 } from "lucide-react"
 
 interface StructuredMatchExplanation {
@@ -45,6 +46,7 @@ interface MatchWithProfile {
   is_present: boolean
   structured_explanation?: StructuredMatchExplanation
   connection_type?: string
+  algorithm_version?: string | null
 }
 
 interface ConnectionWithProfile {
@@ -94,6 +96,7 @@ export function HomePage() {
   const [unreadMessageCount, setUnreadMessageCount] = useState(0)
   const [withdrawTarget, setWithdrawTarget] = useState<ManualConnectionItem | null>(null)
   const [isWithdrawing, setIsWithdrawing] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   
   const router = useRouter()
   const supabase = createClientComponentClient() as any
@@ -274,7 +277,7 @@ export function HomePage() {
       // Load current event from attendance join events (most recent)
       const { data: attendanceRows, error: attendanceError } = await supabase
         .from("attendance")
-        .select("checked_in_at, event_id, events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)")
+        .select("checked_in_at, event_id, onboarding_completed, why_attending_text, connection_types_selected, connection_followups_json, business_need_text, events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -303,6 +306,29 @@ export function HomePage() {
           }
           setCurrentEvent(mappedEvent)
           setIsPresent(!!row.checked_in_at)
+          
+          // Recreate attendance record from onboarding data on reload
+          // This ensures derived fields (tags, summaries, embeddings) are regenerated
+          if (row.onboarding_completed && (row.why_attending_text || row.connection_types_selected)) {
+            console.log("Recreating attendance record from onboarding data on reload")
+            try {
+              // Call derive-attendance to regenerate derived fields from onboarding data
+              await fetch('/api/derive-attendance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  eventId: row.events.event_id, 
+                  userId: user.id 
+                })
+              }).catch(error => {
+                console.error('Error recreating attendance on reload (background):', error)
+                // Don't show error to user, this is background processing
+              })
+            } catch (error) {
+              console.error('Error calling derive-attendance on reload:', error)
+            }
+          }
+          
           loadMatches(mappedEvent.id)
           const connectionData = await loadConnections(mappedEvent.id)
           await loadDirectory(mappedEvent.id, connectionData)
@@ -339,7 +365,7 @@ export function HomePage() {
     try {
       const { data: edges, error: edgesError } = await supabase
         .from("connections")
-        .select("a_id, b_id, match_explanation_text, match_score_breakdown_json, created_at")
+        .select("a_id, b_id, match_explanation_text, match_score_breakdown_json, created_at, match_algorithm_version")
         .eq("event_id", eventId)
         .eq("connection_kind", "system_match")
         .or(`a_id.eq.${user.id},b_id.eq.${user.id}`)
@@ -457,6 +483,8 @@ export function HomePage() {
           
           const explanation = e.match_explanation_text || matchData.summary || ""
           const structuredExplanation = (matchData as any).structured_explanation as StructuredMatchExplanation | undefined
+          const algorithmVersion = e.match_algorithm_version || null
+          const isAIMatch = algorithmVersion === "v4_ai_decision_tree"
 
           return {
             id: e.created_at || `${u.user_id}-${explanation}`,
@@ -468,6 +496,7 @@ export function HomePage() {
             is_present: false,
             structured_explanation: structuredExplanation,
             connection_type: structuredExplanation?.connection_type,
+            algorithm_version: algorithmVersion,
           }
         })
         .filter(Boolean) as MatchWithProfile[]
@@ -480,7 +509,12 @@ export function HomePage() {
       })
       
       console.log(`[loadMatches] Final matches: ${formatted.length}, showing top 3`)
-      console.log(`[loadMatches] Match summaries:`, formatted.map(m => ({ name: `${m.profile.first_name} ${m.profile.last_name}`, summary: m.summary?.substring(0, 50) })))
+      console.log(`[loadMatches] Match summaries:`, formatted.map(m => ({ 
+        name: `${m.profile.first_name} ${m.profile.last_name}`, 
+        summary: m.summary?.substring(0, 50),
+        algorithm: m.algorithm_version || 'unknown',
+        isAI: m.algorithm_version === "v4_ai_decision_tree" ? "AI" : m.algorithm_version === "v3_persona_intelligence" ? "Rule-based" : "Unknown"
+      })))
       
       setMatches(formatted.slice(0, 3))
     } catch (error) {
@@ -1089,6 +1123,48 @@ export function HomePage() {
     }
   }
 
+  const handleRefreshMatches = async () => {
+    if (!user || !currentEvent || !currentEvent.matchmaking_enabled) {
+      return
+    }
+
+    setIsRefreshing(true)
+    const loadingToast = toast.loading("Refreshing matches...")
+
+    try {
+      const response = await fetch('/api/match-incremental', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          eventId: currentEvent.id,
+          userId: user.id,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to refresh matches' }))
+        throw new Error(errorData.error || 'Failed to refresh matches')
+      }
+
+      const result = await response.json()
+      
+      // Wait a moment for the matchmaker to complete processing
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Reload matches
+      await loadMatches(currentEvent.id)
+      
+      toast.success("Matches refreshed!", { id: loadingToast })
+    } catch (error: any) {
+      console.error('Error refreshing matches:', error)
+      toast.error(error?.message || "Failed to refresh matches. Please try again.", { id: loadingToast })
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>
@@ -1280,10 +1356,26 @@ export function HomePage() {
             <div className="space-y-3">
               {/* Title Section */}
               <div className="px-1">
-                <h2 className="flex items-center space-x-2 text-lg font-semibold text-foreground">
-                  <Users className="h-5 w-5" />
-                  <span>People You Should Know</span>
-                </h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="flex items-center space-x-2 text-lg font-semibold text-foreground">
+                    <Users className="h-5 w-5" />
+                    <span>People You Should Know</span>
+                  </h2>
+                  {currentEvent.matchmaking_enabled && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRefreshMatches}
+                      disabled={isRefreshing}
+                      className="h-8 w-8 p-0 hidden"
+                      title="Refresh matches"
+                    >
+                      <RefreshCw 
+                        className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} 
+                      />
+                    </Button>
+                  )}
+                </div>
               </div>
               
               {/* Matches Container */}

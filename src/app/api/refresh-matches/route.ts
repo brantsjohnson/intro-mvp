@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { refreshEventMatchExplanations } from '@/lib/matching/refresh-explanations'
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,10 +49,6 @@ export async function POST(request: NextRequest) {
       }
 
       const matchmakerResult = await matchmakerResponse.json()
-
-      await refreshEventMatchExplanations(supabase, eventId, {
-        userIds: [newUserId],
-      })
 
       // Count how many matches were created for this user
       const { count, error: countError } = await supabase
