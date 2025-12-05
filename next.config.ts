@@ -13,11 +13,6 @@ const nextConfig: NextConfig = {
     // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
-  experimental: {
-    turbo: {
-      root: process.cwd()
-    }
-  }
 };
 
 export default nextConfig;
