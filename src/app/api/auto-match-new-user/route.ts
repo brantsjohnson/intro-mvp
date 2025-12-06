@@ -62,9 +62,10 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ 
-        event_code: eventCode,
+        event_id: eventData.id,
         user_id: userId,
-        mode: 'incremental'
+        mode: 'incremental',
+        use_ai: true // Enable AI when user joins event
       })
     })
 
