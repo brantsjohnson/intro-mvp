@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,6 +20,7 @@ export function AuthForm() {
   const [isLoading, setIsLoading] = useState(false)
   
   const searchParams = useSearchParams()
+  const router = useRouter()
   const eventCode = searchParams.get('eventCode')
   const supabase = createClientComponentClient()
 
@@ -96,9 +97,9 @@ export function AuthForm() {
           toast.success("Signed in successfully")
           // Redirect to event join if eventCode is provided, otherwise go to home
           if (eventCode) {
-            window.location.href = `/event/join?code=${eventCode}`
+            router.push(`/event/join?code=${eventCode}`)
           } else {
-            window.location.href = "/"
+            router.push("/")
           }
         }
       }
