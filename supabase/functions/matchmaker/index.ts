@@ -1646,6 +1646,33 @@ async function scoreCandidatesWithAI(
   openai: OpenAI
 ): Promise<ScoredCandidate[]> {
   
+  // Filter out candidates from the same company
+  const normalizeCompany = (company: string | null): string => {
+    if (!company) return ""
+    return company.toLowerCase().trim().replace(/[^a-z0-9]+/g, "")
+  }
+  
+  const viewerCompanyNormalized = normalizeCompany(viewerProfile.company)
+  const filteredCandidates = candidates.filter(candidate => {
+    const candidateCompanyNormalized = normalizeCompany(candidate.company)
+    // Exclude if companies match (case-insensitive, ignoring special characters)
+    return candidateCompanyNormalized === "" || candidateCompanyNormalized !== viewerCompanyNormalized
+  })
+  
+  const excludedSameCompanyCount = candidates.length - filteredCandidates.length
+  if (excludedSameCompanyCount > 0) {
+    console.log("excluded_same_company_candidates", {
+      viewerId: viewerProfile.id,
+      viewerCompany: viewerProfile.company,
+      excludedCount: excludedSameCompanyCount
+    })
+  }
+  
+  // If all candidates were filtered out, return empty array
+  if (filteredCandidates.length === 0) {
+    return []
+  }
+  
   // Determine primary goal from businessNeed or connectionTypes
   const primaryGoal = viewerProfile.businessNeed || 
     (viewerProfile.connectionTypes && viewerProfile.connectionTypes.length > 0 
@@ -1720,7 +1747,12 @@ GUARDRAIL 3: Title Overweighting
 - If you cannot confirm capability from contextual data, score lower or exclude.
 - Rationale: Addresses the problem of assuming capability wrongly based on title alone.
 
-GUARDRAIL 4: Avoid Repetitive Explanations
+GUARDRAIL 4: Same Company Exclusion
+- STRICTLY EXCLUDE candidates who work at the same company as User A.
+- This is a hard rule with NO EXCEPTIONS - people from the same company should not be matched.
+- Rationale: Event attendees are looking to network with people from other companies, not their own colleagues.
+
+GUARDRAIL 5: Avoid Repetitive Explanations
 - DO NOT generate explanations that just repeat job titles or superficial profile data.
 - FOCUS on value and contextual fit.
 - Explain the SPECIFIC connection between User A's need and User B's demonstrated capability (from Expertise/Skills + Company Specialization).
@@ -1773,8 +1805,8 @@ REMEMBER: Job Title + Expertise/Skills + Company Specialization must be evaluate
 - Looking for: ${viewerProfile.needTags.join(', ') || 'Not specified'}
 - Can offer: ${viewerProfile.offerTags.join(', ') || 'Not specified'}
 
-CANDIDATES TO EVALUATE (${candidates.length} total):
-${candidates.map((c, idx) => `
+CANDIDATES TO EVALUATE (${filteredCandidates.length} total):
+${filteredCandidates.map((c, idx) => `
 ${idx + 1}. Candidate ID: ${c.id}
    - Name: ${c.firstName || ''} ${c.lastName || ''}
    - Job Title: ${c.jobTitle || 'Not specified'}
@@ -1794,7 +1826,9 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
   try {
     console.log("ai_matching_started", {
       viewerId: viewerProfile.id,
-      candidateCount: candidates.length,
+      candidateCount: filteredCandidates.length,
+      originalCandidateCount: candidates.length,
+      excludedSameCompany: excludedSameCompanyCount,
       connectionType,
       viewerSeniority
     })
@@ -1842,11 +1876,36 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
       viewerId: viewerProfile.id,
       matchedCount,
       excludedCount,
-      totalEvaluated: candidates.length
+      totalEvaluated: filteredCandidates.length
     })
     
     // Convert to ScoredCandidate format
+    // Process all original candidates: exclude same-company ones immediately, use AI results for filtered candidates
     const scored: ScoredCandidate[] = candidates.map(candidate => {
+      const candidateCompanyNormalized = normalizeCompany(candidate.company)
+      const isSameCompany = candidateCompanyNormalized !== "" && candidateCompanyNormalized === viewerCompanyNormalized
+      
+      // If same company, exclude immediately
+      if (isSameCompany) {
+        return {
+          candidate,
+          breakdown: {
+            wantFit: 0,
+            mutualValue: 0,
+            relationshipFit: 0,
+            totalScore: 0,
+            wantFitComponents: {
+              semantic: 0,
+              tagOverlap: 0,
+              roleBonus: 0,
+              wantFit: 0,
+              aiExplanation: `Excluded: Same company as viewer`,
+              excluded: true,
+              exclusionReason: "Same company exclusion"
+            }
+          }
+        }
+      }
       const aiResult = aiResultsMap.get(candidate.id)
       
       if (!aiResult) {
@@ -2072,7 +2131,7 @@ Generate a short explanation (max 140 characters) of why the viewer should meet 
     const response = await openai.chat.completions.create({
       model: Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini",
       temperature: 0.7,
-      max_tokens: 50, // Rough estimate: ~2.5 tokens per character for 140 characters
+      max_tokens: 40, // Limited to 50 tokens for concise explanations (target: ~140 characters)
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
