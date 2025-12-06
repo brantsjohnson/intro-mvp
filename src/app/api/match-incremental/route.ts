@@ -33,7 +33,9 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         event_id: eventId,
         user_id: userId,
-        mode: 'incremental' // Only match for this specific user
+        mode: 'incremental', // Only match for this specific user
+        use_ai: true, // Enable AI on refresh
+        force_recompute: true // Force regeneration on refresh
       })
     })
 

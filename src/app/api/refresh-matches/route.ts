@@ -35,7 +35,9 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           event_id: eventId,
           user_id: newUserId,
-          mode: 'incremental'
+          mode: 'incremental',
+          use_ai: true, // Enable AI on refresh
+          force_recompute: true // Force regeneration on refresh
         })
       })
 
