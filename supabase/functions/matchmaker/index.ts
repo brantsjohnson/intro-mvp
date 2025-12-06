@@ -239,6 +239,7 @@ serve(async (req) => {
   const eventId = payload?.event_id
   const userId = payload?.user_id
   const forceRecompute = payload?.force_recompute === true
+  const useAI = payload?.use_ai !== false // Default to true for backward compatibility, but can be set to false
 
   if (!eventId || !userId) {
     return new Response(
@@ -252,7 +253,7 @@ serve(async (req) => {
 
   const started = Date.now()
   try {
-    const result = await processUser(eventId, userId, forceRecompute)
+    const result = await processUser(eventId, userId, forceRecompute, useAI)
     const runtime = Date.now() - started
 
     return new Response(
@@ -635,7 +636,7 @@ function extractTopic(profile: ViewerProfile): string | undefined {
 // Main Processing Function
 // -----------------------------------------------------------------------------
 
-async function processUser(eventId: string, userId: string, forceRecompute: boolean) {
+async function processUser(eventId: string, userId: string, forceRecompute: boolean, useAI: boolean = true) {
   const supabase = getClient()
 
   // Load viewer profile
@@ -657,14 +658,37 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
   // Check idempotence: if user already has 3 matches, check if recomputation is needed
   const { data: existingMatches } = await supabase
     .from("connections")
-    .select("a_id,b_id,match_score,created_at")
+    .select("a_id,b_id,match_score,created_at,match_algorithm_version,match_explanation_text")
     .eq("event_id", eventId)
     .eq("connection_kind", "system_match")
     .or(`a_id.eq.${userId},b_id.eq.${userId}`)
     .order("created_at", { ascending: false })
-    .limit(1)
+    .limit(SUGGESTIONS_PER_USER)
 
   const existingCount = existingMatches?.length ?? 0
+  
+  // Check if we have existing AI-generated matches that we can reuse
+  if (!forceRecompute && useAI && existingCount >= SUGGESTIONS_PER_USER) {
+    const hasAIMatches = existingMatches?.some(m => 
+      m.match_algorithm_version === "v4_ai_decision_tree" && 
+      m.match_explanation_text
+    )
+    
+    if (hasAIMatches) {
+      console.log("reusing_existing_ai_matches", { 
+        eventId, 
+        userId,
+        matchCount: existingCount,
+        reason: "existing_ai_matches_found"
+      })
+      return {
+        processed: existingCount,
+        inserted: 0,
+        skipped: true,
+        reason: "existing_ai_matches_found"
+      }
+    }
+  }
   
   if (!forceRecompute && existingCount >= SUGGESTIONS_PER_USER) {
     // Check if recomputation is needed due to new attendees or profile updates
@@ -810,12 +834,12 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
     preFilteredCount: preFilteredCandidates.length
   })
 
-  // Try AI matching if available, otherwise use rule-based scoring
+  // Try AI matching if available and enabled, otherwise use rule-based scoring
   const openai = getOpenAIClient()
   let scored: ScoredCandidate[]
   let usingAI = false
   
-  if (openai && preFilteredCandidates.length > 0) {
+  if (openai && preFilteredCandidates.length > 0 && useAI) {
     try {
       // Extract candidate profiles from pre-filtered scored candidates
       const candidateProfiles = preFilteredCandidates.map(s => s.candidate)
@@ -852,7 +876,13 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
     scored = initialScored
     usingAI = false
     
-    if (!openai) {
+    if (!useAI) {
+      console.log("ai_matching_skipped_use_ai_false", { 
+        eventId, 
+        userId,
+        reason: "use_ai flag is set to false - using rule-based scoring only"
+      })
+    } else if (!openai) {
       console.warn("ai_matching_skipped_no_openai", { 
         eventId, 
         userId,
@@ -950,11 +980,18 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
     })),
   })
 
-  // Generate reason summaries for return (sequential to avoid rate limits)
+  // Generate reason summaries for return (use AI explanation if available, otherwise generate)
   const reasonSummaries = []
   for (const s of selected) {
-    const summary = await buildReasonSummary(want, s, viewerProfile)
-    reasonSummaries.push(summary)
+    // Use AI explanation if available (from scoreCandidatesWithAI)
+    const aiExplanation = s.breakdown.wantFitComponents.aiExplanation
+    if (aiExplanation) {
+      reasonSummaries.push(aiExplanation)
+    } else {
+      // Fallback to building reason summary
+      const summary = await buildReasonSummary(want, s, viewerProfile)
+      reasonSummaries.push(summary)
+    }
   }
 
   return {
