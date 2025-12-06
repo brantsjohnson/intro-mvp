@@ -307,28 +307,6 @@ export function HomePage() {
           setCurrentEvent(mappedEvent)
           setIsPresent(!!row.checked_in_at)
           
-          // Recreate attendance record from onboarding data on reload
-          // This ensures derived fields (tags, summaries, embeddings) are regenerated
-          if (row.onboarding_completed && (row.why_attending_text || row.connection_types_selected)) {
-            console.log("Recreating attendance record from onboarding data on reload")
-            try {
-              // Call derive-attendance to regenerate derived fields from onboarding data
-              await fetch('/api/derive-attendance', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                  eventId: row.events.event_id, 
-                  userId: user.id 
-                })
-              }).catch(error => {
-                console.error('Error recreating attendance on reload (background):', error)
-                // Don't show error to user, this is background processing
-              })
-            } catch (error) {
-              console.error('Error calling derive-attendance on reload:', error)
-            }
-          }
-          
           loadMatches(mappedEvent.id)
           const connectionData = await loadConnections(mappedEvent.id)
           await loadDirectory(mappedEvent.id, connectionData)
@@ -1132,6 +1110,21 @@ export function HomePage() {
     const loadingToast = toast.loading("Refreshing matches...")
 
     try {
+      // First, derive attendance to ensure embeddings are up to date
+      const deriveResponse = await fetch('/api/derive-attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: currentEvent.id,
+          userId: user.id,
+        }),
+      })
+
+      if (!deriveResponse.ok) {
+        console.warn('derive-attendance failed, continuing with match refresh anyway')
+      }
+
+      // Then refresh matches
       const response = await fetch('/api/match-incremental', {
         method: 'POST',
         headers: {
