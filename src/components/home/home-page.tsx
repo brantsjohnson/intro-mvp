@@ -102,6 +102,8 @@ export function HomePage() {
   const supabase = createClientComponentClient() as any
   const messageService = useMemo(() => new MessageService(), [])
   const unreadPollingRef = useRef<NodeJS.Timeout | null>(null)
+  const isLoadingUserDataRef = useRef(false)
+  const lastLoadedUserIdRef = useRef<string | null>(null)
 
   const filteredDirectory = useMemo(() => {
     if (directoryFilter === "connected") {
@@ -137,11 +139,138 @@ export function HomePage() {
     }
   }, [router, supabase.auth])
 
+  const loadUserData = useCallback(async (source: string = 'unknown') => {
+    if (!user) {
+      console.log(`[loadUserData] Skipped: no user (source: ${source})`)
+      return
+    }
+
+    // Prevent duplicate concurrent calls for the same user
+    if (isLoadingUserDataRef.current) {
+      console.log(`[loadUserData] Skipped: already loading (source: ${source}, userId: ${user.id})`)
+      return
+    }
+
+    // Skip if we already loaded data for this user (unless explicitly refreshing)
+    if (lastLoadedUserIdRef.current === user.id && source !== 'focus' && source !== 'refresh') {
+      console.log(`[loadUserData] Skipped: already loaded for user (source: ${source}, userId: ${user.id})`)
+      return
+    }
+
+    console.log(`[loadUserData] Starting (source: ${source}, userId: ${user.id})`)
+    isLoadingUserDataRef.current = true
+    
+    try {
+      // Load user row and map to legacy Profile shape used by UI
+      const { data: userRow, error: userError } = await supabase
+        .from("users")
+        .select("user_id, first_name, last_name, email, photo_url, career_title, company_name")
+        .eq("user_id", user.id)
+        .single()
+
+      if (userError) {
+        console.error("[loadUserData] Failed to load profile:", userError)
+        toast.error("Failed to load profile")
+        return
+      }
+
+      const mappedProfile: Profile = {
+        id: userRow.user_id,
+        first_name: userRow.first_name || "",
+        last_name: userRow.last_name || "",
+        email: userRow.email || "",
+        avatar_url: userRow.photo_url || null,
+        job_title: userRow.career_title || null,
+        company: userRow.company_name || null,
+        what_do_you_do: null,
+        location: null,
+        linkedin_url: null,
+        mbti: null,
+        enneagram: null,
+        networking_goals: null,
+        hobbies: null,
+        expertise_tags: null,
+        consent: true,
+      }
+      setProfile(mappedProfile)
+
+      // Load current event from attendance join events (most recent)
+      const { data: attendanceRows, error: attendanceError } = await supabase
+        .from("attendance")
+        .select("checked_in_at, event_id, onboarding_completed, why_attending_text, connection_types_selected, connection_followups_json, business_need_text, events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+
+      console.log(`[loadUserData] Attendance query result (source: ${source}):`, { 
+        attendanceRows: attendanceRows?.length || 0, 
+        attendanceError, 
+        userId: user.id 
+      })
+
+      if (attendanceError) {
+        console.error("[loadUserData] Error loading attendance:", attendanceError)
+        // Clear current event if there's an error
+        setCurrentEvent(null)
+        setIsPresent(false)
+        setMatches([])
+      } else if (attendanceRows && attendanceRows.length > 0) {
+        const row: any = attendanceRows[0]
+        if (row?.events) {
+          const mappedEvent: Event = {
+            id: row.events.event_id,
+            name: row.events.event_name,
+            code: row.events.event_code,
+            starts_at: row.events.event_starts_at,
+            ends_at: row.events.event_ends_at,
+            location: row.events.event_location,
+            header_image_url: null,
+            is_active: true,
+            matchmaking_enabled: true,
+          }
+          setCurrentEvent(mappedEvent)
+          setIsPresent(!!row.checked_in_at)
+          
+          console.log(`[loadUserData] Loading matches for event ${mappedEvent.id} (source: ${source})`)
+          loadMatches(mappedEvent.id)
+          const connectionData = await loadConnections(mappedEvent.id)
+          await loadDirectory(mappedEvent.id, connectionData)
+        } else {
+          // No event data, clear everything
+          setCurrentEvent(null)
+          setIsPresent(false)
+          setMatches([])
+          setConnections([])
+          setManualConnections([])
+          setDirectory([])
+        }
+      } else {
+        // No event membership found, clear everything
+        console.log(`[loadUserData] No event membership found for user: ${user.id} (source: ${source})`)
+        setCurrentEvent(null)
+        setIsPresent(false)
+        setMatches([])
+        setConnections([])
+        setManualConnections([])
+        setDirectory([])
+      }
+
+      lastLoadedUserIdRef.current = user.id
+      console.log(`[loadUserData] Completed (source: ${source}, userId: ${user.id})`)
+    } catch (error) {
+      console.error(`[loadUserData] Error (source: ${source}):`, error)
+      toast.error("Failed to load user data")
+    } finally {
+      setIsLoading(false)
+      isLoadingUserDataRef.current = false
+    }
+  }, [user, supabase])
+
   useEffect(() => {
     if (user) {
-      loadUserData()
+      loadUserData('user-changed')
     }
-  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, loadUserData])
 
   const loadUnreadCount = useCallback(async () => {
     if (!currentEvent || !user) {
@@ -230,112 +359,13 @@ export function HomePage() {
   useEffect(() => {
     const handleFocus = () => {
       if (user) {
-        loadUserData()
+        loadUserData('focus')
       }
     }
 
     window.addEventListener('focus', handleFocus)
     return () => window.removeEventListener('focus', handleFocus)
-  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadUserData = async () => {
-    if (!user) return
-    
-    try {
-      // Load user row and map to legacy Profile shape used by UI
-      const { data: userRow, error: userError } = await supabase
-        .from("users")
-        .select("user_id, first_name, last_name, email, photo_url, career_title, company_name")
-        .eq("user_id", user.id)
-        .single()
-
-      if (userError) {
-        toast.error("Failed to load profile")
-        return
-      }
-
-      const mappedProfile: Profile = {
-        id: userRow.user_id,
-        first_name: userRow.first_name || "",
-        last_name: userRow.last_name || "",
-        email: userRow.email || "",
-        avatar_url: userRow.photo_url || null,
-        job_title: userRow.career_title || null,
-        company: userRow.company_name || null,
-        what_do_you_do: null,
-        location: null,
-        linkedin_url: null,
-        mbti: null,
-        enneagram: null,
-        networking_goals: null,
-        hobbies: null,
-        expertise_tags: null,
-        consent: true,
-      }
-      setProfile(mappedProfile)
-
-      // Load current event from attendance join events (most recent)
-      const { data: attendanceRows, error: attendanceError } = await supabase
-        .from("attendance")
-        .select("checked_in_at, event_id, onboarding_completed, why_attending_text, connection_types_selected, connection_followups_json, business_need_text, events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-
-      console.log("Attendance query result:", { attendanceRows, attendanceError, userId: user.id })
-
-      if (attendanceError) {
-        console.error("Error loading attendance:", attendanceError)
-        // Clear current event if there's an error
-        setCurrentEvent(null)
-        setIsPresent(false)
-        setMatches([])
-      } else if (attendanceRows && attendanceRows.length > 0) {
-        const row: any = attendanceRows[0]
-        if (row?.events) {
-          const mappedEvent: Event = {
-            id: row.events.event_id,
-            name: row.events.event_name,
-            code: row.events.event_code,
-            starts_at: row.events.event_starts_at,
-            ends_at: row.events.event_ends_at,
-            location: row.events.event_location,
-            header_image_url: null,
-            is_active: true,
-            matchmaking_enabled: true,
-          }
-          setCurrentEvent(mappedEvent)
-          setIsPresent(!!row.checked_in_at)
-          
-          loadMatches(mappedEvent.id)
-          const connectionData = await loadConnections(mappedEvent.id)
-          await loadDirectory(mappedEvent.id, connectionData)
-        } else {
-          // No event data, clear everything
-          setCurrentEvent(null)
-          setIsPresent(false)
-          setMatches([])
-          setConnections([])
-          setManualConnections([])
-          setDirectory([])
-        }
-      } else {
-        // No event membership found, clear everything
-        console.log("No event membership found for user:", user.id)
-        setCurrentEvent(null)
-        setIsPresent(false)
-        setMatches([])
-        setConnections([])
-        setManualConnections([])
-        setDirectory([])
-      }
-
-    } catch {
-      toast.error("Failed to load user data")
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  }, [user, loadUserData])
 
   const loadMatches = async (eventId: string) => {
     if (!user) return
@@ -464,9 +494,13 @@ export function HomePage() {
           const algorithmVersion = e.match_algorithm_version || null
           const isAIMatch = algorithmVersion === "v4_ai_decision_tree"
 
+          // Always use the consistent explanation from match_explanation_text
+          // This ensures all matches are generated the same way (140 character limit)
+          const summary = explanation
+
           return {
             id: e.created_at || `${u.user_id}-${explanation}`,
-            summary: structuredExplanation?.reason_summary || explanation,
+            summary: summary,
             bases: matchData.bases || [],
             shared_activities: sharedActivitiesStr,
             dive_deeper: matchData.dive_deeper || "",
@@ -1097,7 +1131,7 @@ export function HomePage() {
 
   const handleRefreshData = () => {
     if (user) {
-      loadUserData()
+      loadUserData('refresh')
     }
   }
 
