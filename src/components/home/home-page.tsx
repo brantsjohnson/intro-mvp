@@ -10,6 +10,7 @@ import { PresenceAvatar } from "@/components/ui/presence-avatar"
 import { MatchCard } from "@/components/ui/match-card"
 import { QRCard } from "@/components/ui/qr-card"
 import { QRScanner } from "@/components/ui/qr-scanner"
+import { SMSNotificationWidget } from "@/components/home/sms-notification-widget"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createClientComponentClient } from "@/lib/supabase"
 import { MessageService } from "@/lib/message-service-simple"
@@ -1376,6 +1377,12 @@ export function HomePage() {
                 )}
               </CardContent>
             </Card>
+          )}
+
+          {/* SMS Notification Widget - Show when event exists, underneath event title */}
+          {/* Temporarily hidden */}
+          {false && currentEvent && (
+            <SMSNotificationWidget />
           )}
 
           {/* People You Should Know - Only show when event exists */}
