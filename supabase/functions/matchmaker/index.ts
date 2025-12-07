@@ -2070,7 +2070,7 @@ async function generateExplanationWithOpenAI(
 
   const systemPrompt = `You are a networking assistant helping explain why two attendees at a business event should meet.
 
-Generate a short, natural explanation (max 140 characters) that:
+Generate a short, natural explanation (max 160 characters) that:
 - Highlights why these two people should connect based on the viewer's goals
 - Mentions specific overlaps (industries, needs/offers, roles, or shared interests)
 - Is conversational and engaging, not robotic
@@ -2078,7 +2078,7 @@ Generate a short, natural explanation (max 140 characters) that:
 - Focuses on concrete value they can provide each other
 - Uses "you" to refer to the viewer and the candidate's name/title when relevant
 
-Be specific and concise. Keep it under 140 characters.`
+Be specific and concise. Keep it under 160 characters.`
 
   const wantKindLabels: Record<WantKind, string> = {
     find_clients: "clients",
@@ -2113,13 +2113,13 @@ Candidate (Recommended Match):
 - Can offer: ${(candidate.offerTags || []).length > 0 ? candidate.offerTags.slice(0, 3).join(", ") : "Not specified"}
 - Looking for: ${(candidate.wantTags || []).length > 0 ? candidate.wantTags.slice(0, 3).join(", ") : "Not specified"}
 
-Generate a short explanation (max 140 characters) of why the viewer should meet this candidate.`
+Generate a short explanation (max 160 characters) of why the viewer should meet this candidate.`
 
   try {
     const response = await openai.chat.completions.create({
       model: Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini",
       temperature: 0.7,
-      max_tokens: 40, // Limited to 50 tokens for concise explanations (target: ~140 characters)
+      max_tokens: 50, // Limited to 50 tokens for concise explanations (target: ~160 characters)
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
@@ -2129,12 +2129,12 @@ Generate a short explanation (max 140 characters) of why the viewer should meet 
     const explanation = response.choices[0]?.message?.content?.trim()
     if (!explanation) return null
 
-    // Ensure it's not too long (max 140 characters)
-    if (explanation.length > 140) {
-      // Truncate to 140 characters, trying to end at a word boundary
-      let truncated = explanation.substring(0, 137)
+    // Ensure it's not too long (max 160 characters)
+    if (explanation.length > 160) {
+      // Truncate to 160 characters, trying to end at a word boundary
+      let truncated = explanation.substring(0, 157)
       const lastSpace = truncated.lastIndexOf(' ')
-      if (lastSpace > 100) {
+      if (lastSpace > 120) {
         truncated = truncated.substring(0, lastSpace)
       }
       return truncated + "..."
