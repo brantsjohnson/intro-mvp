@@ -1992,24 +1992,18 @@ async function upsertMatches(
     return 0
   }
 
-  // Generate explanations for all matches (sequential to avoid rate limits)
-  // Use AI explanation if available, otherwise generate one
+  // Generate explanations for all matches using generateExplanationWithOpenAI
+  // This ensures all matches use the same 140-character limited explanation generation
+  // buildReasonSummary already calls generateExplanationWithOpenAI first, then falls back to hardcoded
   const explanations = []
   for (const match of matches) {
-    // Check if AI explanation exists
-    const aiExplanation = match.breakdown.wantFitComponents.aiExplanation
-    if (aiExplanation) {
-      explanations.push(aiExplanation)
-      console.log("using_ai_explanation", {
-        eventId,
-        viewerId,
-        candidateId: match.candidate.id
-      })
-    } else {
-      // Fallback to existing explanation generation
-      const explanation = await buildReasonSummary(want, match, viewerProfile)
-      explanations.push(explanation)
-    }
+    const explanation = await buildReasonSummary(want, match, viewerProfile)
+    explanations.push(explanation)
+    console.log("using_unified_explanation_generation", {
+      eventId,
+      viewerId,
+      candidateId: match.candidate.id
+    })
   }
 
   // Insert new matches
