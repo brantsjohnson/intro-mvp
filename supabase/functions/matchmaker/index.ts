@@ -1094,18 +1094,12 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
     })),
   })
 
-  // Generate reason summaries for return (use AI explanation if available, otherwise generate)
+  // Generate reason summaries for return using unified explanation generation
+  // Always use buildReasonSummary which calls generateExplanationWithOpenAI (140 char limit)
   const reasonSummaries = []
   for (const s of selected) {
-    // Use AI explanation if available (from scoreCandidatesWithAI)
-    const aiExplanation = s.breakdown.wantFitComponents.aiExplanation
-    if (aiExplanation) {
-      reasonSummaries.push(aiExplanation)
-    } else {
-      // Fallback to building reason summary
-      const summary = await buildReasonSummary(want, s, viewerProfile)
-      reasonSummaries.push(summary)
-    }
+    const summary = await buildReasonSummary(want, s, viewerProfile)
+    reasonSummaries.push(summary)
   }
 
   return {
