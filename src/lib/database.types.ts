@@ -50,6 +50,8 @@ export type Database = {
           personality_confidence: Json | null
           personality_last_updated: string | null
           admin_event_codes: string[] | null
+          phone_number: string | null
+          sms_notifications_enabled: boolean | null
         }
         Insert: Partial<Database["public"]["Tables"]["users"]["Row"]> & {
           user_id: string
