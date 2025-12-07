@@ -419,6 +419,51 @@ export function ConversationView() {
           setMessages((prev) =>
             prev.map((msg) => (msg.id === optimisticMessage.id ? conversationMessage : msg))
           )
+
+          // Trigger SMS and email notifications for recipient (fire and forget)
+          // Get sender name from user profile
+          supabase
+            .from('users')
+            .select('first_name, last_name')
+            .eq('user_id', user.id)
+            .single()
+            .then(({ data: senderProfile }) => {
+              const senderName = senderProfile?.first_name || 'Someone'
+              const messagePreview = messageText.length > 100 
+                ? messageText.substring(0, 100) + '...' 
+                : messageText
+              
+              // Send SMS notification
+              fetch('/api/send-sms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  recipientUserId: thread.other_participant.id,
+                  senderName: senderName
+                })
+              }).catch(err => {
+                // Silently fail - SMS is optional
+                console.log('SMS notification failed (non-critical):', err)
+              })
+
+              // Send email notification
+              fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  recipientUserId: thread.other_participant.id,
+                  senderName: senderName,
+                  messagePreview: messagePreview
+                })
+              }).catch(err => {
+                // Silently fail - email is optional
+                console.log('Email notification failed (non-critical):', err)
+              })
+            })
+            .catch(err => {
+              // Silently fail - notifications are optional
+              console.log('Failed to fetch sender profile for notifications (non-critical):', err)
+            })
         }
       } else if (userId) {
         // Start new conversation
@@ -440,6 +485,51 @@ export function ConversationView() {
           setMessages((prev) =>
             prev.map((msg) => (msg.id === optimisticMessage.id ? conversationMessage : msg))
           )
+
+          // Trigger SMS and email notifications for recipient (fire and forget)
+          // Get sender name from user profile
+          supabase
+            .from('users')
+            .select('first_name, last_name')
+            .eq('user_id', user.id)
+            .single()
+            .then(({ data: senderProfile }) => {
+              const senderName = senderProfile?.first_name || 'Someone'
+              const messagePreview = messageText.length > 100 
+                ? messageText.substring(0, 100) + '...' 
+                : messageText
+              
+              // Send SMS notification
+              fetch('/api/send-sms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  recipientUserId: userId,
+                  senderName: senderName
+                })
+              }).catch(err => {
+                // Silently fail - SMS is optional
+                console.log('SMS notification failed (non-critical):', err)
+              })
+
+              // Send email notification
+              fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  recipientUserId: userId,
+                  senderName: senderName,
+                  messagePreview: messagePreview
+                })
+              }).catch(err => {
+                // Silently fail - email is optional
+                console.log('Email notification failed (non-critical):', err)
+              })
+            })
+            .catch(err => {
+              // Silently fail - notifications are optional
+              console.log('Failed to fetch sender profile for notifications (non-critical):', err)
+            })
         }
 
         // Reload to get the new thread ID
