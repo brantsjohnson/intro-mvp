@@ -15,6 +15,12 @@ interface SendEmailOptions {
   text?: string
 }
 
+interface Attachment {
+  filename: string
+  content: Buffer | string
+  cid?: string
+}
+
 interface SendEmailResult {
   success: boolean
   messageId?: string
@@ -149,6 +155,72 @@ export class EmailService {
       html,
       text
     })
+  }
+
+  /**
+   * Send an email with attachments
+   */
+  async sendEmailWithAttachment({
+    to,
+    subject,
+    html,
+    text,
+    attachments,
+  }: SendEmailOptions & { attachments?: Attachment[] }): Promise<SendEmailResult> {
+    if (!this.isConfigured()) {
+      console.warn('Email service not configured - missing Resend API key')
+      return {
+        success: false,
+        error: 'Email service not configured'
+      }
+    }
+
+    try {
+      // Validate email format
+      if (!this.isValidEmail(to)) {
+        return {
+          success: false,
+          error: 'Invalid email address format'
+        }
+      }
+
+      // Convert attachments to Resend format
+      const resendAttachments = attachments?.map(att => ({
+        filename: att.filename,
+        content: typeof att.content === 'string' 
+          ? Buffer.from(att.content).toString('base64')
+          : att.content.toString('base64'),
+      }))
+
+      // Use Resend SDK
+      const { data, error } = await this.resend!.emails.send({
+        from: this.fromEmail,
+        to: [to],
+        subject: subject,
+        html: html,
+        text: text,
+        attachments: resendAttachments,
+      })
+
+      if (error) {
+        console.error('Resend API error:', error)
+        return {
+          success: false,
+          error: error.message || 'Failed to send email'
+        }
+      }
+
+      return {
+        success: true,
+        messageId: data?.id
+      }
+    } catch (error) {
+      console.error('Error sending email:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
   }
 
   /**
