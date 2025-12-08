@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { createClientComponentClient } from "@/lib/supabase"
 import { toast } from "sonner"
-import { ArrowLeft, Save, Users, Play } from "lucide-react"
+import { ArrowLeft, Save, Users, Play, Upload, Mail } from "lucide-react"
+import Image from "next/image"
 
 interface Event {
   event_id: string
@@ -33,6 +34,9 @@ export default function AdminEventEditPage() {
   const [matchCount, setMatchCount] = useState<number | null>(null)
   const [event, setEvent] = useState<Event | null>(null)
   const [questionSchema, setQuestionSchema] = useState<string>("")
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
+  const [isSendingCards, setIsSendingCards] = useState(false)
   
   const supabase = createClientComponentClient()
 
@@ -71,6 +75,8 @@ export default function AdminEventEditPage() {
           ? JSON.stringify(data.onboarding_question_schema, null, 2)
           : "{}"
       )
+      // Set logo URL from matching_config
+      setLogoUrl(data.matching_config?.logo_url || null)
     } catch (error) {
       console.error("Error loading event:", error)
       toast.error("An error occurred")
@@ -125,6 +131,101 @@ export default function AdminEventEditPage() {
       toast.error('Failed to start matching')
     } finally {
       setIsMatching(false)
+    }
+  }
+
+  const handleLogoUpload = async (file: File) => {
+    if (!event) return
+
+    setIsUploadingLogo(true)
+    try {
+      // Upload to Supabase storage
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${eventId}/logo-${Date.now()}.${fileExt}`
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('event-assets')
+        .upload(fileName, file, {
+          contentType: file.type,
+          upsert: true
+        })
+
+      if (uploadError) {
+        console.error('Error uploading logo:', uploadError)
+        toast.error('Failed to upload logo')
+        return
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('event-assets')
+        .getPublicUrl(fileName)
+
+      const newLogoUrl = urlData.publicUrl
+
+      // Update event matching_config with logo URL
+      const currentConfig = event.matching_config || {}
+      const { error: updateError } = await supabase
+        .from('events')
+        .update({
+          matching_config: {
+            ...currentConfig,
+            logo_url: newLogoUrl
+          }
+        })
+        .eq('event_id', eventId)
+
+      if (updateError) {
+        console.error('Error updating logo URL:', updateError)
+        toast.error('Failed to save logo URL')
+        return
+      }
+
+      setLogoUrl(newLogoUrl)
+      // Update local event state
+      setEvent({
+        ...event,
+        matching_config: {
+          ...currentConfig,
+          logo_url: newLogoUrl
+        }
+      })
+      toast.success('Logo uploaded successfully!')
+    } catch (error) {
+      console.error('Error uploading logo:', error)
+      toast.error('Failed to upload logo')
+    } finally {
+      setIsUploadingLogo(false)
+    }
+  }
+
+  const handleSendNetworkingCards = async () => {
+    if (!event) return
+
+    setIsSendingCards(true)
+    try {
+      const response = await fetch('/api/admin-send-networking-cards', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          eventId: event.event_id,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        toast.success(`Sent ${result.sent} networking cards${result.failed > 0 ? ` (${result.failed} failed)` : ''}`)
+      } else {
+        toast.error(result.error || 'Failed to send networking cards')
+      }
+    } catch (error) {
+      console.error('Error sending networking cards:', error)
+      toast.error('Failed to send networking cards')
+    } finally {
+      setIsSendingCards(false)
     }
   }
 
@@ -243,6 +344,40 @@ export default function AdminEventEditPage() {
                   <Input value={event.event_location} disabled className="mt-1" />
                 </div>
               )}
+              <div>
+                <Label>Event Logo</Label>
+                {logoUrl && (
+                  <div className="mt-2 mb-2">
+                    <Image 
+                      src={logoUrl} 
+                      alt="Event logo" 
+                      width={200}
+                      height={80}
+                      className="max-w-[200px] max-h-[80px] object-contain border border-border rounded"
+                    />
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        handleLogoUpload(file)
+                      }
+                    }}
+                    className="mt-1"
+                    disabled={isUploadingLogo}
+                  />
+                  {isUploadingLogo && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Upload a logo to display on networking summary cards (will be converted to grayscale)
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -277,6 +412,35 @@ export default function AdminEventEditPage() {
               <p className="text-xs text-muted-foreground">
                 This will match all users in the event using vector similarity, shared interests, and career proximity.
               </p>
+            </CardContent>
+          </Card>
+
+          {/* Networking Cards Card */}
+          <Card className="bg-card border-border shadow-elevation">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Networking Summary Cards
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Send networking summary cards to all event attendees
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Each attendee will receive a personalized PNG summary via email
+                  </p>
+                </div>
+                <GradientButton
+                  onClick={handleSendNetworkingCards}
+                  disabled={isSendingCards}
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  {isSendingCards ? "Sending..." : "Send Cards"}
+                </GradientButton>
+              </div>
             </CardContent>
           </Card>
 
