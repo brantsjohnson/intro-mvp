@@ -53,6 +53,7 @@ export default function PrivacyPolicy() {
                 <li><strong>Company name</strong></li>
                 <li><strong>Profile photo</strong> (if provided)</li>
                 <li><strong>Free-response answers</strong> to optional questions</li>
+                <li><strong>Phone number</strong> (collected only for notification purposes if opted in)</li>
               </ul>
 
               <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">How We Use Your Information</h2>
@@ -90,10 +91,10 @@ export default function PrivacyPolicy() {
               <p>If you have questions about this Privacy Policy or how your data is handled, please reach out to:</p>
               <p>
                 <a 
-                  href="mailto:brantshanonjohnson@gmail.com" 
-                  className="text-primary hover:underline"
+                  href="mailto:support@introevent.site" 
+                  className="text-blue-600 hover:underline"
                 >
-                  brantshanonjohnson@gmail.com
+                  support@introevent.site
                 </a>
               </p>
             </CardContent>
