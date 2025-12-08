@@ -61,6 +61,7 @@ export default function PrivacyPolicy() {
                 <li><strong>Enable authentication</strong> (via email, Google, or LinkedIn sign-in).</li>
                 <li><strong>Facilitate networking and matching</strong> with other attendees at your specific conference. We use OpenAI's services to help generate match recommendations and descriptions.</li>
                 <li><strong>Improve your event experience</strong> by providing curated introductions.</li>
+                <li><strong>Send text notifications</strong> (if you opt in) via third-party trusted service providers. These notifications may include event updates, match notifications, and other relevant communications related to your use of the platform.</li>
               </ol>
               <p>Your free-response answers are not directly visible to other attendees, but insights from them may be highlighted in matchmaking descriptions.</p>
 
@@ -68,6 +69,7 @@ export default function PrivacyPolicy() {
               <ul className="list-disc list-inside space-y-2">
                 <li><strong>With attendees:</strong> Your name, job title, company, profile photo, and LinkedIn (if provided) are visible only to other attendees at the same conference.</li>
                 <li><strong>With service providers:</strong> We may share limited data with trusted service providers (such as OpenAI for matchmaking) strictly for the purpose of operating the platform.</li>
+                <li><strong>With text notification providers:</strong> If you opt in to receive text notifications, we may share your phone number and related information with third-party trusted service providers solely for the purpose of sending you text notifications related to the Service.</li>
                 <li><strong>We never sell your data.</strong></li>
               </ul>
 
@@ -78,6 +80,7 @@ export default function PrivacyPolicy() {
               <ul className="list-disc list-inside space-y-2">
                 <li>You can update or delete your account information at any time by contacting us.</li>
                 <li>You may opt out of matchmaking, though some platform features may be limited.</li>
+                <li>You can opt out of text notifications at any time by contacting us or adjusting your notification preferences in your account settings.</li>
               </ul>
 
               <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">Data Retention</h2>
@@ -90,10 +93,10 @@ export default function PrivacyPolicy() {
               <p>If you have questions about this Privacy Policy or how your data is handled, please reach out to:</p>
               <p>
                 <a 
-                  href="mailto:brantshanonjohnson@gmail.com" 
-                  className="text-primary hover:underline"
+                  href="mailto:support@introevent.site" 
+                  className="text-blue-600 hover:underline"
                 >
-                  brantshanonjohnson@gmail.com
+                  support@introevent.site
                 </a>
               </p>
             </CardContent>

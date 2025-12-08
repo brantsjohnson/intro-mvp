@@ -67,7 +67,7 @@ export default function TermsOfService() {
               <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">4. Data & Privacy</h2>
               <p>
                 Your information is handled in accordance with our{" "}
-                <Link href="/privacy" className="text-primary hover:underline">
+                <Link href="/privacy" className="text-blue-600 hover:underline">
                   Privacy Policy
                 </Link>
                 . In short:
@@ -79,34 +79,39 @@ export default function TermsOfService() {
                 <li>We never sell your data.</li>
               </ul>
 
-              <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">5. Intellectual Property</h2>
+              <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">5. Text Notifications</h2>
+              <p>
+                If you opt in to receive text notifications, we may send you messages via third-party trusted service providers. These notifications may include event updates, match notifications, and other relevant communications related to your use of the Service. You can opt out of text notifications at any time by contacting us or adjusting your notification preferences in your account settings.
+              </p>
+
+              <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">6. Intellectual Property</h2>
               <p>
                 Intro and its content (other than user profiles) are owned by us or our licensors. You may not copy, modify, or distribute any part of the Service without our written consent.
               </p>
 
-              <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">6. Limitations of Liability</h2>
+              <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">7. Limitations of Liability</h2>
               <p>
                 Intro is provided "as is." We do not guarantee uninterrupted service or specific networking outcomes. To the fullest extent permitted by law, we are not liable for any indirect, incidental, or consequential damages arising from your use of the Service.
               </p>
 
-              <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">7. Termination</h2>
+              <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">8. Termination</h2>
               <p>
                 We may suspend or terminate your access if you violate these Terms or misuse the platform. You may delete your account at any time by contacting us.
               </p>
 
-              <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">8. Changes to Terms</h2>
+              <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">9. Changes to Terms</h2>
               <p>
                 We may update these Terms from time to time. Continued use of Intro after updates means you accept the revised Terms.
               </p>
 
-              <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">9. Contact Us</h2>
+              <h2 className="text-xl font-semibold text-foreground mt-8 mb-4">10. Contact Us</h2>
               <p>If you have questions about these Terms, please contact us at:</p>
               <p>
                 <a 
-                  href="mailto:brantshanonjohnson@gmail.com" 
-                  className="text-primary hover:underline"
+                  href="mailto:support@introevent.site" 
+                  className="text-blue-600 hover:underline"
                 >
-                  brantshanonjohnson@gmail.com
+                  support@introevent.site
                 </a>
               </p>
             </CardContent>
