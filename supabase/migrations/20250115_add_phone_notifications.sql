@@ -17,3 +17,4 @@ COMMENT ON COLUMN public.users.phone_number IS 'User phone number for SMS notifi
 COMMENT ON COLUMN public.users.sms_notifications_enabled IS 'Whether SMS notifications are enabled for this user';
 
 
+
