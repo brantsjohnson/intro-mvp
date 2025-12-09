@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { PresenceAvatar } from "@/components/ui/presence-avatar"
+import { ClickableProfilePicture } from "@/components/ui/clickable-profile-picture"
 import { QRCard } from "@/components/ui/qr-card"
 import { QRScanner } from "@/components/ui/qr-scanner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -517,18 +518,34 @@ export function UserProfile({ userId }: UserProfileProps) {
             }
 
             try {
-              const { data: existingConnection } = await supabase
+              // Check for all connections (there might be both system_match and user_added)
+              const { data: existingConnections } = await supabase
                 .from("connections")
-                .select("match_explanation_text")
+                .select("match_explanation_text, user_add_method, connection_kind")
                 .eq("event_id", eventId)
                 .eq("a_id", userIdA)
                 .eq("b_id", userIdB)
-                .maybeSingle()
               
-              setHasConnection(Boolean(existingConnection))
-              if (existingConnection?.match_explanation_text && !matchExplanation) {
-                setMatchExplanation(existingConnection.match_explanation_text)
+              // Find match explanation from system_match if available
+              const systemMatch = existingConnections?.find(c => c.connection_kind === 'system_match')
+              if (systemMatch?.match_explanation_text && !matchExplanation) {
+                setMatchExplanation(systemMatch.match_explanation_text)
               }
+              
+              // Only set hasConnection to true if they've actually met
+              // (not just a system match)
+              const hasMet = existingConnections?.some(c => 
+                c.user_add_method === 'met' ||
+                c.user_add_method === 'manual_add' ||
+                c.user_add_method === 'qr' ||
+                c.user_add_method === 'manual_directory'
+              )
+              
+              console.log('Connection check:', { 
+                connections: existingConnections, 
+                hasMet 
+              })
+              setHasConnection(Boolean(hasMet))
             } catch (_) {
               // ignore errors; default is no connection
             }
@@ -545,22 +562,48 @@ export function UserProfile({ userId }: UserProfileProps) {
     loadProfile()
   }, [userId, router, supabase, searchParams])
 
-  const handleMessage = () => {
+  const handleMessage = async () => {
     // Get current event ID from URL parameters
     const eventId = searchParams.get('eventId')
     if (!eventId) {
       toast.error("Event ID is required to send messages")
       return
     }
+    
+    // Mark as met when they message
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const aId = user.id < userId ? user.id : userId
+      const bId = user.id < userId ? userId : user.id
+      
+      try {
+        await supabase
+          .from('connections')
+          .upsert({ 
+            event_id: eventId, 
+            a_id: aId, 
+            b_id: bId, 
+            connection_kind: 'user_added',
+            user_add_method: 'met',
+            created_by_user_id: user.id
+          })
+        setHasConnection(true)
+      } catch (error) {
+        console.error('Error marking as met:', error)
+      }
+    }
+    
     router.push(`/messages/conversation?eventId=${eventId}&userId=${userId}`)
   }
 
   const handleBack = () => {
     const source = searchParams.get('source')
-    const shouldPrompt =
-      (source === 'suggested' && !hasConnection) ||
-      source === 'request' ||
-      source === 'qr'
+    const eventId = searchParams.get('eventId')
+    
+    // Only prompt for top 3 matches (suggested) that haven't been met yet
+    const shouldPrompt = source === 'suggested' && !hasConnection && eventId
+
+    console.log('handleBack:', { source, eventId, hasConnection, shouldPrompt })
 
     if (shouldPrompt) {
       setShowFeedbackModal(true)
@@ -575,10 +618,11 @@ export function UserProfile({ userId }: UserProfileProps) {
       const eventId = searchParams.get('eventId')
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || !eventId) return
-      // Optional analytics - ignore if table doesn't exist
-      // This was in the old schema, keeping for now but it may not exist
+      // Don't navigate back - keep them on the profile
+      // The modal will close but they stay on the page
+      setShowFeedbackModal(false)
     } catch (_) {
-      // swallow analytics errors
+      // swallow errors
     }
   }
 
@@ -592,7 +636,7 @@ export function UserProfile({ userId }: UserProfileProps) {
       const aId = user.id < userId ? user.id : userId
       const bId = user.id < userId ? userId : user.id
 
-      // Create connection if it doesn't exist
+      // Create connection with met flag
       const { error: insertError } = await supabase
         .from('connections')
         .insert({ 
@@ -600,7 +644,7 @@ export function UserProfile({ userId }: UserProfileProps) {
           a_id: aId, 
           b_id: bId, 
           connection_kind: 'user_added',
-          user_add_method: 'manual_add',
+          user_add_method: 'met', // Mark as met
           created_by_user_id: user.id
         })
       
@@ -610,6 +654,9 @@ export function UserProfile({ userId }: UserProfileProps) {
 
       setHasConnection(true)
       toast.success('Connection recorded')
+      
+      // Navigate to home after marking as met
+      router.push('/home')
     } catch (error) {
       console.error('Error creating connection:', error)
       toast.error('Failed to record connection')
@@ -633,12 +680,20 @@ export function UserProfile({ userId }: UserProfileProps) {
           const userIdB = user.id < userId ? userId : user.id
           const { data: existingConnection } = await supabase
             .from("connections")
-            .select("match_explanation_text")
+            .select("match_explanation_text, user_add_method")
             .eq("event_id", eventId)
             .eq("a_id", userIdA)
             .eq("b_id", userIdB)
             .maybeSingle()
-          setHasConnection(Boolean(existingConnection))
+          
+          // Only set hasConnection to true if they've actually met
+          const hasMet = existingConnection && (
+            existingConnection.user_add_method === 'met' ||
+            existingConnection.user_add_method === 'manual_add' ||
+            existingConnection.user_add_method === 'qr' ||
+            existingConnection.user_add_method === 'manual_directory'
+          )
+          setHasConnection(Boolean(hasMet))
         }
       }
       loadConnection()
@@ -708,12 +763,13 @@ export function UserProfile({ userId }: UserProfileProps) {
           {/* Profile Header */}
           <Card className="bg-card border-border shadow-elevation">
             <CardContent className="p-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                <PresenceAvatar
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                <ClickableProfilePicture
                   src={profile.avatar_url || undefined}
                   fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
                   isPresent={isPresent}
-                  size="lg"
+                  size="profile"
+                  className="h-32 w-32 sm:h-40 sm:w-40 flex-shrink-0"
                 />
                 <div className="flex-1 space-y-1">
                   <h2 className="text-2xl font-semibold text-foreground leading-tight">
@@ -892,29 +948,27 @@ export function UserProfile({ userId }: UserProfileProps) {
       <Dialog open={showFeedbackModal} onOpenChange={setShowFeedbackModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-center">Have you met them yet?</DialogTitle>
+            <DialogTitle className="text-center font-title">HAVE YOU TWO MET?</DialogTitle>
           </DialogHeader>
           <div className="flex justify-center space-x-2 mt-2">
             <GradientButton
               variant="outline"
               onClick={async () => {
                 await recordNoClick()
-                setShowFeedbackModal(false)
-                router.back()
+                // Don't navigate - keep them on the profile
               }}
               size="sm"
             >
-              No
+              NO
             </GradientButton>
             <GradientButton
               onClick={async () => {
                 await createConnectionAndTally()
-                setShowFeedbackModal(false)
-                router.back()
+                // This will navigate to home
               }}
               size="sm"
             >
-              Yes
+              YES
             </GradientButton>
           </div>
         </DialogContent>
