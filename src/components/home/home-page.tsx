@@ -1167,7 +1167,7 @@ export function HomePage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading...</p>
@@ -1178,7 +1178,7 @@ export function HomePage() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-muted-foreground mb-4">Please complete your profile setup</p>
           <GradientButton onClick={() => router.push("/onboarding")}>
@@ -1190,9 +1190,9 @@ export function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-cover bg-center bg-fixed" style={{ backgroundImage: "url('/background.jpg')" }}>
+    <div className="min-h-screen">
       {/* Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-border bg-card/60 sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center">
             {/* Left: User avatar with presence indicator */}
@@ -1225,7 +1225,7 @@ export function HomePage() {
               <button
                 type="button"
                 onClick={() => router.push(`/messages?eventId=${currentEvent?.id || ''}`)}
-                className="relative w-10 h-10 rounded-full flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20 gradient-primary"
+                className="relative w-10 h-10 rounded-full flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20 bg-primary"
                 style={{
                   border: 'none'
                 }}
@@ -1268,7 +1268,7 @@ export function HomePage() {
                 
                 {/* Gradient Separator Line */}
                 <div 
-                  className="h-1 w-full rounded-full gradient-primary"
+                  className="h-1 w-full rounded-full bg-primary"
                 />
                 
                 {/* Event Details - Compact Format */}
@@ -1332,7 +1332,7 @@ export function HomePage() {
                   <button
                     onClick={togglePresence}
                     disabled={isLoading}
-                    className="px-8 py-3 rounded-lg text-white font-medium text-lg mx-auto block gradient-success"
+                    className="px-8 py-3 rounded-concave text-white font-medium text-lg mx-auto block bg-primary"
                     style={{
                       border: 'none'
                     }}
@@ -1515,11 +1515,7 @@ export function HomePage() {
                         )
                       })}
                     </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      When you scan someone or send a manual request, it will appear here for quick access.
-                    </p>
-                  )}
+                  ) : null}
                 </CardContent>
               </Card>
             )}

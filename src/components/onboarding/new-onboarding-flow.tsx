@@ -1101,7 +1101,7 @@ export function NewOnboardingFlow() {
         <div className="space-y-6">
           {/* Profile Picture Upload */}
           <div className="flex flex-col items-center space-y-4">
-            <Label className="text-sm font-medium text-foreground w-full text-left">
+            <Label className="text-sm font-title text-foreground w-full text-left">
               Profile Picture
             </Label>
             <div className="relative">
@@ -1158,7 +1158,7 @@ export function NewOnboardingFlow() {
           {/* Name Fields - Stacked Vertically */}
           <div className="space-y-4">
             <div>
-              <Label htmlFor="firstName" className="text-sm font-medium text-foreground">
+              <Label htmlFor="firstName" className="text-sm font-title text-foreground">
                 First Name *
               </Label>
               <Input
@@ -1175,7 +1175,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="e.g. John"
-                className={`mt-1 rounded-xl bg-input ${validationErrors.firstName ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-concave bg-input ${validationErrors.firstName ? 'border-destructive' : ''}`}
                 required
               />
               {validationErrors.firstName && (
@@ -1183,7 +1183,7 @@ export function NewOnboardingFlow() {
               )}
             </div>
             <div>
-              <Label htmlFor="lastName" className="text-sm font-medium text-foreground">
+              <Label htmlFor="lastName" className="text-sm font-title text-foreground">
                 Last Name *
               </Label>
               <Input
@@ -1200,7 +1200,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="e.g. Doe"
-                className={`mt-1 rounded-xl bg-input ${validationErrors.lastName ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-concave bg-input ${validationErrors.lastName ? 'border-destructive' : ''}`}
                 required
               />
               {validationErrors.lastName && (
@@ -1220,7 +1220,7 @@ export function NewOnboardingFlow() {
           {/* All fields stacked vertically for mobile */}
           <div className="space-y-4">
             <div>
-              <Label htmlFor="jobTitle" className="text-sm font-medium text-foreground">
+              <Label htmlFor="jobTitle" className="text-sm font-title text-foreground">
                 Job Title *
               </Label>
               <Input
@@ -1237,7 +1237,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="e.g. Software Engineer"
-                className={`mt-1 rounded-xl bg-input ${validationErrors.jobTitle ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-concave bg-input ${validationErrors.jobTitle ? 'border-destructive' : ''}`}
                 required
               />
               {validationErrors.jobTitle && (
@@ -1247,7 +1247,7 @@ export function NewOnboardingFlow() {
 
             {/* Years of Experience - Bubble Grid */}
             <div>
-              <Label className="text-sm font-medium text-foreground">
+              <Label className="text-sm font-title text-foreground">
                 Years in your career field *
               </Label>
               <div className="mt-2 grid grid-cols-2 gap-2">
@@ -1265,10 +1265,10 @@ export function NewOnboardingFlow() {
                         })
                       }
                     }}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                    className={`px-4 py-2 rounded-concave text-sm font-medium transition-colors ${
                       yearsExperience === option
-                        ? 'gradient-primary text-primary-foreground'
-                        : 'bg-card text-foreground hover:bg-card/80 border border-border'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-[#EDEBE6] text-foreground hover:bg-[#EDEBE6]/80 border border-border'
                     } ${validationErrors.yearsExperience ? 'border-destructive' : ''}`}
                   >
                     {option}
@@ -1282,7 +1282,7 @@ export function NewOnboardingFlow() {
 
             {/* Company URL with auto-fill */}
             <div>
-              <Label htmlFor="company" className="text-sm font-medium text-foreground">
+              <Label htmlFor="company" className="text-sm font-title text-foreground">
                 Company website (URL)
               </Label>
               <Input
@@ -1312,7 +1312,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="https://company.com"
-                className={`mt-1 rounded-xl bg-input ${companyUrlError ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-concave bg-input ${companyUrlError ? 'border-destructive' : ''}`}
               />
               {companyUrlError && (
                 <p className="text-xs text-destructive mt-1">{companyUrlError}</p>
@@ -1320,7 +1320,7 @@ export function NewOnboardingFlow() {
               {/* Company Name Input - Only show after URL is entered or invalid input attempted */}
               {(company || companyUrlTouched) && (
                 <div className="mt-2">
-                  <Label htmlFor="companyName" className="text-sm font-medium text-foreground">
+                  <Label htmlFor="companyName" className="text-sm font-title text-foreground">
                     Company name
                   </Label>
                   <Input
@@ -1337,7 +1337,7 @@ export function NewOnboardingFlow() {
                       }
                     }}
                     placeholder="Company name"
-                    className={`mt-1 rounded-xl bg-input ${validationErrors.company ? 'border-destructive' : ''}`}
+                    className={`mt-1 rounded-concave bg-input ${validationErrors.company ? 'border-destructive' : ''}`}
                   />
                 </div>
               )}
@@ -1348,7 +1348,7 @@ export function NewOnboardingFlow() {
 
             {/* Areas of Expertise - Bubbles */}
             <div>
-              <Label htmlFor="areasOfExpertise" className="text-sm font-medium text-foreground">
+              <Label htmlFor="areasOfExpertise" className="text-sm font-title text-foreground">
                 Areas of Expertise *
               </Label>
               
@@ -1364,8 +1364,8 @@ export function NewOnboardingFlow() {
                         onClick={() => addSuggestedExpertise(expertise)}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                           areasOfExpertise.includes(expertise)
-                            ? 'gradient-primary text-primary-foreground border border-primary'
-                            : 'bg-card/60 text-foreground hover:bg-card/80 border border-border'
+                            ? 'bg-primary text-primary-foreground border border-primary'
+                            : 'bg-[#EDEBE6] text-foreground hover:bg-[#EDEBE6]/80 border border-border'
                         }`}
                       >
                         {expertise}
@@ -1405,13 +1405,13 @@ export function NewOnboardingFlow() {
                   onChange={(e) => setExpertiseInput(e.target.value)}
                   onKeyDown={handleExpertiseKeyDown}
                   placeholder="Type and press Enter to add expertise"
-                  className={`mt-1 rounded-xl pr-10 bg-input ${validationErrors.areasOfExpertise ? 'border-destructive' : ''}`}
+                  className={`mt-1 rounded-concave pr-10 bg-input ${validationErrors.areasOfExpertise ? 'border-destructive' : ''}`}
                 />
                 {expertiseInput.trim() && (
                   <button
                     type="button"
                     onClick={addCustomExpertise}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg gradient-primary text-primary-foreground text-xs font-medium hover:opacity-90"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-concave bg-primary text-primary-foreground text-xs font-title hover:opacity-90"
                   >
                     +
                   </button>
@@ -1450,7 +1450,7 @@ export function NewOnboardingFlow() {
             }))
           }
           placeholder="Type here..."
-          className="rounded-xl min-h-[120px]"
+          className="rounded-concave min-h-[120px]"
           rows={5}
         />
       </div>
@@ -1468,8 +1468,8 @@ export function NewOnboardingFlow() {
             value={whyAttending}
             onChange={(e) => setWhyAttending(e.target.value)}
             placeholder="Help us understand your goals for this event"
-            className="rounded-xl min-h-[120px]"
-            rows={5}
+            className="min-h-[160px]"
+            rows={6}
           />
         </div>
       )
@@ -1481,7 +1481,7 @@ export function NewOnboardingFlow() {
       component: (
         <div className="space-y-4">
           {connectionTypes.map((type) => (
-            <div key={type.id} className="flex items-center space-x-3 rounded-xl p-4 transition-colors hover:bg-muted/50">
+            <div key={type.id} className="flex items-center space-x-3 rounded-concave p-4 transition-colors hover:bg-[#EDEBE6]/50">
               <Checkbox
                 id={`connection-${type.id}`}
                 checked={connectionTypesSelected.includes(type.id)}
@@ -1510,8 +1510,8 @@ export function NewOnboardingFlow() {
             value={businessNeed}
             onChange={(e) => setBusinessNeed(e.target.value)}
             placeholder="Type your answer here..."
-            className="rounded-xl min-h-[120px]"
-            rows={5}
+            className="min-h-[160px]"
+            rows={6}
           />
         </div>
       )
@@ -1628,13 +1628,13 @@ export function NewOnboardingFlow() {
   }
 
   return (
-    <div className="min-h-screen bg-cover bg-center text-foreground flex flex-col relative" style={{ backgroundImage: "url('/background.jpg')" }}>
+    <div className="min-h-screen text-foreground flex flex-col relative">
       {/* Loading/Redirecting overlay */}
       {(isLoading || isRedirecting) && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-card border border-border rounded-lg p-8 text-center shadow-elevation">
+        <div className="fixed inset-0 bg-background/80 z-50 flex items-center justify-center">
+          <div className="bg-[#EDEBE6] border border-border rounded-lg p-8 text-center shadow-elevation">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">
+            <h3 className="text-lg font-title text-foreground mb-2">
               {isRedirecting ? "Redirecting to your dashboard..." : "Saving your information..."}
             </h3>
             <p className="text-muted-foreground">
@@ -1661,7 +1661,7 @@ export function NewOnboardingFlow() {
 
       {/* Main Content Area - Centered with max 512px */}
       <div className={`flex-1 flex items-center justify-center px-6 ${currentStep === 0 ? '' : 'md:items-center items-start pt-8 md:pt-0'} pb-48`}>
-        <div className={`w-full max-w-lg transition-all duration-300 animate-fade-up rounded-2xl bg-card backdrop-blur-xl border border-border shadow-card p-6`}>
+        <div className={`w-full max-w-lg transition-all duration-300 animate-fade-up rounded-concave bg-[#EDEBE6] double-border p-6`}>
           {/* Adaptive Q&A Content */}
           {showAdaptiveQnA ? (
             <div className="space-y-6">
@@ -1679,7 +1679,7 @@ export function NewOnboardingFlow() {
                 // Show current question
                 <div className="space-y-6">
                   <div>
-                    <h3 className="text-lg font-semibold text-foreground mb-6">
+                    <h3 className="text-lg font-title text-foreground mb-6">
                       {currentAdaptiveQuestion.text}
                     </h3>
                   </div>
@@ -1688,7 +1688,7 @@ export function NewOnboardingFlow() {
                       <button
                         key={option.key}
                         onClick={() => handleAdaptiveAnswer(option.key)}
-                        className="w-full p-4 text-left rounded-xl border border-border hover:border-primary hover:bg-primary/5 transition-colors"
+                        className="w-full p-4 text-left rounded-concave border border-border hover:border-primary hover:bg-primary/5 transition-colors"
                       >
                         <span className="text-foreground font-medium">{option.label}</span>
                       </button>
@@ -1706,7 +1706,7 @@ export function NewOnboardingFlow() {
             // Regular onboarding steps
             <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-semibold text-foreground mb-2">
+                <h2 className="text-xl font-title text-foreground mb-2">
                   {currentStepData.title}
                 </h2>
                 {currentStepData.description && (
@@ -1747,7 +1747,7 @@ export function NewOnboardingFlow() {
       )}
 
       {/* Fixed Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[rgba(12,26,20,0.65)] backdrop-blur-[10px] border-t border-border shadow-2xl px-6 z-[100] py-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-[#EDEBE6] border-t border-border shadow-2xl px-6 z-[100] py-4">
         <div className="max-w-lg mx-auto">
           <div className="flex gap-4 items-center">
             {/* Back Button */}
@@ -1770,7 +1770,7 @@ export function NewOnboardingFlow() {
                 ? isLoading 
                 : !isStepValid() || isLoading || isLoadingQuestion
               } 
-              className="flex-1 h-16 rounded-2xl text-lg font-medium gradient-primary text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
+              className="flex-1 h-16 rounded-2xl text-lg font-medium bg-primary text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
             >
               {isLoading || isLoadingQuestion ? (
                 <span className="flex items-center gap-2 justify-center">

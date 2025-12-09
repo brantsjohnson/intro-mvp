@@ -1,18 +1,7 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
-
-const changaOne = {
-  fontFamily: 'Changa One, cursive',
-  fontWeight: 400,
-  fontStyle: 'normal',
-};
+import { PageTransitionWrapper } from "@/components/ui/page-transition-wrapper";
 
 export const metadata: Metadata = {
   title: "Intro - Conference Networking",
@@ -25,11 +14,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body
-        className={`${inter.variable} font-sans antialiased bg-background text-foreground`}
+        className="font-body antialiased bg-background text-foreground"
       >
+        <PageTransitionWrapper>
         {children}
+        </PageTransitionWrapper>
         <Toaster />
       </body>
     </html>

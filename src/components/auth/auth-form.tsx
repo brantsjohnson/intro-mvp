@@ -110,19 +110,19 @@ export function AuthForm() {
   }
 
   return (
-    <Card className="bg-card border-border shadow-elevation rounded-xl">
+    <Card>
       <CardContent className="p-6 space-y-6">
         {/* Header */}
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">WELCOME!</h2>
-          <p className="text-white text-left">Log in/Sign up</p>
+          <h2 className="text-2xl font-title mb-2">welcome!</h2>
+          <p className="text-foreground text-left">Log in/Sign up</p>
         </div>
 
         {/* LinkedIn OAuth */}
         <button
           onClick={() => startOAuth("linkedin_oidc")}
           disabled={isLoading}
-          className="w-full bg-[#0A66C2] text-white py-3 px-4 rounded-xl font-medium flex items-center justify-center space-x-3 hover:bg-[#084b8a] transition-colors disabled:opacity-50"
+            className="w-full bg-[#0A66C2] text-white py-3 px-4 rounded-concave font-medium flex items-center justify-center space-x-3 hover:bg-[#084b8a] transition-colors disabled:opacity-50"
         >
           <svg className="w-5 h-5" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
             <g>
@@ -137,7 +137,7 @@ export function AuthForm() {
         <button
           onClick={() => startOAuth("google")}
           disabled={isLoading}
-          className="w-full bg-white text-slate-900 py-3 px-4 rounded-xl font-medium flex items-center justify-center space-x-3 hover:bg-gray-50 transition-colors disabled:opacity-50"
+          className="w-full bg-white text-slate-900 py-3 px-4 rounded-concave font-medium flex items-center justify-center space-x-3 hover:bg-gray-50 transition-colors disabled:opacity-50"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path
@@ -161,13 +161,10 @@ export function AuthForm() {
         </button>
 
         {/* Separator */}
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border"></div>
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="bg-card px-2 text-muted-foreground">or</span>
-          </div>
+        <div className="relative flex items-center">
+          <div className="flex-1 border-t border-border"></div>
+          <span className="px-3 text-sm font-title text-muted-foreground">OR</span>
+          <div className="flex-1 border-t border-border"></div>
         </div>
 
         {/* Email/Password Form */}
@@ -179,7 +176,7 @@ export function AuthForm() {
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 required={isSignUp}
-                className="bg-input text-foreground rounded-xl border-border placeholder:text-muted-foreground"
+                className="bg-input text-foreground rounded-concave border-border placeholder:text-muted-foreground"
                 placeholder="First Name"
               />
               <Input
@@ -187,7 +184,7 @@ export function AuthForm() {
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 required={isSignUp}
-                className="bg-input text-foreground rounded-xl border-border placeholder:text-muted-foreground"
+                className="bg-input text-foreground rounded-concave border-border placeholder:text-muted-foreground"
                 placeholder="Last Name"
               />
             </div>
@@ -198,7 +195,7 @@ export function AuthForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="bg-input text-foreground rounded-xl border-border"
+            className="bg-input text-foreground rounded-concave border-border"
             placeholder="Email"
           />
 
@@ -207,7 +204,7 @@ export function AuthForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="bg-input text-foreground rounded-xl border-border"
+            className="bg-input text-foreground rounded-concave border-border"
             placeholder="Password"
           />
 
@@ -247,9 +244,9 @@ export function AuthForm() {
           <button
             type="submit"
             disabled={isLoading || (isSignUp && !consent)}
-            className="w-full text-primary-foreground py-3 px-4 rounded-xl font-bold text-lg transition-all disabled:opacity-50 gradient-primary"
+            className="w-full text-primary-foreground py-3 px-4 rounded-concave font-title text-lg transition-all disabled:opacity-50 bg-primary"
           >
-            {isLoading ? "Loading..." : isSignUp ? "SIGN UP" : "LOG IN"}
+            {isLoading ? "Loading..." : isSignUp ? "sign up" : "log in"}
           </button>
         </form>
 

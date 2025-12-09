@@ -33,6 +33,7 @@ export default function AdminEventEditPage() {
   const [matchCount, setMatchCount] = useState<number | null>(null)
   const [event, setEvent] = useState<Event | null>(null)
   const [questionSchema, setQuestionSchema] = useState<string>("")
+  const [editedEventName, setEditedEventName] = useState<string>("")
   
   const supabase = createClientComponentClient()
 
@@ -65,6 +66,7 @@ export default function AdminEventEditPage() {
       }
 
       setEvent(data)
+      setEditedEventName(data.event_name || "")
       // Convert onboarding_question_schema to JSON string for editing
       setQuestionSchema(
         data.onboarding_question_schema 
@@ -133,12 +135,34 @@ export default function AdminEventEditPage() {
 
     setIsSaving(true)
     try {
+      // Update event name if changed
+      if (editedEventName !== event.event_name) {
+        const updateResponse = await fetch('/api/update-event', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            eventId: event.event_id,
+            eventName: editedEventName
+          })
+        })
+
+        if (!updateResponse.ok) {
+          const error = await updateResponse.json()
+          toast.error(error.error || 'Failed to update event name')
+          setIsSaving(false)
+          return
+        }
+      }
+
       // Validate JSON
       let parsedSchema
       try {
         parsedSchema = JSON.parse(questionSchema)
       } catch (e) {
         toast.error("Invalid JSON format. Please check your syntax.")
+        setIsSaving(false)
         return
       }
 
@@ -231,7 +255,11 @@ export default function AdminEventEditPage() {
             <CardContent className="space-y-4">
               <div>
                 <Label>Event Name</Label>
-                <Input value={event.event_name} disabled className="mt-1" />
+                <Input 
+                  value={editedEventName} 
+                  onChange={(e) => setEditedEventName(e.target.value)}
+                  className="mt-1" 
+                />
               </div>
               <div>
                 <Label>Event Code</Label>

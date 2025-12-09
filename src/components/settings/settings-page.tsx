@@ -405,13 +405,13 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-cover bg-center bg-fixed pb-16" style={{ backgroundImage: "url('/background.jpg')" }}>
-      <header className="sticky top-0 z-10 border-b border-border bg-card/50 backdrop-blur-sm">
+    <div className="min-h-screen pb-16">
+      <header className="sticky top-0 z-10 border-b border-border bg-card/60">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
           <button
             aria-label="Go back"
             onClick={() => router.back()}
-            className="flex h-10 w-10 items-center justify-center rounded-full shadow-elevation transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary gradient-primary"
+            className="flex h-10 w-10 items-center justify-center rounded-full shadow-elevation transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary bg-primary"
           >
             <ArrowLeft className="h-5 w-5 text-white" />
           </button>
@@ -490,7 +490,7 @@ export function SettingsPage() {
                 size="sm"
                 onClick={handleSaveProfile}
                 disabled={!isProfileDirty || isSavingProfile}
-                className="gradient-primary text-primary-foreground hover:opacity-90"
+                className="bg-primary text-primary-foreground hover:opacity-90"
               >
                 {isSavingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save profile
@@ -595,7 +595,7 @@ export function SettingsPage() {
                         size="sm"
                         onClick={handleSaveBusinessNeed}
                         disabled={!isBusinessNeedDirty || isSavingBusinessNeed}
-                        className="gradient-primary text-primary-foreground hover:opacity-90"
+                        className="bg-primary text-primary-foreground hover:opacity-90"
                       >
                         {isSavingBusinessNeed ? (
                           <>

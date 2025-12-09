@@ -424,14 +424,14 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
               
               {/* Loading state */}
               {!imageLoaded && (
-                <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                <div className="absolute inset-0 flex items-center justify-center bg-[#EDEBE6]">
                   <div className="text-muted-foreground">Loading image...</div>
                 </div>
               )}
               
               {/* Error state */}
               {imageUrl && !imageLoaded && imageDimensions.width === 0 && (
-                <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                <div className="absolute inset-0 flex items-center justify-center bg-[#EDEBE6]">
                   <div className="text-destructive text-sm">Failed to load image</div>
                 </div>
               )}

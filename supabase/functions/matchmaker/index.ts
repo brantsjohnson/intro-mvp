@@ -1956,3 +1956,4 @@ async function buildReasonSummary(want: ViewerWant, match: ScoredCandidate, view
 
   return `You want ${wantLabel}; ${name} (${title} at ${company}) matches your needs${topicPhrase}.`
 }
+

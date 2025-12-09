@@ -572,8 +572,8 @@ export function ConversationView() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-fixed flex flex-col overflow-hidden" style={{ backgroundImage: "url('/background.jpg')" }}>
-        <header className="border-b border-border bg-card/50 backdrop-blur-sm flex-shrink-0 z-10">
+      <div className="min-h-screen flex flex-col overflow-hidden">
+        <header className="border-b border-border bg-card/60 flex-shrink-0 z-10">
           <div className="container mx-auto px-4 py-4">
             <div className="max-w-3xl mx-auto flex items-center justify-between">
               <div className="w-9 h-9 bg-muted rounded-full animate-pulse"></div>
@@ -610,7 +610,7 @@ export function ConversationView() {
           <div className="h-3 w-full bg-muted rounded animate-pulse"></div>
         </div>
 
-        <div className="border-t border-border bg-card/50 backdrop-blur-sm p-4 flex-shrink-0">
+        <div className="border-t border-border bg-card/60 p-4 flex-shrink-0">
           <div className="container mx-auto">
             <div className="max-w-3xl mx-auto flex items-center space-x-3">
               <div className="flex-1 h-10 bg-muted rounded animate-pulse"></div>
@@ -624,8 +624,8 @@ export function ConversationView() {
 
   if (!thread && !hasCheckedForThread) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-fixed flex flex-col overflow-hidden" style={{ backgroundImage: "url('/background.jpg')" }}>
-        <header className="border-b border-border bg-card/50 backdrop-blur-sm flex-shrink-0 z-10">
+      <div className="min-h-screen flex flex-col overflow-hidden">
+        <header className="border-b border-border bg-card/60 flex-shrink-0 z-10">
           <div className="container mx-auto px-4 py-4">
             <div className="max-w-3xl mx-auto flex items-center justify-between">
               <div className="w-9 h-9 bg-muted rounded-full animate-pulse"></div>
@@ -662,7 +662,7 @@ export function ConversationView() {
           <div className="h-3 w-full bg-muted rounded animate-pulse"></div>
         </div>
 
-        <div className="border-t border-border bg-card/50 backdrop-blur-sm p-4 flex-shrink-0">
+        <div className="border-t border-border bg-card/60 p-4 flex-shrink-0">
           <div className="container mx-auto">
             <div className="max-w-3xl mx-auto flex items-center space-x-3">
               <div className="flex-1 h-10 bg-muted rounded animate-pulse"></div>
@@ -677,7 +677,7 @@ export function ConversationView() {
   // If we've checked and confirmed there's no thread, show error
   if (!thread && hasCheckedForThread) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <User className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-foreground mb-2">
@@ -700,7 +700,7 @@ export function ConversationView() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex flex-col">
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-border bg-card/60 sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
             <GradientButton onClick={() => router.back()} size="icon">
@@ -760,7 +760,7 @@ export function ConversationView() {
                   const alignment = message.is_from_current_user ? "items-end" : "items-start"
                   const bubbleAlignment = message.is_from_current_user ? "ml-auto" : "mr-auto"
                   const bubbleColors = message.is_from_current_user
-                    ? "gradient-primary text-primary-foreground"
+                    ? "bg-primary text-primary-foreground"
                     : "bg-card/55 text-foreground border border-border shadow-sm"
                   const timestampVisible = visibleTimestamps[message.id]
 
@@ -827,7 +827,7 @@ export function ConversationView() {
               )}
 
               {(eventEnded || messagesDeleted) && (
-                <div className="rounded-2xl border border-border/60 bg-card/70 px-4 py-3 shadow-sm">
+                <div className="rounded-concave border border-border/60 bg-card px-4 py-3 shadow-sm">
                   <p className="text-xs text-muted-foreground text-center">
                     {messagesDeleted
                       ? "This event's messages are no longer available."
@@ -837,7 +837,7 @@ export function ConversationView() {
               )}
 
               {!eventEnded && !messagesDeleted && (
-                <div className="border border-border/60 bg-card/70 backdrop-blur-sm rounded-2xl p-3 shadow-lg">
+                <div className="border border-border/60 bg-card rounded-concave p-3 shadow-lg">
                   <div className="flex items-center gap-3">
                     <Input
                       ref={messageInputRef}
@@ -848,7 +848,7 @@ export function ConversationView() {
                       onFocus={() => setHasManuallyBlurredInput(false)}
                       onBlur={() => setHasManuallyBlurredInput(true)}
                       disabled={eventEnded || messagesDeleted}
-                      className="flex-1 border-none bg-background/60 shadow-inner rounded-xl focus-visible:ring-0 focus-visible:ring-offset-0"
+                      className="flex-1 border-none bg-background/60 shadow-inner rounded-concave focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
                     <GradientButton
                       onClick={handleSendMessage}

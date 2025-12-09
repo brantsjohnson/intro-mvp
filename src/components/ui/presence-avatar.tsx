@@ -44,7 +44,7 @@ export function PresenceAvatar({
       {isPresent && (
         <div 
           className={cn(
-            "absolute -bottom-0.5 -right-0.5 rounded-full gradient-success border-2 border-background",
+            "absolute -bottom-0.5 -right-0.5 rounded-full bg-primary border-2 border-background",
             presenceDotSizes[size]
           )}
         />

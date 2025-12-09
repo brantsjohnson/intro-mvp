@@ -134,7 +134,7 @@ export function CameraCapture({ isOpen, onClose, onCapture }: CameraCaptureProps
                   autoPlay
                 />
                 {isLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                  <div className="absolute inset-0 flex items-center justify-center bg-[#EDEBE6]">
                     <div className="text-white">Loading camera...</div>
                   </div>
                 )}

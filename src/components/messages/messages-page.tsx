@@ -316,7 +316,7 @@ export function MessagesPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading messages...</p>
@@ -326,9 +326,9 @@ export function MessagesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-cover bg-center bg-fixed flex flex-col" style={{ backgroundImage: "url('/background.jpg')" }}>
+    <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-border bg-card/60 sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
             <GradientButton onClick={() => router.back()} size="icon">
