@@ -17,21 +17,15 @@ export async function POST(request: NextRequest) {
     // Get event ID
     const { data: eventData, error: eventError } = await supabase
       .from('events')
-      .select('id, name, matchmaking_enabled')
-      .eq('code', eventCode.toUpperCase())
+      .select('event_id, event_name, event_code')
+      .eq('event_code', eventCode.toUpperCase())
       .single()
 
     if (eventError || !eventData) {
       return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     }
 
-    if (!eventData.matchmaking_enabled && !force) {
-      return NextResponse.json({ 
-        error: 'Matchmaking is disabled for this event. Use force=true to override.' 
-      }, { status: 400 })
-    }
-
-    const eventId = eventData.id
+    const eventId = eventData.event_id
 
     // Trigger the matchmaker function directly
     const matchmakerUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/matchmaker`
@@ -49,9 +43,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       event: {
-        id: eventId,
-        name: eventData.name,
-        code: eventCode
+        event_id: eventId,
+        event_name: eventData.event_name,
+        event_code: eventData.event_code
       },
       matchmaker_triggered: matchmakerResponse.ok,
       matchmaker_result: matchmakerResult
@@ -81,8 +75,8 @@ export async function GET(request: NextRequest) {
       // Get event details and match count
       const { data: eventData, error: eventError } = await supabase
         .from('events')
-        .select('id, name, matchmaking_enabled')
-        .eq('code', eventCode.toUpperCase())
+        .select('event_id, event_name, event_code')
+        .eq('event_code', eventCode.toUpperCase())
         .single()
 
       if (eventError || !eventData) {
@@ -93,7 +87,7 @@ export async function GET(request: NextRequest) {
       const { count: matchCount, error: countError } = await supabase
         .from('connections')
         .select('*', { count: 'exact', head: true })
-        .eq('event_id', eventData.id)
+        .eq('event_id', eventData.event_id)
         .eq('connection_kind', 'system_match')
 
       return NextResponse.json({
@@ -105,7 +99,7 @@ export async function GET(request: NextRequest) {
       // Get all events with match counts
       const { data: events, error: eventsError } = await supabase
         .from('events')
-        .select('id, name, code, matchmaking_enabled')
+        .select('event_id, event_name, event_code')
 
       if (eventsError) {
         return NextResponse.json({ error: 'Failed to fetch events' }, { status: 500 })

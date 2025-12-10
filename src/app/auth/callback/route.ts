@@ -2,13 +2,14 @@ import { createServerComponentClient } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
+  const startTime = performance.now()
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
   const eventCode = requestUrl.searchParams.get('eventCode')
   const error = requestUrl.searchParams.get('error')
   const origin = requestUrl.origin
 
-  console.log('Auth callback received:', { code: !!code, eventCode, error })
+  console.log('[PERF] Auth callback received:', { code: !!code, eventCode, error, timestamp: Date.now() })
 
   if (error) {
     console.error('OAuth error in callback:', error)
@@ -17,14 +18,17 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const supabase = await createServerComponentClient()
+    const exchangeStart = performance.now()
     const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+    const exchangeTime = performance.now() - exchangeStart
+    console.log(`[PERF] Auth exchange took ${exchangeTime.toFixed(2)}ms`)
     
     if (exchangeError) {
       console.error('OAuth callback error:', exchangeError)
       return NextResponse.redirect(`${origin}/auth?error=oauth_error`)
     }
 
-    // Upsert latest profile metadata for Google/LinkedIn sign-ins
+    // Upsert latest profile metadata for Google/LinkedIn sign-ins (non-blocking)
     const authUser = data.user
     if (authUser) {
       const metadata: Record<string, any> = authUser.user_metadata ?? {}
@@ -68,22 +72,27 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      try {
-        if (Object.keys(upsertPayload).length > 1) {
-          const { error: upsertError } = await supabase
-            .from('users')
-            .upsert(upsertPayload, { onConflict: 'user_id' })
-
-          if (upsertError) {
-            console.error('Failed to upsert user metadata in callback:', upsertError)
-          }
-        }
-      } catch (metadataError) {
-        console.error('Exception upserting user metadata:', metadataError)
+      // Fire-and-forget: don't wait for upsert to complete before redirecting
+      if (Object.keys(upsertPayload).length > 1) {
+        // Start upsert but don't await it - redirect immediately
+        supabase
+          .from('users')
+          .upsert(upsertPayload, { onConflict: 'user_id' })
+          .then(({ error: upsertError }) => {
+            if (upsertError) {
+              console.error('Failed to upsert user metadata in callback:', upsertError)
+            } else {
+              console.log('[PERF] User metadata upsert completed (async)')
+            }
+          })
+          .catch((metadataError) => {
+            console.error('Exception upserting user metadata:', metadataError)
+          })
       }
     }
 
-    console.log('OAuth successful, user:', authUser?.id, 'email:', authUser?.email)
+    const totalTime = performance.now() - startTime
+    console.log(`[PERF] OAuth successful, user: ${authUser?.id}, total callback time: ${totalTime.toFixed(2)}ms`)
     console.log('Session established:', !!data.session)
   }
 

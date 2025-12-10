@@ -107,7 +107,9 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({ 
             event_id: eventData.id,
             user_id: userIdToRefresh,
-            mode: 'incremental'
+            mode: 'incremental',
+            use_ai: true, // Enable AI on refresh
+            force_recompute: true // Force regeneration on refresh
           })
         })
 

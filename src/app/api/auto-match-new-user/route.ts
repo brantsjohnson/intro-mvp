@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { EmailService } from '@/lib/email-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
     // Get event ID from event code
     const { data: eventData, error: eventError } = await supabase
       .from('events')
-      .select('id, is_active, starts_at, ends_at, matchmaking_enabled')
+      .select('id, event_name, is_active, starts_at, ends_at, matchmaking_enabled')
       .eq('code', eventCode.toUpperCase())
       .single()
 
@@ -62,9 +63,10 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ 
-        event_code: eventCode,
+        event_id: eventData.id,
         user_id: userId,
-        mode: 'incremental'
+        mode: 'incremental',
+        use_ai: true // Enable AI when user joins event
       })
     })
 
@@ -77,12 +79,40 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
+    // Count matches and send email notification if matches were created
+    const { count: matchCount } = await supabase
+      .from('connections')
+      .select('*', { count: 'exact', head: true })
+      .eq('event_id', eventData.id)
+      .eq('connection_kind', 'system_match')
+      .or(`a_id.eq.${userId},b_id.eq.${userId}`)
+
+    if (matchCount && matchCount > 0) {
+      try {
+        const { data: user } = await supabase.auth.admin.getUserById(userId)
+        if (user?.user?.email) {
+          const emailService = new EmailService()
+          await emailService.sendMatchNotification(
+            user.user.email,
+            eventData.event_name || 'the event',
+            matchCount,
+            `https://introevent.site?event=${eventData.id}`
+          ).catch((error) => {
+            console.error('Failed to send match notification email:', error)
+          })
+        }
+      } catch (error) {
+        console.error('Error sending match notification:', error)
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'New user auto-matched successfully',
       user_id: userId,
       event_code: eventCode,
       event_id: eventData.id,
+      match_count: matchCount || 0,
       matchmaker_result: matchmakerResult
     })
 

@@ -596,7 +596,8 @@ If confidence is below 50, set the type to null. Only return data you're reasona
           body: JSON.stringify({
             event_id: eventId,
             user_id: userId,
-            mode: 'incremental'
+            mode: 'incremental',
+            use_ai: true // Enable AI when user joins event
           })
         })
         
