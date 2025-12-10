@@ -1896,6 +1896,10 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
     })
 
     const result = JSON.parse(response.choices[0].message.content)
+    console.log("ai_matching_json_response", {
+      viewerId: viewerProfile.id,
+      rawResponse: JSON.stringify(result, null, 2)
+    })
     console.log("ai_matching_response_received", {
       viewerId: viewerProfile.id,
       candidatesSentToAI: aiCandidates.length,
