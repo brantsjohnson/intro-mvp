@@ -157,6 +157,13 @@ export function HomePage() {
       return
     }
 
+    // Ensure session is present before hitting RLS-protected tables
+    const { data: sessionData } = await supabase.auth.getSession()
+    if (!sessionData.session) {
+      console.log(`[loadUserData] Skipped: no session yet (source: ${source}, userId: ${user.id})`)
+      return
+    }
+
     // Prevent duplicate concurrent calls for the same user
     if (isLoadingUserDataRef.current) {
       console.log(`[loadUserData] Skipped: already loading (source: ${source}, userId: ${user.id})`)
