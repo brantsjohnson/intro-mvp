@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { GradientButton } from "@/components/ui/gradient-button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { createClientComponentClient } from "@/lib/supabase"
 import { toast } from "sonner"
 import { ArrowLeft, Save, Users, Play, Upload, Mail } from "lucide-react"
@@ -37,6 +38,7 @@ export default function AdminEventEditPage() {
   const [editedEventName, setEditedEventName] = useState<string>("")
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [surveyQuestion, setSurveyQuestion] = useState<string>("")
+  const [showRefreshButton, setShowRefreshButton] = useState<boolean>(false)
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
   const [isSendingCards, setIsSendingCards] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -80,13 +82,16 @@ export default function AdminEventEditPage() {
           : "{}"
       )
       // Set logo URL from matching_config
-      const matchingConfig = data.matching_config as { logo_url?: string; survey_question?: string } | null
+      const matchingConfig = data.matching_config as { logo_url?: string; survey_question?: string; show_refresh_button?: boolean } | null
       let logoUrlFromDb = matchingConfig?.logo_url || null
       console.log('Loading event - matching_config:', data.matching_config)
       console.log('Loading logo URL from database:', logoUrlFromDb)
 
       // Load survey question (optional)
       setSurveyQuestion(matchingConfig?.survey_question || "")
+      
+      // Load show_refresh_button setting
+      setShowRefreshButton(matchingConfig?.show_refresh_button ?? false)
       
       // If no logo in database, check bucket for existing logo files
       if (!logoUrlFromDb) {
@@ -453,6 +458,7 @@ export default function AdminEventEditPage() {
       const updatedMatchingConfig = {
         ...(event.matching_config || {}),
         survey_question: surveyQuestion.trim(),
+        show_refresh_button: showRefreshButton,
       }
 
       // Preserve matching_config when updating onboarding_question_schema
@@ -704,6 +710,19 @@ export default function AdminEventEditPage() {
               <p className="text-xs text-muted-foreground">
                 This will match all users in the event using vector similarity, shared interests, and career proximity.
               </p>
+              <div className="flex items-center space-x-3 pt-2 border-t border-border">
+                <Checkbox
+                  id="show-refresh-button"
+                  checked={showRefreshButton}
+                  onCheckedChange={(checked) => setShowRefreshButton(checked === true)}
+                />
+                <Label
+                  htmlFor="show-refresh-button"
+                  className="text-sm cursor-pointer"
+                >
+                  Show "Refresh Matches" button to users
+                </Label>
+              </div>
             </CardContent>
           </Card>
 

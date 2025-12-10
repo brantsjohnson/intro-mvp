@@ -25,7 +25,8 @@ import {
   Plus,
   QrCode,
   UserPlus,
-  ArrowRight
+  ArrowRight,
+  RefreshCw
 } from "lucide-react"
 import {
   Select,
@@ -107,6 +108,7 @@ export function HomePage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [availableEvents, setAvailableEvents] = useState<Array<{ id: string; name: string; code: string }>>([])
   const [canSwitchEvents, setCanSwitchEvents] = useState(false)
+  const [showRefreshButton, setShowRefreshButton] = useState(false)
   
   const router = useRouter()
   const supabase = createClientComponentClient() as any
@@ -213,7 +215,7 @@ export function HomePage() {
       // First try preferred event if it exists, otherwise get most recent
       let query = supabase
         .from("attendance")
-        .select("checked_in_at, event_id, onboarding_completed, why_attending_text, connection_types_selected, connection_followups_json, business_need_text, events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)")
+        .select("checked_in_at, event_id, onboarding_completed, why_attending_text, connection_types_selected, connection_followups_json, business_need_text, events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location, matching_config)")
         .eq("user_id", user.id)
 
       // If user has a preferred event, try to load it first
@@ -233,7 +235,7 @@ export function HomePage() {
         // Load most recent event
         const { data: fallbackRows, error: fallbackError } = await supabase
           .from("attendance")
-          .select("checked_in_at, event_id, onboarding_completed, why_attending_text, connection_types_selected, connection_followups_json, business_need_text, events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)")
+          .select("checked_in_at, event_id, onboarding_completed, why_attending_text, connection_types_selected, connection_followups_json, business_need_text, events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location, matching_config)")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(1)
@@ -272,6 +274,10 @@ export function HomePage() {
           }
           setCurrentEvent(mappedEvent)
           setIsPresent(!!row.checked_in_at)
+          
+          // Extract show_refresh_button from matching_config
+          const matchingConfig = row.events.matching_config as { show_refresh_button?: boolean } | null
+          setShowRefreshButton(matchingConfig?.show_refresh_button ?? false)
           
           console.log(`[loadUserData] Loading matches for event ${mappedEvent.id} (source: ${source})`)
           loadMatches(mappedEvent.id)
@@ -395,7 +401,7 @@ export function HomePage() {
       .select(`
         checked_in_at,
         event_id,
-        events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)
+        events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location, matching_config)
       `)
       .eq("user_id", user.id)
       .eq("event_id", eventId)
@@ -421,6 +427,10 @@ export function HomePage() {
 
     setCurrentEvent(mappedEvent)
     setIsPresent(!!row.checked_in_at)
+    
+    // Extract show_refresh_button from matching_config
+    const matchingConfig = row.events.matching_config as { show_refresh_button?: boolean } | null
+    setShowRefreshButton(matchingConfig?.show_refresh_button ?? false)
     
     // Reload all data for the new event
     loadMatches(mappedEvent.id)
@@ -1578,6 +1588,18 @@ export function HomePage() {
                     <Users className="h-5 w-5" />
                     <span>People You Should Know</span>
                   </h2>
+                  {showRefreshButton && currentEvent?.matchmaking_enabled && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRefreshMatches}
+                      disabled={isRefreshing}
+                      className="flex items-center gap-2"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                      {isRefreshing ? 'Refreshing...' : 'Refresh Matches'}
+                    </Button>
+                  )}
                 </div>
               </div>
               
