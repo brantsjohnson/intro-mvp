@@ -980,7 +980,13 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
       const candidateProfiles = preFilteredCandidates.map(s => s.candidate)
       
       // Use AI to score the pre-filtered candidates
-      const aiScored = await scoreCandidatesWithAI(viewerProfile, want, candidateProfiles, openai)
+      const aiScored = await scoreCandidatesWithAI(
+        viewerProfile,
+        want,
+        candidateProfiles,
+        openai,
+        PRE_FILTER_LIMIT
+      )
       // Use AI results only (authoritative). Sort for determinism.
       const aiScoredSorted = aiScored.sort(deterministicCompare)
       scored = aiScoredSorted
@@ -1733,7 +1739,8 @@ async function scoreCandidatesWithAI(
   viewerProfile: ViewerProfile,
   want: ViewerWant,
   candidates: CandidateProfile[],
-  openai: OpenAI
+  openai: OpenAI,
+  preFilterLimit: number
 ): Promise<ScoredCandidate[]> {
   
   // Filter out candidates from the same company
@@ -1858,7 +1865,7 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
       viewerId: viewerProfile.id,
       wantKind: want.kind,
       hiringFunction,
-      preFilterLimit: PRE_FILTER_LIMIT,
+      preFilterLimit,
       candidatesSentToAI: filteredCandidates.length,
       model: Deno.env.get("OPENAI_MODEL") || "gpt-4o"
     })
