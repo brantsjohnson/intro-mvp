@@ -230,6 +230,18 @@ function deterministicCompare(a: ScoredCandidate, b: ScoredCandidate): number {
   if (b.breakdown.relationshipFit !== a.breakdown.relationshipFit) {
     return b.breakdown.relationshipFit - a.breakdown.relationshipFit
   }
+  // Quinary: Prefer same-function/domain alignment when available
+  const aSameFunction =
+    a.breakdown.wantFitComponents.viewerRole?.role_function &&
+    a.breakdown.wantFitComponents.candidateRole?.role_function &&
+    a.breakdown.wantFitComponents.viewerRole.role_function === a.breakdown.wantFitComponents.candidateRole.role_function
+  const bSameFunction =
+    b.breakdown.wantFitComponents.viewerRole?.role_function &&
+    b.breakdown.wantFitComponents.candidateRole?.role_function &&
+    b.breakdown.wantFitComponents.viewerRole.role_function === b.breakdown.wantFitComponents.candidateRole.role_function
+  if (aSameFunction !== bSameFunction) {
+    return bSameFunction ? 1 : -1
+  }
   // Finally: Stable ID ascending
   return a.candidate.id.localeCompare(b.candidate.id)
 }
@@ -397,45 +409,11 @@ serve(async (req) => {
 // Load Viewer
 // -----------------------------------------------------------------------------
 
+// Pull the entire attendance row plus the full users row so downstream logic
+// has access to all onboarding answers without having to enumerate columns.
 const PROFILE_SELECT = `
-  event_id,
-  user_id,
-  business_need_text,
-  why_attending_text,
-  event_role_intent,
-  event_availability_status,
-  event_need_tags,
-  event_offer_tags,
-  event_industry_tags,
-  event_hobby_tags,
-  profile_embedding,
-  event_need_embedding,
-  event_offer_embedding,
-  connection_types_selected,
-  connection_followups_json,
-  users:user_id (
-    user_id,
-    first_name,
-    last_name,
-    career_title,
-    company_name,
-    company_summary,
-    company_url,
-    career_years_experience,
-    offer_summary_text,
-    want_summary_text,
-    offer_embedding,
-    need_embedding,
-    profile_embedding,
-    offer_tags,
-    want_tags,
-    need_tags,
-    industry_tags,
-    hobby_tags,
-    hobbies,
-    linkedin_skills,
-    personality_embedding
-  )
+  *,
+  users:user_id (*)
 `
 
 function mergeUnique(...lists: (string[] | null | undefined)[]): string[] {
@@ -489,11 +467,12 @@ async function loadViewerProfile(
     companySummary: user.company_summary ?? null,
     companyUrl: user.company_url ?? null,
     careerYears: user.career_years_experience ?? null,
-    offerEmbedding: user.offer_embedding ?? null,
-    needEmbedding: user.need_embedding ?? null,
-    profileEmbedding: attendance.profile_embedding ?? user.profile_embedding ?? null,
-    eventNeedEmbedding: attendance.event_need_embedding ?? null,
-    eventOfferEmbedding: attendance.event_offer_embedding ?? null,
+    // Vector fields intentionally omitted to avoid pulling embeddings
+    offerEmbedding: null,
+    needEmbedding: null,
+    profileEmbedding: null,
+    eventNeedEmbedding: null,
+    eventOfferEmbedding: null,
     offerTags: mergeUnique(user.offer_tags, attendance.event_offer_tags),
     wantTags: mergeUnique(user.want_tags, attendance.event_want_tags),
     needTags: mergeUnique(user.need_tags, attendance.event_need_tags),
@@ -504,10 +483,13 @@ async function loadViewerProfile(
     whyAttending: attendance.why_attending_text ?? null,
     roleIntent: attendance.event_role_intent ?? null,
     availabilityStatus: attendance.event_availability_status ?? null,
-    personalityEmbedding: user.personality_embedding ?? null,
+    personalityEmbedding: null,
     connectionTypes: attendance.connection_types_selected ?? null,
     followUps: (attendance.connection_followups_json as Record<string, string>) ?? null,
-    linkedinSkills: user.linkedin_skills || []
+    linkedinSkills: user.linkedin_skills || [],
+    // Preserve raw rows so any new onboarding fields remain accessible
+    rawUser: user,
+    rawAttendance: attendance
   }
 }
 
@@ -900,11 +882,12 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
         companySummary: user.company_summary ?? null,
         companyUrl: user.company_url ?? null,
         careerYears: user.career_years_experience ?? null,
-        offerEmbedding: user.offer_embedding ?? null,
-        needEmbedding: user.need_embedding ?? null,
-        profileEmbedding: row.profile_embedding ?? user.profile_embedding ?? null,
-        eventNeedEmbedding: row.event_need_embedding ?? null,
-        eventOfferEmbedding: row.event_offer_embedding ?? null,
+        // Vector fields intentionally omitted to avoid pulling embeddings
+        offerEmbedding: null,
+        needEmbedding: null,
+        profileEmbedding: null,
+        eventNeedEmbedding: null,
+        eventOfferEmbedding: null,
         offerTags: mergeUnique(user.offer_tags, row.event_offer_tags),
         wantTags: mergeUnique(user.want_tags, row.event_want_tags),
         needTags: mergeUnique(user.need_tags, row.event_need_tags),
@@ -915,12 +898,14 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
         whyAttending: row.why_attending_text ?? null,
         roleIntent: row.event_role_intent ?? null,
         availabilityStatus: row.event_availability_status ?? null,
-        personalityEmbedding: user.personality_embedding ?? null,
+        personalityEmbedding: null,
         connectionTypes: row.connection_types_selected ?? null,
         followUps: (row.connection_followups_json as Record<string, string>) ?? null,
         linkedinSkills: user.linkedin_skills || [],
         offerSummary: user.offer_summary_text ?? null,
-        wantSummary: user.want_summary_text ?? null
+        wantSummary: user.want_summary_text ?? null,
+        rawUser: user,
+        rawAttendance: row
       }
     })
 
@@ -1307,6 +1292,21 @@ function scoreCandidates(
   const viewerPersona = deriveBuyerPersona(viewerTextForSector, viewerRole, viewerIntent)
 
   return candidates.map((candidate) => {
+    const candidateRole = canonicalizeRole(candidate.jobTitle)
+    const roleKnown = viewerRole.role_function !== "unknown" && candidateRole.role_function !== "unknown"
+    const sameFunction = roleKnown && viewerRole.role_function === candidateRole.role_function
+    const functionMismatch = roleKnown && viewerRole.role_function !== candidateRole.role_function
+    const explicitNeedTargetsCandidate = roleKnown
+      ? [
+          ...(viewerProfile.needTags || []),
+          ...(want.tags || []),
+          viewerProfile.businessNeed || ""
+        ]
+          .filter(Boolean)
+          .map((t) => (typeof t === "string" ? t.toLowerCase() : ""))
+          .some((text) => text.includes(candidateRole.role_function))
+      : false
+
     const wantFitComponents = computeWantFit(want, viewerProfile, candidate)
 
     const wantFit = wantFitComponents.wantFit
@@ -1342,6 +1342,16 @@ function scoreCandidates(
         break
     }
 
+    // Prioritize same-function/domain matches by default; allow cross-function when explicitly requested.
+    if (roleKnown) {
+      if (sameFunction) {
+        totalScore += 0.1
+      } else if (!explicitNeedTargetsCandidate) {
+        totalScore -= 0.05
+      }
+      totalScore = Math.max(0, Math.min(1, totalScore))
+    }
+
     // ============================================================
     // Buyer-Persona Intelligence Layer - Business Pillar Boosts
     // ============================================================
@@ -1349,8 +1359,6 @@ function scoreCandidates(
     let personaBoost = 0
     const personaBases: string[] = []
 
-    // Canonicalize candidate role
-    const candidateRole = canonicalizeRole(candidate.jobTitle)
     const candidateCompanyLower = normalizeCompanyInput(candidate.company ?? "").toLowerCase()
     const candidateIndustryTags = candidate.industryTags ?? []
     // Convert to Set once for O(1) lookups instead of O(n) array.includes()
@@ -1799,13 +1807,14 @@ MATCHING RULES (PRIORITY ORDER)
 - If no overlap evidence, exclude or score very low.
 
 2) Function/Domain Fit
-- Prefer same-function/domain matches. For mentorship/learn_skill, strongly prefer same-function; only pick adjacent roles if no same-function exists and say so in the explanation.
+- Prefer same-function/domain matches by default. Only choose adjacent functions when businessNeed/needTags/wantTags explicitly call for that function; for mentorship/learn_skill, strongly prefer same-function and justify any exception.
 - Do NOT rely on title alone—confirm with skills/company specialization.
 
 3) General Networking (fallback when no explicit need)
 - Use shared industry/skills/interests as secondary signals; keep seniority roughly aligned unless mentorship.
 
 GUARDRAILS
+- Same-function default: if no explicit cross-function need is stated, pick same-function/domain first; justify any cross-function choice with the explicit need that triggered it.
 - Same-company: exclude always.
 - No title hallucination: don’t assume capabilities not in skills/tags/company summary.
 - Seniority: avoid pairing very junior with very senior unless mentorship is explicit.
