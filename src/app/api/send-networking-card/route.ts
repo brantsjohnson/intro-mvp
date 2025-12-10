@@ -119,12 +119,21 @@ export async function POST(request: NextRequest) {
     // Generate HTML for the card with border colors
     const html = generateCardHTML(metrics, borderColors)
 
-    // Render HTML to PNG using Puppeteer
+    // Render HTML to PNG using Puppeteer (serverless-compatible)
     console.log('Generating networking card image with Puppeteer...')
-    const puppeteer = await import('puppeteer')
+    
+    // Use puppeteer-core with @sparticuz/chromium for serverless compatibility
+    const puppeteer = await import('puppeteer-core')
+    const chromium = await import('@sparticuz/chromium')
+    
+    // Configure Chromium for serverless
+    chromium.setGraphicsMode(false) // Disable GPU for serverless
+    
     const browser = await puppeteer.default.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
     })
     
     let pngBuffer: Buffer
