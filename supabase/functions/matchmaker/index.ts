@@ -1911,7 +1911,7 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
     })
 
     const response = await openai.chat.completions.create({
-      model: Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini",
+      model: Deno.env.get("OPENAI_MODEL") || "gpt-4o",
       temperature: 0.2, // Lower temperature for more consistent scoring
       max_tokens: 2000, // Adjust based on candidate count
       messages: [
@@ -2202,7 +2202,7 @@ Generate a short explanation (max 160 characters) of why the viewer should meet 
 
   try {
     const response = await openai.chat.completions.create({
-      model: Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini",
+      model: Deno.env.get("OPENAI_MODEL") || "gpt-4o",
       temperature: 0.7,
       max_tokens: 50, // Limited to 50 tokens for concise explanations (target: ~160 characters)
       messages: [
