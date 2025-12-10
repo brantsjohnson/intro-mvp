@@ -163,39 +163,8 @@ export async function POST(request: NextRequest) {
       await browser.close()
     }
 
-    // Convert entire image to grayscale
-    const grayscaleBuffer = await sharp(pngBuffer)
-      .grayscale()
-      .toBuffer()
-
-    // If we have a logo, composite the color logo back onto the grayscale card
-    let finalBuffer = grayscaleBuffer
-    if (logoBounds && metrics.eventLogoUrl) {
-      try {
-        // Extract the logo area from the original color image
-        const logoArea = await sharp(pngBuffer)
-          .extract({
-            left: logoBounds.x,
-            top: logoBounds.y,
-            width: logoBounds.width,
-            height: logoBounds.height
-          })
-          .toBuffer()
-
-        // Composite the color logo onto the grayscale card
-        finalBuffer = await sharp(grayscaleBuffer)
-          .composite([{
-            input: logoArea,
-            left: logoBounds.x,
-            top: logoBounds.y
-          }])
-          .toBuffer()
-      } catch (error) {
-        console.error('Error compositing color logo:', error)
-        // Fall back to grayscale if compositing fails
-        finalBuffer = grayscaleBuffer
-      }
-    }
+    // Keep image in full color to match website UI
+    let finalBuffer = pngBuffer
     
     // Draw borders on the cards using Sharp (colored if available, gray if not)
     if (cardBounds.length > 0) {
@@ -206,22 +175,23 @@ export async function POST(request: NextRequest) {
         // Create SVG overlays for each card border
         const borderOverlays = cardBounds.map((bounds: { x: number; y: number; width: number; height: number }, index: number) => {
           // Get color for this card (with fallbacks)
+          const websiteBorderColor = 'rgba(190, 188, 184, 0.5)' // #BEBCB8 with opacity
           let color: string
           if (hasColors && borderColors) {
             if (index === 0) {
-              color = borderColors[0] || 'rgba(153, 153, 153, 0.5)'
+              color = borderColors[0] || websiteBorderColor
             } else if (index === 1) {
-              color = borderColors[1] || borderColors[0] || 'rgba(153, 153, 153, 0.5)'
+              color = borderColors[1] || borderColors[0] || websiteBorderColor
             } else if (index === 2) {
-              color = borderColors[2] || borderColors[0] || 'rgba(153, 153, 153, 0.5)'
+              color = borderColors[2] || borderColors[0] || websiteBorderColor
             } else if (index === 3) {
-              color = borderColors[3] || borderColors[0] || 'rgba(153, 153, 153, 0.5)'
+              color = borderColors[3] || borderColors[0] || websiteBorderColor
             } else {
-              color = borderColors[0] || 'rgba(153, 153, 153, 0.5)'
+              color = borderColors[0] || websiteBorderColor
             }
           } else {
-            // Use gray for all cards if no colors extracted
-            color = 'rgba(153, 153, 153, 0.5)'
+            // Use website border color for all cards if no colors extracted
+            color = websiteBorderColor
           }
           
           // Extract RGB from rgba string
@@ -237,26 +207,16 @@ export async function POST(request: NextRequest) {
           
           console.log(`Card ${index} border color: rgb(${r}, ${g}, ${b})`)
           
-          // Create SVG with double rounded borders (gray outer, colored inner)
+          // Create SVG with website-style border (single border matching website design)
           const borderRadius = 16
-          const outerBorderWidth = 3
-          const innerBorderWidth = 2
-          const gap = 1 // Gap between outer and inner border
+          const borderWidth = 1.5 // Match website border width
           
           const svg = Buffer.from(`
             <svg width="${bounds.width}" height="${bounds.height}" xmlns="http://www.w3.org/2000/svg">
-              <!-- Outer gray border (rounded rectangle) -->
+              <!-- Border matching website style (rounded rectangle) -->
               <rect x="0" y="0" width="${bounds.width}" height="${bounds.height}" 
                     rx="${borderRadius}" ry="${borderRadius}" 
-                    fill="none" stroke="rgb(153,153,153)" stroke-width="${outerBorderWidth}" />
-              
-              <!-- Inner colored border (rounded rectangle, inset) -->
-              <rect x="${outerBorderWidth + gap}" y="${outerBorderWidth + gap}" 
-                    width="${bounds.width - 2 * (outerBorderWidth + gap)}" 
-                    height="${bounds.height - 2 * (outerBorderWidth + gap)}" 
-                    rx="${borderRadius - outerBorderWidth - gap}" 
-                    ry="${borderRadius - outerBorderWidth - gap}" 
-                    fill="none" stroke="rgb(${r},${g},${b})" stroke-width="${innerBorderWidth}" />
+                    fill="none" stroke="rgb(${r},${g},${b})" stroke-width="${borderWidth}" />
             </svg>
           `)
           
@@ -299,7 +259,7 @@ export async function POST(request: NextRequest) {
           <body style="font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #3A3835; margin: 0; padding: 40px 20px; background-color: #EDEBE6;">
             <div style="max-width: 600px; margin: 0 auto;">
               <div style="background: rgba(237, 235, 230, 0.5); border: 1.5px solid #BEBCB8; border-radius: 56px; padding: 40px; box-shadow: 0px 2px 2px rgba(0, 0, 0, 0.15);">
-                <h1 style="font-family: 'Changa One', cursive; font-size: 28px; margin-bottom: 20px; color: #3A3835; text-transform: uppercase; letter-spacing: 0.02em;">Thank you for attending ${escapeHtml(metrics.eventName)}!</h1>
+                <h1 style="font-family: 'Arial Bold', Arial, sans-serif; font-weight: bold; font-size: 28px; margin-bottom: 20px; color: #3A3835; text-transform: uppercase; letter-spacing: 0.02em;">Thank you for attending ${escapeHtml(metrics.eventName)}!</h1>
                 <p style="font-size: 16px; margin-bottom: 20px; color: #3A3835;">Here's your networking summary:</p>
                 ${surveyLink ? `
                 <div style="background: rgba(237, 235, 230, 0.6); border: 1.5px solid #BEBCB8; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
@@ -619,8 +579,8 @@ function makeColorSubtle(hex: string, opacity: number = 0.4): string {
 }
 
 function generateCardHTML(data: NetworkingData, borderColors?: string[]): string {
-  // Default to subtle gray if no colors provided
-  const defaultColor = 'rgba(153, 153, 153, 0.5)'
+  // Default to website border color if no colors provided
+  const defaultColor = 'rgba(190, 188, 184, 0.5)' // #BEBCB8 with opacity
   
   console.log('generateCardHTML called with borderColors:', borderColors)
   
@@ -639,19 +599,19 @@ function generateCardHTML(data: NetworkingData, borderColors?: string[]): string
     titles: titlesColor
   })
   
-  // Load Changa One font from Google Fonts
+  // Load fonts from Google Fonts
   return `
     <!DOCTYPE html>
     <html>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Changa+One&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Changa+One&family=Avenir+Next:wght@400;500&display=swap" rel="stylesheet">
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body {
-            font-family: 'Changa One', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: white;
+            font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #EDEBE6;
             padding: 32px;
           }
           .container {
@@ -662,10 +622,11 @@ function generateCardHTML(data: NetworkingData, borderColors?: string[]): string
             gap: 24px;
           }
           .card {
-            border: none;
+            border: 1.5px solid #BEBCB8;
             border-radius: 16px;
             padding: 32px;
-            background: white;
+            background: rgba(237, 235, 230, 0.5);
+            box-shadow: 0px 2px 2px rgba(0, 0, 0, 0.15);
           }
           .event-card {
             min-height: 220px;
@@ -683,19 +644,21 @@ function generateCardHTML(data: NetworkingData, borderColors?: string[]): string
           }
           .event-label {
             font-size: 20px;
-            font-weight: 400;
+            font-weight: bold;
             text-transform: uppercase;
-            letter-spacing: -0.01em;
-            color: #000;
+            letter-spacing: 0.02em;
+            color: #3A3835;
             margin-bottom: 12px;
-            font-family: 'Changa One', cursive;
+            font-family: 'Arial Bold', Arial, sans-serif;
           }
           .event-name {
             font-size: 48px;
-            font-weight: 400;
+            font-weight: bold;
             line-height: 1.2;
-            color: #000;
-            font-family: 'Changa One', cursive;
+            color: #3A3835;
+            font-family: 'Arial Bold', Arial, sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
           }
           .connections-card {
             min-height: 280px;
@@ -705,29 +668,29 @@ function generateCardHTML(data: NetworkingData, borderColors?: string[]): string
           }
           .connections-label {
             font-size: 20px;
-            font-weight: 400;
+            font-weight: bold;
             text-transform: uppercase;
-            letter-spacing: -0.01em;
-            color: #000;
+            letter-spacing: 0.02em;
+            color: #3A3835;
             margin-bottom: 16px;
-            font-family: 'Changa One', cursive;
+            font-family: 'Arial Bold', Arial, sans-serif;
           }
           .connections-count {
             font-size: 144px;
-            font-weight: 400;
+            font-weight: bold;
             line-height: 1;
-            letter-spacing: -0.02em;
-            color: #000;
-            font-family: 'Changa One', cursive;
+            letter-spacing: 0.02em;
+            color: #3A3835;
+            font-family: 'Arial Bold', Arial, sans-serif;
           }
           .list-title {
             font-size: 20px;
-            font-weight: 400;
+            font-weight: bold;
             text-transform: uppercase;
-            letter-spacing: -0.01em;
+            letter-spacing: 0.02em;
             margin-bottom: 16px;
-            color: #000;
-            font-family: 'Changa One', cursive;
+            color: #3A3835;
+            font-family: 'Arial Bold', Arial, sans-serif;
           }
           .list-item {
             display: flex;
@@ -735,11 +698,11 @@ function generateCardHTML(data: NetworkingData, borderColors?: string[]): string
             gap: 8px;
             margin-bottom: 8px;
             font-size: 16px;
-            color: #000;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: #3A3835;
+            font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           }
           .bullet {
-            color: #000;
+            color: #3A3835;
             font-weight: bold;
             margin-top: 2px;
           }
@@ -754,11 +717,11 @@ function generateCardHTML(data: NetworkingData, borderColors?: string[]): string
             text-align: center;
             padding-top: 16px;
             font-size: 12px;
-            color: #333;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: #7D7A73;
+            font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           }
           .text-muted {
-            color: #666;
+            color: #7D7A73;
             font-style: italic;
           }
         </style>
@@ -814,7 +777,7 @@ function generateCardHTML(data: NetworkingData, borderColors?: string[]): string
           </div>
 
           <div class="footer">
-            <p>Powered by <strong>Intro</strong></p>
+            <p>Powered by <strong style="font-family: 'Changa One', cursive;">INTRO</strong></p>
             <p style="font-size: 11px; margin-top: 4px;">introevent.site</p>
             ${data.sponsor ? `<p style="margin-top: 8px;">Sponsored by <strong>${escapeHtml(data.sponsor)}</strong></p>` : ''}
           </div>

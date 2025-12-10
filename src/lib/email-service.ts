@@ -125,7 +125,7 @@ export class EmailService {
         <body style="font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #3A3835; margin: 0; padding: 40px 20px; background-color: #EDEBE6;">
           <div style="max-width: 600px; margin: 0 auto;">
             <div style="background: rgba(237, 235, 230, 0.5); border: 1.5px solid #BEBCB8; border-radius: 56px; padding: 40px; box-shadow: 0px 2px 2px rgba(0, 0, 0, 0.15);">
-              <h1 style="font-family: 'Changa One', cursive; color: #3A3835; margin: 0 0 30px 0; font-size: 28px; text-align: center; text-transform: uppercase; letter-spacing: 0.02em;">You have a new message!</h1>
+              <h1 style="font-family: 'Arial Bold', Arial, sans-serif; font-weight: bold; color: #3A3835; margin: 0 0 30px 0; font-size: 28px; text-align: center; text-transform: uppercase; letter-spacing: 0.02em;">You have a new message!</h1>
               <p style="font-size: 16px; margin: 0 0 20px 0; color: #3A3835;">
                 <strong>${this.escapeHtml(senderName)}</strong> sent you a message on Intro.
               </p>
@@ -183,7 +183,7 @@ export class EmailService {
         <body style="font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #3A3835; margin: 0; padding: 40px 20px; background-color: #EDEBE6;">
           <div style="max-width: 600px; margin: 0 auto;">
             <div style="background: rgba(237, 235, 230, 0.5); border: 1.5px solid #BEBCB8; border-radius: 56px; padding: 40px; box-shadow: 0px 2px 2px rgba(0, 0, 0, 0.15);">
-              <h1 style="font-family: 'Changa One', cursive; color: #3A3835; margin: 0 0 30px 0; font-size: 28px; text-align: center; text-transform: uppercase; letter-spacing: 0.02em;">You have new matches!</h1>
+              <h1 style="font-family: 'Arial Bold', Arial, sans-serif; font-weight: bold; color: #3A3835; margin: 0 0 30px 0; font-size: 28px; text-align: center; text-transform: uppercase; letter-spacing: 0.02em;">You have new matches!</h1>
               <p style="font-size: 16px; margin: 0 0 20px 0; color: #3A3835;">
                 We found <strong>${matchCount} ${matchCount === 1 ? 'person' : 'people'}</strong> you should connect with at <strong>${this.escapeHtml(eventName)}</strong>.
               </p>
