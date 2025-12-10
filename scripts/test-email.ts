@@ -1,0 +1,1115 @@
+/**
+ * Test script for sending emails to your own email address
+ * 
+ * HOW TO PROVIDE YOUR EMAIL:
+ *   1. Pass it as a command-line argument: --email your@email.com
+ *   2. Set TEST_EMAIL environment variable in .env.local file
+ * 
+ * Usage Examples:
+ *   # Test all emails (message + networking card with mock data)
+ *   npm run test:email -- --email your@email.com --type all
+ * 
+ *   # Test only message notification
+ *   npm run test:email -- --email your@email.com --type message
+ * 
+ *   # Test networking card with real event data
+ *   npm run test:email -- --email your@email.com --type networking --eventId <eventId> --userId <userId>
+ * 
+ *   # If TEST_EMAIL is set in .env.local, you can omit --email
+ *   npm run test:email -- --type all
+ */
+
+import { config } from 'dotenv'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+import { randomUUID } from 'crypto'
+import { EmailService } from '../src/lib/email-service'
+
+// Load environment variables from .env.local
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+config({ path: join(__dirname, '..', '.env.local') })
+import { createClient } from '@supabase/supabase-js'
+import { getNetworkingMetrics } from '../src/lib/networking-metrics'
+import { Database } from '../src/lib/database.types'
+// Dynamic imports for puppeteer and sharp (only needed for networking cards)
+
+const args = process.argv.slice(2)
+
+// Parse command line arguments
+function parseArgs() {
+  const parsed: Record<string, string> = {}
+  for (let i = 0; i < args.length; i++) {
+    if (args[i].startsWith('--')) {
+      const key = args[i].slice(2)
+      const value = args[i + 1]?.startsWith('--') ? '' : args[i + 1] || ''
+      parsed[key] = value
+      if (value) i++
+    }
+  }
+  return parsed
+}
+
+async function testMessageNotification(email: string) {
+  console.log('\n📧 Testing message notification email...')
+  
+  const emailService = new EmailService()
+  
+  if (!emailService.isConfigured()) {
+    console.error('❌ Email service not configured. Please set RESEND_API_KEY in your environment.')
+    return false
+  }
+
+  const result = await emailService.sendMessageNotification(
+    email,
+    'Test Sender',
+    'This is a test message preview to verify that email notifications are working correctly!'
+  )
+
+  if (result.success) {
+    console.log(`✅ Message notification email sent successfully!`)
+    console.log(`   Message ID: ${result.messageId}`)
+    return true
+  } else {
+    console.error(`❌ Failed to send message notification: ${result.error}`)
+    return false
+  }
+}
+
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }
+  return text.replace(/[&<>"']/g, (m) => map[m])
+}
+
+/**
+ * Check if a color is too close to white
+ */
+function isWhiteColor(r: number, g: number, b: number, threshold: number = 220): boolean {
+  // A color is considered white if all RGB channels are above the threshold
+  return r >= threshold && g >= threshold && b >= threshold
+}
+
+/**
+ * Check if a color is too close to black
+ */
+function isBlackColor(r: number, g: number, b: number, threshold: number = 30): boolean {
+  // A color is considered black if all RGB channels are below the threshold
+  return r <= threshold && g <= threshold && b <= threshold
+}
+
+/**
+ * Calculate color saturation (how vibrant/colorful the color is)
+ */
+function getSaturation(r: number, g: number, b: number): number {
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  if (max === 0) return 0
+  return ((max - min) / max) * 100
+}
+
+/**
+ * Calculate color distance between two RGB colors
+ */
+function colorDistance(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number): number {
+  return Math.sqrt(Math.pow(r1 - r2, 2) + Math.pow(g1 - g2, 2) + Math.pow(b1 - b2, 2))
+}
+
+/**
+ * Extract dominant colors from logo image, focusing on non-white colors
+ */
+async function extractLogoColors(logoBuffer: Buffer): Promise<string[]> {
+  const sharp = await import('sharp')
+  try {
+    // Resize logo to a consistent size for processing
+    const resized = await sharp.default(logoBuffer)
+      .resize(200, 200, { fit: 'inside' })
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+    
+    const { data, info } = resized
+    const width = info.width
+    const height = info.height
+    const channels = info.channels
+    
+    // Sample pixels in a grid pattern for consistent results
+    const gridSize = 4 // Sample every 4th pixel (more samples = better color detection)
+    const colorMap = new Map<string, { r: number; g: number; b: number; count: number; saturation: number }>()
+    
+    let totalPixels = 0
+    let skippedWhite = 0
+    let skippedBlack = 0
+    let skippedGray = 0
+    
+    // Sample pixels systematically across the image
+    for (let y = 0; y < height; y += gridSize) {
+      for (let x = 0; x < width; x += gridSize) {
+        totalPixels++
+        const idx = (y * width + x) * channels
+        const r = data[idx]
+        const g = data[idx + 1]
+        const b = data[idx + 2]
+        
+        const brightness = (r + g + b) / 3
+        const saturation = getSaturation(r, g, b)
+        
+        // Skip white colors (all channels high) - more strict threshold
+        if (isWhiteColor(r, g, b, 240)) {
+          skippedWhite++
+          continue
+        }
+        
+        // Skip black colors (all channels low) - more strict threshold
+        if (isBlackColor(r, g, b, 15)) {
+          skippedBlack++
+          continue
+        }
+        
+        // Skip very light gray colors (low saturation, high brightness) - relaxed filter
+        if (brightness > 220 && saturation < 5) {
+          skippedGray++
+          continue
+        }
+        
+        // Quantize colors to reduce similar variations (round to nearest 10)
+        const qr = Math.round(r / 10) * 10
+        const qg = Math.round(g / 10) * 10
+        const qb = Math.round(b / 10) * 10
+        const key = `${qr},${qg},${qb}`
+        
+        if (colorMap.has(key)) {
+          const existing = colorMap.get(key)!
+          existing.count++
+        } else {
+          colorMap.set(key, { r: qr, g: qg, b: qb, count: 1, saturation })
+        }
+      }
+    }
+    
+    console.log(`   Pixel sampling stats: total=${totalPixels}, skipped white=${skippedWhite}, skipped black=${skippedBlack}, skipped gray=${skippedGray}, kept=${colorMap.size}`)
+    
+    // Convert to array and sort by frequency and saturation (prioritize vibrant colors)
+    const colors = Array.from(colorMap.entries())
+      .map(([_, color]) => color)
+      .sort((a, b) => {
+        // First sort by saturation (more vibrant first), then by frequency
+        if (Math.abs(a.saturation - b.saturation) > 5) {
+          return b.saturation - a.saturation
+        }
+        return b.count - a.count
+      })
+    
+    // Remove colors that are too similar to each other
+    const uniqueColors: string[] = []
+    for (const color of colors) {
+      const hex = `#${[color.r, color.g, color.b].map(x => {
+        const hex = Math.round(x).toString(16)
+        return hex.length === 1 ? '0' + hex : hex
+      }).join('')}`
+      
+      // Check if this color is too similar to any already selected color
+      let tooSimilar = false
+      for (const existingHex of uniqueColors) {
+        const existingRgb = existingHex.slice(1).match(/.{2}/g)!.map(x => parseInt(x, 16))
+        const distance = colorDistance(color.r, color.g, color.b, existingRgb[0], existingRgb[1], existingRgb[2])
+        if (distance < 30) { // Colors are too similar if distance < 30
+          tooSimilar = true
+          break
+        }
+      }
+      
+      if (!tooSimilar) {
+        uniqueColors.push(hex)
+        console.log(`   Extracted color: ${hex} (rgb(${color.r}, ${color.g}, ${color.b}), saturation: ${color.saturation.toFixed(1)}%, count: ${color.count})`)
+        if (uniqueColors.length >= 4) break
+      }
+    }
+    
+    console.log(`   Total unique colors extracted: ${uniqueColors.length}`)
+    
+    // If no colors were extracted, try a more lenient approach
+    if (uniqueColors.length === 0 && colors.length > 0) {
+      console.log('   No unique colors after similarity filtering, using top colors anyway...')
+      // Just take the top colors without similarity filtering
+      for (let i = 0; i < Math.min(4, colors.length); i++) {
+        const color = colors[i]
+        const hex = `#${[color.r, color.g, color.b].map(x => {
+          const hex = Math.round(x).toString(16)
+          return hex.length === 1 ? '0' + hex : hex
+        }).join('')}`
+        uniqueColors.push(hex)
+        console.log(`   Using color (fallback): ${hex} (rgb(${color.r}, ${color.g}, ${color.b}), saturation: ${color.saturation.toFixed(1)}%, count: ${color.count})`)
+      }
+    }
+    
+    // If still no colors, try even more lenient filtering - accept any non-pure-white/black
+    if (uniqueColors.length === 0 && colorMap.size === 0) {
+      console.log('   Trying ultra-lenient color extraction - accepting any non-pure white/black...')
+      // Re-sample with very lenient filtering
+      for (let y = 0; y < height; y += gridSize) {
+        for (let x = 0; x < width; x += gridSize) {
+          const idx = (y * width + x) * channels
+          const r = data[idx]
+          const g = data[idx + 1]
+          const b = data[idx + 2]
+          
+          // Only skip pure white (255,255,255) and pure black (0,0,0)
+          if (r === 255 && g === 255 && b === 255) continue
+          if (r === 0 && g === 0 && b === 0) continue
+          
+          const qr = Math.round(r / 10) * 10
+          const qg = Math.round(g / 10) * 10
+          const qb = Math.round(b / 10) * 10
+          const key = `${qr},${qg},${qb}`
+          
+          if (!colorMap.has(key)) {
+            const saturation = getSaturation(r, g, b)
+            colorMap.set(key, { r: qr, g: qg, b: qb, count: 1, saturation })
+          } else {
+            colorMap.get(key)!.count++
+          }
+        }
+      }
+      
+      // Get top colors from this ultra-lenient pass
+      const lenientColors = Array.from(colorMap.entries())
+        .map(([_, color]) => color)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 4)
+      
+      for (const color of lenientColors) {
+        const hex = `#${[color.r, color.g, color.b].map(x => {
+          const hex = Math.round(x).toString(16)
+          return hex.length === 1 ? '0' + hex : hex
+        }).join('')}`
+        uniqueColors.push(hex)
+        console.log(`   Using color (ultra-lenient fallback): ${hex} (rgb(${color.r}, ${color.g}, ${color.b}), count: ${color.count})`)
+      }
+    }
+    
+    if (uniqueColors.length === 0) {
+      console.log('   WARNING: No colors extracted - all pixels were filtered out. Check filtering thresholds.')
+    }
+    return uniqueColors
+  } catch (error) {
+    console.error('   Error extracting logo colors:', error)
+    return [] // Fallback to default gray
+  }
+}
+
+/**
+ * Convert hex color to subtle rgba format
+ */
+function makeColorSubtle(hex: string, opacity: number = 0.4): string {
+  // Convert hex to RGB
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  
+  // Lighten the color by mixing with white (60% white, 40% original color)
+  const lightenFactor = 0.6
+  const lightR = Math.round(r + (255 - r) * lightenFactor)
+  const lightG = Math.round(g + (255 - g) * lightenFactor)
+  const lightB = Math.round(b + (255 - b) * lightenFactor)
+  
+  return `rgba(${lightR}, ${lightG}, ${lightB}, ${opacity})`
+}
+
+function generateCardHTML(data: {
+  eventName: string
+  connectionsCount: number
+  topCompanies: string[]
+  topIndustries: string[]
+  commonTitles: string[]
+  eventLogoUrl?: string | null
+  softwareProvider: string
+  sponsor?: string
+}, borderColors?: string[]): string {
+  // Default to subtle gray if no colors provided
+  const defaultColor = 'rgba(153, 153, 153, 0.5)'
+  
+  // Assign colors to cards (with fallbacks)
+  const eventCardColor = borderColors && borderColors[0] ? borderColors[0] : defaultColor
+  const companiesColor = borderColors && borderColors[1] ? borderColors[1] : (borderColors && borderColors[0] ? borderColors[0] : defaultColor)
+  const connectionsColor = borderColors && borderColors[2] ? borderColors[2] : (borderColors && borderColors[0] ? borderColors[0] : defaultColor)
+  const industriesColor = borderColors && borderColors[3] ? borderColors[3] : (borderColors && borderColors[0] ? borderColors[0] : defaultColor)
+  const titlesColor = borderColors && borderColors[0] ? borderColors[0] : defaultColor
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Changa+One&display=swap" rel="stylesheet">
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: 'Changa One', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: white;
+            padding: 32px;
+          }
+          .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+          }
+          .card {
+            border: none;
+            border-radius: 16px;
+            padding: 32px;
+            background: white;
+          }
+          .event-card {
+            min-height: 220px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+          }
+          .event-logo {
+            max-width: 300px;
+            max-height: 120px;
+            margin-bottom: 16px;
+            object-fit: contain;
+            /* Logo stays in color - no grayscale filter */
+          }
+          .event-label {
+            font-size: 20px;
+            font-weight: 400;
+            text-transform: uppercase;
+            letter-spacing: -0.01em;
+            color: #000;
+            margin-bottom: 12px;
+            font-family: 'Changa One', cursive;
+          }
+          .event-name {
+            font-size: 48px;
+            font-weight: 400;
+            line-height: 1.2;
+            color: #000;
+            font-family: 'Changa One', cursive;
+          }
+          .connections-card {
+            min-height: 280px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          }
+          .connections-label {
+            font-size: 20px;
+            font-weight: 400;
+            text-transform: uppercase;
+            letter-spacing: -0.01em;
+            color: #000;
+            margin-bottom: 16px;
+            font-family: 'Changa One', cursive;
+          }
+          .connections-count {
+            font-size: 144px;
+            font-weight: 400;
+            line-height: 1;
+            letter-spacing: -0.02em;
+            color: #000;
+            font-family: 'Changa One', cursive;
+          }
+          .list-title {
+            font-size: 20px;
+            font-weight: 400;
+            text-transform: uppercase;
+            letter-spacing: -0.01em;
+            margin-bottom: 16px;
+            color: #000;
+            font-family: 'Changa One', cursive;
+          }
+          .list-item {
+            display: flex;
+            align-items: start;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 16px;
+            color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          }
+          .bullet {
+            color: #000;
+            font-weight: bold;
+            margin-top: 2px;
+          }
+          .titles-grid {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px 32px;
+          }
+          .footer {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding-top: 16px;
+            font-size: 12px;
+            color: #333;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          }
+          .text-muted {
+            color: #666;
+            font-style: italic;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="card event-card" style="border-color: ${eventCardColor};">
+            <p class="event-label">Event Attended:</p>
+            ${data.eventLogoUrl ? `
+              <img src="${escapeHtml(data.eventLogoUrl)}" alt="Event Logo" class="event-logo" />
+            ` : `
+              <h2 class="event-name">${escapeHtml(data.eventName)}</h2>
+            `}
+          </div>
+          
+          <div class="card" style="border-color: ${companiesColor};">
+            <h3 class="list-title">Top Companies:</h3>
+            <ul>
+              ${data.topCompanies.length > 0 ? data.topCompanies.map(c => `
+                <li class="list-item">
+                  <span class="bullet">•</span>
+                  <span>${escapeHtml(c)}</span>
+                </li>
+              `).join('') : '<li class="list-item"><span class="text-muted">No companies listed</span></li>'}
+            </ul>
+          </div>
+
+          <div class="card connections-card" style="border-color: ${connectionsColor};">
+            <p class="connections-label">Number of People Connected With:</p>
+            <div class="connections-count">${data.connectionsCount}</div>
+          </div>
+
+          <div class="card" style="border-color: ${industriesColor};">
+            <h3 class="list-title">Top Industries:</h3>
+            <ul>
+              ${data.topIndustries.length > 0 ? data.topIndustries.map(i => `
+                <li class="list-item">
+                  <span class="bullet">•</span>
+                  <span>${escapeHtml(i)}</span>
+                </li>
+              `).join('') : '<li class="list-item"><span class="text-muted">No industries listed</span></li>'}
+            </ul>
+          </div>
+
+          <div class="card titles-grid" style="border-color: ${titlesColor};">
+            <h3 class="list-title" style="grid-column: 1 / -1;">Most Common Titles:</h3>
+            ${data.commonTitles.length > 0 ? data.commonTitles.map(t => `
+              <div class="list-item">
+                <span class="bullet">•</span>
+                <span>${escapeHtml(t)}</span>
+              </div>
+            `).join('') : '<div class="list-item" style="grid-column: 1 / -1;"><span class="text-muted">No titles listed</span></div>'}
+          </div>
+
+          <div class="footer">
+            <p>Powered by <strong>Intro</strong></p>
+            <p style="font-size: 11px; margin-top: 4px;">introevent.site</p>
+            ${data.sponsor ? `<p style="margin-top: 8px;">Sponsored by <strong>${escapeHtml(data.sponsor)}</strong></p>` : ''}
+          </div>
+        </div>
+      </body>
+    </html>
+  `
+}
+
+function generateEmailCardHTML(data: {
+  eventName: string
+  connectionsCount: number
+  topCompanies: string[]
+  topIndustries: string[]
+  commonTitles: string[]
+  eventLogoUrl?: string | null
+  softwareProvider: string
+  sponsor?: string
+}, borderColors?: string[]): string {
+  // Convert rgba colors to hex for better email client support
+  const rgbaToHex = (rgba: string | undefined): string => {
+    if (!rgba) return '#999999'
+    // If already hex, return as is
+    if (rgba.startsWith('#')) return rgba
+    const match = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/)
+    if (!match) return '#999999'
+    const r = parseInt(match[1])
+    const g = parseInt(match[2])
+    const b = parseInt(match[3])
+    return `#${[r, g, b].map(x => x.toString(16).padStart(2, '0')).join('')}`
+  }
+
+  const defaultColor = '#999999'
+  const eventCardColor = rgbaToHex(borderColors?.[0])
+  const companiesColor = rgbaToHex(borderColors?.[1] || borderColors?.[0])
+  const connectionsColor = rgbaToHex(borderColors?.[2] || borderColors?.[0])
+  const industriesColor = rgbaToHex(borderColors?.[3] || borderColors?.[0])
+  const titlesColor = rgbaToHex(borderColors?.[0])
+
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+      <tr>
+        <td style="padding: 20px;">
+          <!-- Event Card -->
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px; border: 3px solid ${eventCardColor}; border-radius: 16px; background-color: #ffffff;">
+            <tr>
+              <td style="padding: 24px; text-align: center;">
+                <p style="font-family: 'Changa One', Arial, sans-serif; font-size: 18px; text-transform: uppercase; color: #000000; margin: 0 0 12px 0; letter-spacing: -0.5px;">Event Attended:</p>
+                ${data.eventLogoUrl ? `
+                  <img src="${escapeHtml(data.eventLogoUrl)}" alt="${escapeHtml(data.eventName)}" style="max-width: 250px; max-height: 100px; height: auto; display: block; margin: 0 auto;" />
+                ` : `
+                  <h2 style="font-family: 'Changa One', Arial, sans-serif; font-size: 36px; color: #000000; margin: 0; line-height: 1.2;">${escapeHtml(data.eventName)}</h2>
+                `}
+              </td>
+            </tr>
+          </table>
+
+          <!-- Two Column Layout -->
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <!-- Left Column -->
+              <td width="48%" valign="top" style="padding-right: 8px;">
+                <!-- Top Companies -->
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px; border: 3px solid ${companiesColor}; border-radius: 16px; background-color: #ffffff;">
+                  <tr>
+                    <td style="padding: 20px;">
+                      <h3 style="font-family: 'Changa One', Arial, sans-serif; font-size: 16px; text-transform: uppercase; color: #000000; margin: 0 0 12px 0; letter-spacing: -0.5px;">Top Companies:</h3>
+                      <ul style="margin: 0; padding-left: 20px; list-style: none;">
+                        ${data.topCompanies.length > 0 ? data.topCompanies.map(c => `
+                          <li style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #000000; margin-bottom: 6px;">
+                            <span style="font-weight: bold; margin-right: 6px;">•</span>${escapeHtml(c)}
+                          </li>
+                        `).join('') : `
+                          <li style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #666666; font-style: italic;">No companies listed</li>
+                        `}
+                      </ul>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+
+              <!-- Right Column -->
+              <td width="48%" valign="top" style="padding-left: 8px;">
+                <!-- Connections Count -->
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px; border: 3px solid ${connectionsColor}; border-radius: 16px; background-color: #ffffff;">
+                  <tr>
+                    <td style="padding: 20px; text-align: center;">
+                      <p style="font-family: 'Changa One', Arial, sans-serif; font-size: 16px; text-transform: uppercase; color: #000000; margin: 0 0 12px 0; letter-spacing: -0.5px;">Number of People Connected With:</p>
+                      <div style="font-family: 'Changa One', Arial, sans-serif; font-size: 72px; font-weight: 400; line-height: 1; color: #000000; letter-spacing: -2px;">${data.connectionsCount}</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Bottom Row -->
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <!-- Top Industries -->
+              <td width="48%" valign="top" style="padding-right: 8px;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px; border: 3px solid ${industriesColor}; border-radius: 16px; background-color: #ffffff;">
+                  <tr>
+                    <td style="padding: 20px;">
+                      <h3 style="font-family: 'Changa One', Arial, sans-serif; font-size: 16px; text-transform: uppercase; color: #000000; margin: 0 0 12px 0; letter-spacing: -0.5px;">Top Industries:</h3>
+                      <ul style="margin: 0; padding-left: 20px; list-style: none;">
+                        ${data.topIndustries.length > 0 ? data.topIndustries.map(i => `
+                          <li style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #000000; margin-bottom: 6px;">
+                            <span style="font-weight: bold; margin-right: 6px;">•</span>${escapeHtml(i)}
+                          </li>
+                        `).join('') : `
+                          <li style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #666666; font-style: italic;">No industries listed</li>
+                        `}
+                      </ul>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+
+              <!-- Common Titles -->
+              <td width="48%" valign="top" style="padding-left: 8px;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px; border: 3px solid ${titlesColor}; border-radius: 16px; background-color: #ffffff;">
+                  <tr>
+                    <td style="padding: 20px;">
+                      <h3 style="font-family: 'Changa One', Arial, sans-serif; font-size: 16px; text-transform: uppercase; color: #000000; margin: 0 0 12px 0; letter-spacing: -0.5px;">Most Common Titles:</h3>
+                      <ul style="margin: 0; padding-left: 20px; list-style: none;">
+                        ${data.commonTitles.length > 0 ? data.commonTitles.map(t => `
+                          <li style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #000000; margin-bottom: 6px;">
+                            <span style="font-weight: bold; margin-right: 6px;">•</span>${escapeHtml(t)}
+                          </li>
+                        `).join('') : `
+                          <li style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #666666; font-style: italic;">No titles listed</li>
+                        `}
+                      </ul>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Footer -->
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="padding: 16px 0; text-align: center;">
+                <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; color: #333333; margin: 0;">
+                  Powered by <strong>Intro</strong><br />
+                  <span style="font-size: 11px;">introevent.site</span>
+                  ${data.sponsor ? `<br /><span style="margin-top: 8px; display: block;">Sponsored by <strong>${escapeHtml(data.sponsor)}</strong></span>` : ''}
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  `
+}
+
+async function createSurveyToken(
+  supabase: ReturnType<typeof createClient<Database>>,
+  params: { eventId: string; userId: string; email: string; baseUrl: string }
+) {
+  const token = randomUUID()
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString()
+
+  const { error } = await supabase
+    .from('event_survey_tokens')
+    .insert({
+      event_id: params.eventId,
+      recipient_user_id: params.userId,
+      recipient_email: params.email,
+      token,
+      expires_at: expiresAt,
+    })
+
+  if (error) {
+    console.error('   Error creating survey token:', error)
+    console.error('   Error details:', JSON.stringify(error, null, 2))
+    throw new Error(`Failed to create survey token: ${error.message || 'Unknown error'}`)
+  }
+
+  const normalizedBaseUrl = params.baseUrl.replace(/\/$/, '')
+
+  return {
+    token,
+    surveyLink: `${normalizedBaseUrl}/survey/${token}`,
+  }
+}
+
+async function testNetworkingCard(email: string, eventId?: string, userId?: string) {
+  console.log('\n📧 Testing networking card email...')
+  
+  const emailService = new EmailService()
+  
+  if (!emailService.isConfigured()) {
+    console.error('❌ Email service not configured. Please set RESEND_API_KEY in your environment.')
+    return false
+  }
+
+  let metrics: {
+    eventName: string
+    connectionsCount: number
+    topCompanies: string[]
+    topIndustries: string[]
+    commonTitles: string[]
+    eventLogoUrl?: string | null
+    softwareProvider: string
+    sponsor?: string
+  }
+
+  if (eventId && userId) {
+    // Use real data from the database
+    console.log(`   Fetching metrics for event ${eventId} and user ${userId}...`)
+    const realMetrics = await getNetworkingMetrics(eventId, userId)
+    if (!realMetrics) {
+      console.error('❌ Failed to fetch networking metrics. Using mock data instead.')
+      metrics = createMockMetrics()
+    } else {
+      metrics = realMetrics
+    }
+  } else {
+    // Use mock data
+    console.log('   Using mock data (provide --eventId and --userId for real data)...')
+    metrics = createMockMetrics()
+  }
+
+  // Extract logo colors if logo exists (for border colors)
+  let borderColors: string[] | undefined = undefined
+  if (metrics.eventLogoUrl) {
+    try {
+      console.log('   Attempting to extract colors from logo:', metrics.eventLogoUrl)
+      // Fetch the logo image
+      const logoResponse = await fetch(metrics.eventLogoUrl)
+      console.log('   Logo fetch response status:', logoResponse.status, logoResponse.ok)
+      if (logoResponse.ok) {
+        const logoBuffer = Buffer.from(await logoResponse.arrayBuffer())
+        console.log('   Logo buffer size:', logoBuffer.length)
+        const extractedColors = await extractLogoColors(logoBuffer)
+        console.log('   Extracted colors (hex):', extractedColors)
+        if (extractedColors.length > 0) {
+          // Convert to subtle rgba colors
+          borderColors = extractedColors.map(color => makeColorSubtle(color, 0.4))
+          console.log('   Border colors (rgba):', borderColors)
+        } else {
+          console.log('   No colors extracted from logo (all filtered out or extraction failed)')
+        }
+      } else {
+        console.error('   Failed to fetch logo:', logoResponse.status, logoResponse.statusText)
+      }
+    } catch (error) {
+      console.error('   Error extracting logo colors for borders:', error)
+      // Continue with default gray borders
+    }
+  } else {
+    console.log('   No logo URL in metrics, using default gray borders')
+  }
+
+  // Generate HTML for the card with border colors
+  const html = generateCardHTML(metrics, borderColors)
+
+  // Convert HTML to PNG using Puppeteer (dynamic import)
+  console.log('   Generating networking card image...')
+  const puppeteer = await import('puppeteer')
+  const browser = await puppeteer.default.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  })
+  
+  let pngBuffer: Buffer
+  let contentHeight: number
+  let logoBounds: { x: number; y: number; width: number; height: number } | null = null
+  let cardBounds: Array<{ x: number; y: number; width: number; height: number }> = []
+  
+  try {
+    const page = await browser.newPage()
+    // Set initial viewport (will be adjusted based on content)
+    await page.setViewport({ width: 1200, height: 800 })
+    await page.setContent(html, { waitUntil: 'networkidle0' })
+    
+    // Get the actual content height
+    contentHeight = await page.evaluate(() => {
+      return Math.max(
+        document.body.scrollHeight,
+        document.body.offsetHeight,
+        document.documentElement.clientHeight,
+        document.documentElement.scrollHeight,
+        document.documentElement.offsetHeight
+      )
+    })
+    
+    // Set viewport to match content height (add small padding)
+    await page.setViewport({ width: 1200, height: contentHeight + 20 })
+    
+    // Get logo bounds and card bounds before taking screenshot
+    if (metrics.eventLogoUrl) {
+      logoBounds = await page.evaluate(() => {
+        const logo = document.querySelector('.event-logo') as HTMLElement
+        if (logo) {
+          const rect = logo.getBoundingClientRect()
+          return {
+            x: Math.round(rect.left),
+            y: Math.round(rect.top),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height)
+          }
+        }
+        return null
+      })
+    }
+    
+    // Get bounds for all cards (always, regardless of whether we have colors)
+    const bounds = await page.evaluate(() => {
+      const cards = document.querySelectorAll('.card')
+      return Array.from(cards).map(card => {
+        const rect = card.getBoundingClientRect()
+        return {
+          x: Math.round(rect.left),
+          y: Math.round(rect.top),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height)
+        }
+      })
+    })
+    cardBounds = bounds
+    console.log(`   Found ${cardBounds.length} cards to apply borders to`)
+    
+    // Take screenshot of the full content
+    const screenshot = await page.screenshot({ type: 'png', fullPage: false })
+    pngBuffer = Buffer.from(screenshot)
+  } finally {
+    await browser.close()
+  }
+
+  // Convert to grayscale, but preserve logo color
+  const sharp = await import('sharp')
+  const grayscaleBuffer = await sharp.default(pngBuffer)
+    .grayscale()
+    .toBuffer()
+
+  // If we have a logo, composite the color logo back onto the grayscale card
+  let finalBuffer = grayscaleBuffer
+  if (logoBounds && metrics.eventLogoUrl) {
+    try {
+      // Extract the logo area from the original color image
+      const logoArea = await sharp.default(pngBuffer)
+        .extract({
+          left: logoBounds.x,
+          top: logoBounds.y,
+          width: logoBounds.width,
+          height: logoBounds.height
+        })
+        .toBuffer()
+
+      // Composite the color logo onto the grayscale card
+      finalBuffer = await sharp.default(grayscaleBuffer)
+        .composite([{
+          input: logoArea,
+          left: logoBounds.x,
+          top: logoBounds.y
+        }])
+        .toBuffer()
+    } catch (error) {
+      console.error('   Error compositing color logo:', error)
+      // Fall back to grayscale if compositing fails
+      finalBuffer = grayscaleBuffer
+    }
+  }
+  
+  // Draw borders on the cards using Sharp (colored if available, gray if not)
+  if (cardBounds.length > 0) {
+    try {
+      const hasColors = borderColors && borderColors.length > 0
+      console.log(`   Drawing ${hasColors ? 'colored' : 'gray'} borders on cards...`)
+      
+      // Create SVG overlays for each card border
+      const borderOverlays = cardBounds.map((bounds: { x: number; y: number; width: number; height: number }, index: number) => {
+        // Get color for this card (with fallbacks)
+        let color: string
+        if (hasColors && borderColors) {
+          if (index === 0) {
+            color = borderColors[0] || 'rgba(153, 153, 153, 0.5)'
+          } else if (index === 1) {
+            color = borderColors[1] || borderColors[0] || 'rgba(153, 153, 153, 0.5)'
+          } else if (index === 2) {
+            color = borderColors[2] || borderColors[0] || 'rgba(153, 153, 153, 0.5)'
+          } else if (index === 3) {
+            color = borderColors[3] || borderColors[0] || 'rgba(153, 153, 153, 0.5)'
+          } else {
+            color = borderColors[0] || 'rgba(153, 153, 153, 0.5)'
+          }
+        } else {
+          // Use gray for all cards if no colors extracted
+          color = 'rgba(153, 153, 153, 0.5)'
+        }
+        
+        // Extract RGB from rgba string
+        const rgbaMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/)
+        if (!rgbaMatch) {
+          console.warn(`   Invalid color format for card ${index}: ${color}`)
+          return null
+        }
+        
+        const r = rgbaMatch[1]
+        const g = rgbaMatch[2]
+        const b = rgbaMatch[3]
+        
+        console.log(`   Card ${index} border color: rgb(${r}, ${g}, ${b})`)
+        
+        // Create SVG with double rounded borders (gray outer, colored/gray inner)
+        const borderRadius = 16
+        const outerBorderWidth = 3
+        const innerBorderWidth = 2
+        const gap = 1 // Gap between outer and inner border
+        
+        const svg = Buffer.from(`
+          <svg width="${bounds.width}" height="${bounds.height}" xmlns="http://www.w3.org/2000/svg">
+            <!-- Outer gray border (rounded rectangle) -->
+            <rect x="0" y="0" width="${bounds.width}" height="${bounds.height}" 
+                  rx="${borderRadius}" ry="${borderRadius}" 
+                  fill="none" stroke="rgb(153,153,153)" stroke-width="${outerBorderWidth}" />
+            
+            <!-- Inner colored/gray border (rounded rectangle, inset) -->
+            <rect x="${outerBorderWidth + gap}" y="${outerBorderWidth + gap}" 
+                  width="${bounds.width - 2 * (outerBorderWidth + gap)}" 
+                  height="${bounds.height - 2 * (outerBorderWidth + gap)}" 
+                  rx="${borderRadius - outerBorderWidth - gap}" 
+                  ry="${borderRadius - outerBorderWidth - gap}" 
+                  fill="none" stroke="rgb(${r},${g},${b})" stroke-width="${innerBorderWidth}" />
+          </svg>
+        `)
+        
+        return {
+          input: svg,
+          left: bounds.x,
+          top: bounds.y
+        }
+      }).filter((overlay: { input: Buffer; left: number; top: number } | null): overlay is { input: Buffer; left: number; top: number } => overlay !== null)
+      
+      if (borderOverlays.length > 0) {
+        // Composite the borders onto the final image
+        finalBuffer = await sharp.default(finalBuffer)
+          .composite(borderOverlays as Array<{ input: Buffer; left: number; top: number }>)
+          .toBuffer()
+        console.log(`   Applied ${borderOverlays.length} ${hasColors ? 'colored' : 'gray'} borders`)
+      }
+    } catch (error) {
+      console.error('   Error drawing borders:', error)
+      // Continue without borders if drawing fails
+    }
+  }
+
+  // Create survey token if we have eventId and userId
+  let surveyLink: string | undefined
+  if (eventId && userId) {
+    try {
+      const supabase = createClient<Database>(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://introevent.site'
+      const result = await createSurveyToken(supabase, {
+        eventId,
+        userId,
+        email,
+        baseUrl,
+      })
+      surveyLink = result.surveyLink
+      console.log('   Survey token created successfully, link:', surveyLink)
+    } catch (error) {
+      console.error('   Error creating survey token:', error)
+      console.error('   This usually means the migration 20251209_add_event_survey.sql has not been run.')
+      console.error('   Please run the migration to create the event_survey_tokens table.')
+      // Continue without survey link - email will still be sent
+    }
+  }
+
+  // Generate email-compatible HTML card
+  const emailCardHTML = generateEmailCardHTML(metrics, borderColors)
+
+  // Send email with attachment
+  console.log('   Sending email...')
+  const result = await emailService.sendEmailWithAttachment({
+    to: email,
+    subject: `Your ${metrics.eventName} Networking Summary`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <link href="https://fonts.googleapis.com/css2?family=Changa+One&display=swap" rel="stylesheet">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+          <h1 style="font-size: 24px; margin-bottom: 20px; color: #333;">Thank you for attending ${escapeHtml(metrics.eventName)}!</h1>
+          <p style="font-size: 16px; margin-bottom: 20px; color: #333;">Here's your networking summary:</p>
+          ${surveyLink ? `
+          <div style="background: #f8faf9; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; margin-bottom: 20px;">
+            <p style="font-size: 15px; margin: 0 0 12px 0; color: #111827;">Before viewing your recap, can you answer 3 quick questions (incl. the organizer's custom one)?</p>
+            <div style="text-align: center;">
+              <a href="${surveyLink}" style="display: inline-block; background: #1f4b3f; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 9999px; font-weight: 600;">
+                Take the 30-second survey
+              </a>
+            </div>
+          </div>
+          ` : ''}
+          
+          <!-- Embedded HTML Card -->
+          ${emailCardHTML}
+          
+          <!-- Download Section -->
+          <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-top: 20px; text-align: center;">
+            <p style="font-size: 14px; color: #666; margin: 0 0 12px 0;">Want to save or share your networking summary?</p>
+            <p style="font-size: 12px; color: #999; margin: 0;">Download the PNG version attached to this email</p>
+          </div>
+          
+          <p style="font-size: 14px; color: #666; margin-top: 20px; text-align: center;">
+            Powered by <strong>Intro</strong><br />
+            <span style="font-size: 12px;">introevent.site</span>
+          </p>
+        </body>
+      </html>
+    `,
+    text: `Thanks for attending ${metrics.eventName}!${surveyLink ? ` Before viewing your recap, please answer a 30-second, 3-question survey: ${surveyLink}` : ''} Here's your networking summary:`,
+        attachments: [{
+          filename: 'networking-summary.png',
+          content: finalBuffer,
+          cid: 'networking-card',
+        }],
+  })
+
+  if (result.success) {
+    console.log(`✅ Networking card email sent successfully!`)
+    console.log(`   Message ID: ${result.messageId}`)
+    return true
+  } else {
+    console.error(`❌ Failed to send networking card: ${result.error}`)
+    return false
+  }
+}
+
+function createMockMetrics() {
+  return {
+    eventName: 'Test Networking Event 2024',
+    connectionsCount: 12,
+    topCompanies: ['Tech Corp', 'Startup Inc', 'Innovation Labs', 'Digital Solutions'],
+    topIndustries: ['Technology', 'Software', 'SaaS', 'AI/ML'],
+    commonTitles: ['Software Engineer', 'Product Manager', 'Designer', 'Founder', 'CTO'],
+    eventLogoUrl: null,
+    softwareProvider: 'introevent',
+    sponsor: undefined,
+  }
+}
+
+async function main() {
+  const parsed = parseArgs()
+  const email = parsed.email || process.env.TEST_EMAIL
+  const type = parsed.type || 'all'
+  const eventId = parsed.eventId
+  const userId = parsed.userId
+
+  if (!email) {
+    console.error('❌ Email address required!')
+    console.log('\nUsage:')
+    console.log('  npm run test:email -- --email your@email.com --type networking --eventId <eventId> --userId <userId>')
+    console.log('  npm run test:email -- --email your@email.com --type message')
+    console.log('  npm run test:email -- --email your@email.com --type all --eventId <eventId> --userId <userId>')
+    console.log('\nOr set TEST_EMAIL environment variable')
+    process.exit(1)
+  }
+
+  console.log(`\n🧪 Testing emails to: ${email}`)
+  console.log(`   Type: ${type}`)
+
+  const results: boolean[] = []
+
+  if (type === 'message' || type === 'all') {
+    const result = await testMessageNotification(email)
+    results.push(result)
+  }
+
+  if (type === 'networking' || type === 'all') {
+    const result = await testNetworkingCard(email, eventId, userId)
+    results.push(result)
+  }
+
+  console.log('\n' + '='.repeat(50))
+  const allSuccess = results.every(r => r)
+  if (allSuccess) {
+    console.log('✅ All email tests completed successfully!')
+    console.log(`   Check your inbox at ${email}`)
+  } else {
+    console.log('❌ Some email tests failed. Check the errors above.')
+  }
+  console.log('='.repeat(50) + '\n')
+}
+
+main().catch(console.error)
+

@@ -16,56 +16,102 @@ export default function Home() {
   const supabase = createClientComponentClient()
 
   useEffect(() => {
+    let isMounted = true
+    let checkTimeout: NodeJS.Timeout | null = null
+
+    const checkOnboardingStatus = async (userId: string) => {
+      const queryStart = performance.now()
+      try {
+        // Optimized query: only select the fields we need to check
+        // Use a timeout to prevent hanging on slow queries
+        const queryPromise = supabase
+          .from("users")
+          .select("first_name, last_name, career_title, company_name")
+          .eq("user_id", userId)
+          .single()
+        
+        const timeoutPromise = new Promise((_, reject) => {
+          checkTimeout = setTimeout(() => reject(new Error('Query timeout')), 5000)
+        })
+
+        const { data: person, error: userError } = await Promise.race([
+          queryPromise,
+          timeoutPromise
+        ]) as { data: any, error: any }
+        
+        const queryTime = performance.now() - queryStart
+        console.log(`[PERF] Onboarding check query took ${queryTime.toFixed(2)}ms`)
+
+        if (checkTimeout) {
+          clearTimeout(checkTimeout)
+          checkTimeout = null
+        }
+
+        if (userError) {
+          console.warn("User row not found yet; route to onboarding", userError)
+          if (isMounted) router.push("/onboarding")
+        } else if (person && person.first_name && person.last_name && person.career_title && person.company_name) {
+          if (isMounted) router.push("/home")
+        } else {
+          if (isMounted) router.push("/onboarding")
+        }
+      } catch (dbError: any) {
+        if (checkTimeout) {
+          clearTimeout(checkTimeout)
+          checkTimeout = null
+        }
+        console.error("Database error:", dbError)
+        // Gracefully fallback to home if query fails or times out
+        if (isMounted) router.push("/home")
+      }
+    }
+
     const checkAuth = async () => {
+      const authStart = performance.now()
       try {
         const { data: { user } } = await supabase.auth.getUser()
+        const authTime = performance.now() - authStart
+        console.log(`[PERF] Auth getUser took ${authTime.toFixed(2)}ms`)
+        
         if (user) {
-          setUser(user)
-          // Check if user has completed onboarding by looking for required fields in users
-          try {
-            const { data: person, error: userError } = await supabase
-              .from("users")
-              .select("user_id, first_name, last_name, career_title, company_name")
-              .eq("user_id", user.id)
-              .single()
-            
-            if (userError) {
-              console.warn("User row not found yet; route to onboarding", userError)
-              router.push("/onboarding")
-            } else if (person && person.first_name && person.last_name && person.career_title && person.company_name) {
-              router.push("/home")
-            } else {
-              router.push("/onboarding")
-            }
-          } catch (dbError) {
-            console.error("Database error:", dbError)
-            // Gracefully keep user on landing if something is wrong
-            router.push("/home")
+          if (isMounted) {
+            setUser(user)
+            // Check onboarding status
+            await checkOnboardingStatus(user.id)
           }
         } else {
-          setUser(null)
+          if (isMounted) setUser(null)
         }
       } catch (error) {
         console.error("Error checking auth:", error)
       } finally {
-        setIsLoading(false)
+        if (isMounted) setIsLoading(false)
       }
     }
 
+    // Only check auth on mount, not in listener
     checkAuth()
 
-    // Listen for auth state changes
+    // Listen for auth state changes - only update user state, don't re-check
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return
+      
       if (session?.user) {
         setUser(session.user)
-        // Check onboarding status and redirect
-        checkAuth()
+        // Only check onboarding if this is a sign-in event (not just session refresh)
+        if (event === 'SIGNED_IN') {
+          checkOnboardingStatus(session.user.id)
+        }
       } else {
         setUser(null)
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      isMounted = false
+      if (checkTimeout) clearTimeout(checkTimeout)
+      subscription.unsubscribe()
+    }
   }, [router, supabase])
 
   if (isLoading) {

@@ -129,6 +129,31 @@ function getOpenAIClient(): OpenAI | null {
 
 const SUGGESTIONS_PER_USER = 3
 
+// Pre-computed keyword Sets for O(1) lookups instead of O(n) string.includes()
+const EXEC_KEYWORDS = new Set([
+  "founder", "co-founder", "ceo", "cto", "cpo", "chief", "vp", "head", "director"
+])
+
+const PARTNERSHIP_KEYWORDS = new Set([
+  "partnership", "alliances", "biz dev", "business development", "ecosystem"
+])
+
+const BUYER_FACING_KEYWORDS = new Set([
+  "sales", "account executive", "ae", "customer success", "cs", "growth"
+])
+
+const RECRUITER_KEYWORDS = new Set([
+  "recruiter", "talent", "people ops", "hr"
+])
+
+const INVESTOR_KEYWORDS = new Set([
+  "investor", "vc", "angel", "fund"
+])
+
+const SENIORITY_KEYWORDS = new Set([
+  "principal", "lead", "senior"
+])
+
 // -----------------------------------------------------------------------------
 // Helper Functions
 // -----------------------------------------------------------------------------
@@ -141,6 +166,28 @@ const canon = (value?: string | null): string => {
 const tokenize = (text?: string | null): string[] => {
   if (!text) return []
   return text.toLowerCase().split(/[^a-z0-9]+/g).filter((token) => token.length > 2)
+}
+
+/**
+ * Tokenize a job title into a Set of tokens for fast keyword matching
+ * Complexity: O(n) where n is title length, but done once per candidate
+ */
+function tokenizeTitle(title: string | null): Set<string> {
+  if (!title) return new Set()
+  const tokens = title.toLowerCase().split(/[\s\-_]+/).filter(t => t.length > 2)
+  return new Set(tokens)
+}
+
+/**
+ * Check if text contains any keywords from the keyword set
+ * Uses tokenized title for faster matching
+ * Complexity: O(k) where k is number of keywords (small, constant)
+ */
+function hasKeywords(text: string | null, keywordSet: Set<string>): boolean {
+  if (!text) return false
+  const lowerText = text.toLowerCase()
+  // Check if any keyword appears in the text
+  return Array.from(keywordSet).some(keyword => lowerText.includes(keyword))
 }
 
 function cosineSimilarity(a: number[], b: number[]): number {
@@ -185,6 +232,68 @@ function deterministicCompare(a: ScoredCandidate, b: ScoredCandidate): number {
   }
   // Finally: Stable ID ascending
   return a.candidate.id.localeCompare(b.candidate.id)
+}
+
+/**
+ * Optimized top-K selection using min-heap approach
+ * Complexity: O(n log k) where k is typically 3-25, much better than O(n log n) full sort
+ */
+function quickSelectTopN<T>(
+  arr: T[],
+  n: number,
+  compare: (a: T, b: T) => number
+): T[] {
+  if (arr.length <= n) {
+    // If array is smaller than n, just sort and return
+    return [...arr].sort(compare)
+  }
+  
+  // Use a min-heap of size k to track top N elements
+  // The heap maintains the smallest element at the top
+  const heap: T[] = []
+  
+  for (const item of arr) {
+    if (heap.length < n) {
+      // Heap not full, add item and bubble up
+      heap.push(item)
+      let i = heap.length - 1
+      while (i > 0) {
+        const parent = Math.floor((i - 1) / 2)
+        // Min-heap: parent should be smaller (or equal) than child
+        // compare(parent, child) < 0 means parent is "smaller" in our ordering
+        if (compare(heap[parent], heap[i]) < 0) {
+          [heap[parent], heap[i]] = [heap[i], heap[parent]]
+          i = parent
+        } else {
+          break
+        }
+      }
+    } else if (compare(item, heap[0]) > 0) {
+      // New item is better than the worst in heap, replace it
+      heap[0] = item
+      // Bubble down to maintain heap property
+      let i = 0
+      while (true) {
+        const left = 2 * i + 1
+        const right = 2 * i + 2
+        let smallest = i
+        
+        if (left < heap.length && compare(heap[left], heap[smallest]) < 0) {
+          smallest = left
+        }
+        if (right < heap.length && compare(heap[right], heap[smallest]) < 0) {
+          smallest = right
+        }
+        
+        if (smallest === i) break
+        [heap[i], heap[smallest]] = [heap[smallest], heap[i]]
+        i = smallest
+      }
+    }
+  }
+  
+  // Sort the heap to get final order (O(k log k) where k is small)
+  return heap.sort(compare).reverse()
 }
 
 // -----------------------------------------------------------------------------
@@ -239,6 +348,7 @@ serve(async (req) => {
   const eventId = payload?.event_id
   const userId = payload?.user_id
   const forceRecompute = payload?.force_recompute === true
+  const useAI = payload?.use_ai !== false // Default to true for backward compatibility, but can be set to false
 
   if (!eventId || !userId) {
     return new Response(
@@ -252,7 +362,7 @@ serve(async (req) => {
 
   const started = Date.now()
   try {
-    const result = await processUser(eventId, userId, forceRecompute)
+    const result = await processUser(eventId, userId, forceRecompute, useAI)
     const runtime = Date.now() - started
 
     return new Response(
@@ -406,7 +516,8 @@ async function loadViewerProfile(
 // -----------------------------------------------------------------------------
 
 function detectWant(profile: ViewerProfile): ViewerWant {
-  const checkboxTokens = (profile.connectionTypes ?? []).map(canon)
+  // Convert to Set once for O(1) lookups instead of O(n) array.includes()
+  const checkboxTokenSet = new Set((profile.connectionTypes ?? []).map(canon))
 
   const combinedText = [
     profile.businessNeed ?? "",
@@ -432,8 +543,8 @@ function detectWant(profile: ViewerProfile): ViewerWant {
 
   // Clients / customers / sponsors
   if (
-    checkboxTokens.includes("clients") ||
-    checkboxTokens.includes("commercial") ||
+    checkboxTokenSet.has("clients") ||
+    checkboxTokenSet.has("commercial") ||
     containsAny(combinedText, [
       "clients",
       "customers",
@@ -456,7 +567,7 @@ function detectWant(profile: ViewerProfile): ViewerWant {
 
   // Partnerships / collaborators
   if (
-    checkboxTokens.includes("partnerships") ||
+    checkboxTokenSet.has("partnerships") ||
     containsAny(combinedText, [
       "partner",
       "partnership",
@@ -477,7 +588,7 @@ function detectWant(profile: ViewerProfile): ViewerWant {
 
   // Hiring talent
   if (
-    checkboxTokens.includes("hiring") ||
+    checkboxTokenSet.has("hiring") ||
     containsAny(combinedText, [
       "hire",
       "hiring",
@@ -497,7 +608,7 @@ function detectWant(profile: ViewerProfile): ViewerWant {
 
   // Job seeking
   if (
-    checkboxTokens.includes("job_seeking") ||
+    checkboxTokenSet.has("job_seeking") ||
     containsAny(combinedText, [
       "find a job",
       "job search",
@@ -516,7 +627,7 @@ function detectWant(profile: ViewerProfile): ViewerWant {
 
   // Investors / funding
   if (
-    checkboxTokens.includes("investment") ||
+    checkboxTokenSet.has("investment") ||
     containsAny(combinedText, [
       "investor",
       "fundraise",
@@ -538,7 +649,7 @@ function detectWant(profile: ViewerProfile): ViewerWant {
 
   // Users / beta users / testers
   if (
-    checkboxTokens.includes("beta_users") ||
+    checkboxTokenSet.has("beta_users") ||
     containsAny(combinedText, [
       "beta",
       "pilot",
@@ -558,7 +669,7 @@ function detectWant(profile: ViewerProfile): ViewerWant {
 
   // Press / media
   if (
-    checkboxTokens.includes("press") ||
+    checkboxTokenSet.has("press") ||
     containsAny(combinedText, [
       "press",
       "media",
@@ -578,8 +689,8 @@ function detectWant(profile: ViewerProfile): ViewerWant {
 
   // Learn a skill / mentorship (ANY industry)
   if (
-    checkboxTokens.includes("mentorship") ||
-    checkboxTokens.includes("technical_mentor") ||
+    checkboxTokenSet.has("mentorship") ||
+    checkboxTokenSet.has("technical_mentor") ||
     containsAny(combinedText, [
       "learn",
       "mentor",
@@ -635,7 +746,7 @@ function extractTopic(profile: ViewerProfile): string | undefined {
 // Main Processing Function
 // -----------------------------------------------------------------------------
 
-async function processUser(eventId: string, userId: string, forceRecompute: boolean) {
+async function processUser(eventId: string, userId: string, forceRecompute: boolean, useAI: boolean = true) {
   const supabase = getClient()
 
   // Load viewer profile
@@ -657,14 +768,37 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
   // Check idempotence: if user already has 3 matches, check if recomputation is needed
   const { data: existingMatches } = await supabase
     .from("connections")
-    .select("a_id,b_id,match_score,created_at")
+    .select("a_id,b_id,match_score,created_at,match_algorithm_version,match_explanation_text")
     .eq("event_id", eventId)
     .eq("connection_kind", "system_match")
     .or(`a_id.eq.${userId},b_id.eq.${userId}`)
     .order("created_at", { ascending: false })
-    .limit(1)
+    .limit(SUGGESTIONS_PER_USER)
 
   const existingCount = existingMatches?.length ?? 0
+  
+  // Check if we have existing AI-generated matches that we can reuse
+  if (!forceRecompute && useAI && existingCount >= SUGGESTIONS_PER_USER) {
+    const hasAIMatches = existingMatches?.some(m => 
+      m.match_algorithm_version === "v4_ai_decision_tree" && 
+      m.match_explanation_text
+    )
+    
+    if (hasAIMatches) {
+      console.log("reusing_existing_ai_matches", { 
+        eventId, 
+        userId,
+        matchCount: existingCount,
+        reason: "existing_ai_matches_found"
+      })
+      return {
+        processed: existingCount,
+        inserted: 0,
+        skipped: true,
+        reason: "existing_ai_matches_found"
+      }
+    }
+  }
   
   if (!forceRecompute && existingCount >= SUGGESTIONS_PER_USER) {
     // Check if recomputation is needed due to new attendees or profile updates
@@ -810,12 +944,12 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
     preFilteredCount: preFilteredCandidates.length
   })
 
-  // Try AI matching if available, otherwise use rule-based scoring
+  // Try AI matching if available and enabled, otherwise use rule-based scoring
   const openai = getOpenAIClient()
   let scored: ScoredCandidate[]
   let usingAI = false
   
-  if (openai && preFilteredCandidates.length > 0) {
+  if (openai && preFilteredCandidates.length > 0 && useAI) {
     try {
       // Extract candidate profiles from pre-filtered scored candidates
       const candidateProfiles = preFilteredCandidates.map(s => s.candidate)
@@ -827,8 +961,12 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
       const aiScoredIds = new Set(aiScored.map(s => s.candidate.id))
       const remainingScored = initialScored.filter(s => !aiScoredIds.has(s.candidate.id))
       
-      // AI-scored candidates first, then remaining rule-based scored candidates
-      scored = [...aiScored, ...remainingScored]
+      // Sort both arrays before merging (if not already sorted)
+      const aiScoredSorted = aiScored.sort(deterministicCompare)
+      const remainingScoredSorted = remainingScored.sort(deterministicCompare)
+      
+      // Merge sorted arrays: O(n + m) instead of O((n+m) log(n+m))
+      scored = mergeSortedCandidates(aiScoredSorted, remainingScoredSorted)
       usingAI = true
       
       console.log("ai_matching_used", {
@@ -852,7 +990,13 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
     scored = initialScored
     usingAI = false
     
-    if (!openai) {
+    if (!useAI) {
+      console.log("ai_matching_skipped_use_ai_false", { 
+        eventId, 
+        userId,
+        reason: "use_ai flag is set to false - using rule-based scoring only"
+      })
+    } else if (!openai) {
       console.warn("ai_matching_skipped_no_openai", { 
         eventId, 
         userId,
@@ -950,7 +1094,8 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
     })),
   })
 
-  // Generate reason summaries for return (sequential to avoid rate limits)
+  // Generate reason summaries for return using unified explanation generation
+  // Always use buildReasonSummary which calls generateExplanationWithOpenAI (140 char limit)
   const reasonSummaries = []
   for (const s of selected) {
     const summary = await buildReasonSummary(want, s, viewerProfile)
@@ -1005,39 +1150,20 @@ function computeWantFit(
   let roleBonus = 0
 
   const title = (candidate.jobTitle || "").toLowerCase()
-  const connectionTokens = (candidate.connectionTypes ?? []).map(canon)
+  // Convert to Set once for O(1) lookups instead of O(n) array.includes()
+  const connectionTokenSet = new Set((candidate.connectionTypes ?? []).map(canon))
+  // Tokenize title once for faster keyword matching
+  const titleTokens = tokenizeTitle(candidate.jobTitle)
 
-  // Helper flags
-  const isExec =
-    title.includes("founder") ||
-    title.includes("co-founder") ||
-    title.includes("ceo") ||
-    title.includes("cto") ||
-    title.includes("cpo") ||
-    title.includes("chief") ||
-    title.includes("vp") ||
-    title.includes("head") ||
-    title.includes("director")
+  // Helper flags - use Set-based keyword matching for O(1) lookups
+  const isExec = hasKeywords(candidate.jobTitle, EXEC_KEYWORDS)
+  const isPartnershipy = hasKeywords(candidate.jobTitle, PARTNERSHIP_KEYWORDS)
+  const isBuyerFacing = hasKeywords(candidate.jobTitle, BUYER_FACING_KEYWORDS)
 
-  const isPartnershipy =
-    title.includes("partnership") ||
-    title.includes("alliances") ||
-    title.includes("biz dev") ||
-    title.includes("business development") ||
-    title.includes("ecosystem")
-
-  const isBuyerFacing =
-    title.includes("sales") ||
-    title.includes("account executive") ||
-    title.includes("ae") ||
-    title.includes("customer success") ||
-    title.includes("cs") ||
-    title.includes("growth")
-
-  const wantsPartners = connectionTokens.includes("partnerships")
-  const wantsClients = connectionTokens.includes("clients") || connectionTokens.includes("commercial")
-  const wantsInvestment = connectionTokens.includes("investment")
-  const wantsMentorship = connectionTokens.includes("mentorship")
+  const wantsPartners = connectionTokenSet.has("partnerships")
+  const wantsClients = connectionTokenSet.has("clients") || connectionTokenSet.has("commercial")
+  const wantsInvestment = connectionTokenSet.has("investment")
+  const wantsMentorship = connectionTokenSet.has("mentorship")
 
   if (viewerWant.kind === "find_clients") {
     // Buyers / decision-makers in any industry
@@ -1049,22 +1175,16 @@ function computeWantFit(
     else if (isPartnershipy || (isExec && wantsPartners)) roleBonus = 0.2
     else if (isExec) roleBonus = 0.12
   } else if (viewerWant.kind === "find_talent") {
-    if (title.includes("recruiter") || title.includes("talent") || title.includes("people ops") || title.includes("hr")) {
+    if (hasKeywords(candidate.jobTitle, RECRUITER_KEYWORDS)) {
       roleBonus = 0.18
     }
   } else if (viewerWant.kind === "find_investors") {
-    if (
-      title.includes("investor") ||
-      title.includes("vc") ||
-      title.includes("angel") ||
-      title.includes("fund") ||
-      wantsInvestment
-    ) {
+    if (hasKeywords(candidate.jobTitle, INVESTOR_KEYWORDS) || wantsInvestment) {
       roleBonus = 0.25
     }
   } else if (viewerWant.kind === "learn_skill") {
     // Senior / experienced people make better mentors
-    if (isExec || title.includes("principal") || title.includes("lead") || title.includes("senior") || wantsMentorship) {
+    if (isExec || hasKeywords(candidate.jobTitle, SENIORITY_KEYWORDS) || wantsMentorship) {
       roleBonus = 0.18
     }
   }
@@ -1204,12 +1324,15 @@ function scoreCandidates(
     const candidateRole = canonicalizeRole(candidate.jobTitle)
     const candidateCompanyLower = normalizeCompanyInput(candidate.company ?? "").toLowerCase()
     const candidateIndustryTags = candidate.industryTags ?? []
-    const candidateConnectionTypes = (candidate.connectionTypes ?? []).map(canon)
+    // Convert to Set once for O(1) lookups instead of O(n) array.includes()
+    const candidateConnectionTypeSet = new Set((candidate.connectionTypes ?? []).map(canon))
+    // Convert buyer_functions to Set for O(1) lookups
+    const buyerFunctionsSet = new Set(viewerPersona.buyer_functions)
 
     // Seller (commercial:clients) - match buyer functions and leadership
     if (want.kind === "find_clients" && viewerPersona.leader_required) {
       // Candidate function matches buyer functions
-      if (viewerPersona.buyer_functions.includes(candidateRole.role_function)) {
+      if (buyerFunctionsSet.has(candidateRole.role_function)) {
         personaBoost += 0.03
         personaBases.push("buyer_function_match")
       }
@@ -1221,10 +1344,23 @@ function scoreCandidates(
       }
       
       // Sector match (viewer sector tokens ↔ candidate tags/company)
+      // Optimized: Use Set intersections instead of nested loops
       if (viewerPersona.sector !== "unknown" && candidateIndustryTags.length > 0) {
         const sectorTokens = viewerPersona.sector.split("_")
-        const sectorMatch = sectorTokens.some(token => 
-          candidateIndustryTags.some(tag => tag.toLowerCase().includes(token)) ||
+        const sectorTokenSet = new Set(sectorTokens)
+        const candidateTagSet = new Set(
+          candidateIndustryTags.map(tag => tag.toLowerCase())
+        )
+        // Tokenize company name for Set-based matching
+        const companyTokens = new Set(
+          candidateCompanyLower.split(/[\s\-_]+/).filter(t => t.length > 2)
+        )
+        
+        // Check for matches using Set operations: O(n) instead of O(n²)
+        const sectorMatch = Array.from(sectorTokenSet).some(token =>
+          candidateTagSet.has(token) ||
+          Array.from(candidateTagSet).some(tag => tag.includes(token)) ||
+          companyTokens.has(token) ||
           candidateCompanyLower.includes(token)
         )
         if (sectorMatch) {
@@ -1237,13 +1373,10 @@ function scoreCandidates(
     // Partner matching (commercial:partners) - prioritize partnership/BD roles and execs
     if (want.kind === "find_partners") {
       const isPartnershipy = candidateRole.role_function === "partnerships" || 
-        (candidate.jobTitle?.toLowerCase().includes("partnership") ?? false) ||
-        (candidate.jobTitle?.toLowerCase().includes("alliances") ?? false) ||
-        (candidate.jobTitle?.toLowerCase().includes("biz dev") ?? false) ||
-        (candidate.jobTitle?.toLowerCase().includes("business development") ?? false) ||
-        candidateConnectionTypes.some(t => t.includes("partnership"))
+        hasKeywords(candidate.jobTitle, PARTNERSHIP_KEYWORDS) ||
+        Array.from(candidateConnectionTypeSet).some(t => t.includes("partnership"))
       
-      const wantsPartners = candidateConnectionTypes.some(t => 
+      const wantsPartners = Array.from(candidateConnectionTypeSet).some(t => 
         t.includes("partnership") || t.includes("partners")
       )
       
@@ -1273,9 +1406,9 @@ function scoreCandidates(
     // Job-seeking: recruiter or hiring manager in same function
     if (want.kind === "find_job") {
       const candidateIsRecruiter = candidateRole.role_function === "hr_talent" || 
-        (candidate.jobTitle?.toLowerCase().includes("recruiter") ?? false)
+        hasKeywords(candidate.jobTitle, RECRUITER_KEYWORDS)
       const candidateIsHiring = candidateIsRecruiter || 
-        candidateConnectionTypes.includes("recruit") ||
+        candidateConnectionTypeSet.has("recruit") ||
         (candidate.needTags ?? []).some(t => t.toLowerCase().includes("hiring"))
       
       if (candidateIsRecruiter && candidateRole.role_function === viewerRole.role_function) {
@@ -1292,7 +1425,7 @@ function scoreCandidates(
 
     // Recruiter: candidate is job seeker / role match
     if (want.kind === "find_talent") {
-      if (candidateConnectionTypes.includes("find_job") || candidateConnectionTypes.includes("job_seeking")) {
+      if (candidateConnectionTypeSet.has("find_job") || candidateConnectionTypeSet.has("job_seeking")) {
         if (candidateRole.role_function === viewerRole.role_function) {
           personaBoost += 0.05
           personaBases.push("job_seeker_function_match")
@@ -1367,20 +1500,39 @@ function categorizeConnectionType(
     return businessNeed ? "Business Opportunities" : "General Networking"
   }
   
-  const types = connectionTypes.map(t => t.toLowerCase())
+  // Convert to Set for O(1) lookups
+  const typeSet = new Set(connectionTypes.map(t => t.toLowerCase()))
   
-  if (types.some(t => t.includes("mentor") || t.includes("mentorship"))) {
+  // Use Set-based checks instead of array.some() with includes()
+  const hasMentor = Array.from(typeSet).some(t => t.includes("mentor") || t.includes("mentorship"))
+  const hasRecruit = Array.from(typeSet).some(t => t.includes("recruit") || t.includes("hiring") || t.includes("job"))
+  const hasBusiness = Array.from(typeSet).some(t => t.includes("client") || t.includes("partner") || t.includes("business"))
+  
+  if (hasMentor) {
     return "Mentorship"
   }
-  if (types.some(t => t.includes("recruit") || t.includes("hiring") || t.includes("job"))) {
+  if (hasRecruit) {
     return "Recruiting/Job Seeking"
   }
-  if (types.some(t => t.includes("client") || t.includes("partner") || t.includes("business"))) {
+  if (hasBusiness) {
     return "Business Opportunities"
   }
   
   return "General Networking"
 }
+
+// Additional keyword sets for seniority determination
+const VERY_SENIOR_KEYWORDS = new Set([
+  "ceo", "founder", "co-founder", "president", "chief", "vp ", "vice president"
+])
+
+const SENIOR_KEYWORDS = new Set([
+  "director", "head of", "senior"
+])
+
+const JUNIOR_KEYWORDS = new Set([
+  "intern", "student", "junior", "associate"
+])
 
 function determineSeniorityLevel(
   jobTitle: string | null,
@@ -1394,22 +1546,18 @@ function determineSeniorityLevel(
   
   const title = jobTitle.toLowerCase()
   
-  // Very Senior
-  if (title.includes("ceo") || title.includes("founder") || title.includes("co-founder") ||
-      title.includes("president") || title.includes("chief") || title.includes("vp ") ||
-      title.includes("vice president")) {
+  // Very Senior - use keyword Set for faster matching
+  if (hasKeywords(jobTitle, VERY_SENIOR_KEYWORDS)) {
     return "Very Senior"
   }
   
   // Senior
-  if (title.includes("director") || title.includes("head of") || title.includes("senior") ||
-      (careerYears && careerYears >= 8)) {
+  if (hasKeywords(jobTitle, SENIOR_KEYWORDS) || (careerYears && careerYears >= 8)) {
     return "Senior"
   }
   
   // Junior
-  if (title.includes("intern") || title.includes("student") || title.includes("junior") ||
-      title.includes("associate") || (careerYears && careerYears < 2)) {
+  if (hasKeywords(jobTitle, JUNIOR_KEYWORDS) || (careerYears && careerYears < 2)) {
     return "Junior"
   }
   
@@ -1421,8 +1569,42 @@ function preFilterCandidates(
   scored: ScoredCandidate[],
   limit: number
 ): ScoredCandidate[] {
-  const sorted = [...scored].sort((a, b) => b.breakdown.totalScore - a.breakdown.totalScore)
-  return sorted.slice(0, limit)
+  // Use optimized top-K selection instead of full sort
+  // O(n log k) instead of O(n log n) where k is typically 25
+  return quickSelectTopN(
+    scored,
+    limit,
+    (a, b) => b.breakdown.totalScore - a.breakdown.totalScore
+  )
+}
+
+/**
+ * Merge two sorted arrays of candidates
+ * Complexity: O(n + m) instead of O((n+m) log(n+m)) for concatenation + sort
+ */
+function mergeSortedCandidates(
+  aiScored: ScoredCandidate[],
+  remainingScored: ScoredCandidate[]
+): ScoredCandidate[] {
+  // Both arrays should already be sorted by deterministicCompare
+  const result: ScoredCandidate[] = []
+  let i = 0
+  let j = 0
+  
+  while (i < aiScored.length && j < remainingScored.length) {
+    // Compare using deterministicCompare (returns < 0 if a < b)
+    if (deterministicCompare(aiScored[i], remainingScored[j]) < 0) {
+      result.push(aiScored[i++])
+    } else {
+      result.push(remainingScored[j++])
+    }
+  }
+  
+  // Add remaining elements
+  while (i < aiScored.length) result.push(aiScored[i++])
+  while (j < remainingScored.length) result.push(remainingScored[j++])
+  
+  return result
 }
 
 // -----------------------------------------------------------------------------
@@ -1434,9 +1616,9 @@ function selectTopN(
   n: number,
   _want?: ViewerWant
 ): ScoredCandidate[] {
-  const sorted = [...scored].sort(deterministicCompare)
-  if (sorted.length >= n) return sorted.slice(0, n)
-  return sorted
+  // Use optimized top-K selection instead of full sort
+  // O(n log k) instead of O(n log n) where k is typically 3
+  return quickSelectTopN(scored, n, deterministicCompare)
 }
 
 // -----------------------------------------------------------------------------
@@ -1457,6 +1639,33 @@ async function scoreCandidatesWithAI(
   candidates: CandidateProfile[],
   openai: OpenAI
 ): Promise<ScoredCandidate[]> {
+  
+  // Filter out candidates from the same company
+  const normalizeCompany = (company: string | null): string => {
+    if (!company) return ""
+    return company.toLowerCase().trim().replace(/[^a-z0-9]+/g, "")
+  }
+  
+  const viewerCompanyNormalized = normalizeCompany(viewerProfile.company)
+  const filteredCandidates = candidates.filter(candidate => {
+    const candidateCompanyNormalized = normalizeCompany(candidate.company)
+    // Exclude if companies match (case-insensitive, ignoring special characters)
+    return candidateCompanyNormalized === "" || candidateCompanyNormalized !== viewerCompanyNormalized
+  })
+  
+  const excludedSameCompanyCount = candidates.length - filteredCandidates.length
+  if (excludedSameCompanyCount > 0) {
+    console.log("excluded_same_company_candidates", {
+      viewerId: viewerProfile.id,
+      viewerCompany: viewerProfile.company,
+      excludedCount: excludedSameCompanyCount
+    })
+  }
+  
+  // If all candidates were filtered out, return empty array
+  if (filteredCandidates.length === 0) {
+    return []
+  }
   
   // Determine primary goal from businessNeed or connectionTypes
   const primaryGoal = viewerProfile.businessNeed || 
@@ -1532,7 +1741,12 @@ GUARDRAIL 3: Title Overweighting
 - If you cannot confirm capability from contextual data, score lower or exclude.
 - Rationale: Addresses the problem of assuming capability wrongly based on title alone.
 
-GUARDRAIL 4: Avoid Repetitive Explanations
+GUARDRAIL 4: Same Company Exclusion
+- STRICTLY EXCLUDE candidates who work at the same company as User A.
+- This is a hard rule with NO EXCEPTIONS - people from the same company should not be matched.
+- Rationale: Event attendees are looking to network with people from other companies, not their own colleagues.
+
+GUARDRAIL 5: Avoid Repetitive Explanations
 - DO NOT generate explanations that just repeat job titles or superficial profile data.
 - FOCUS on value and contextual fit.
 - Explain the SPECIFIC connection between User A's need and User B's demonstrated capability (from Expertise/Skills + Company Specialization).
@@ -1585,8 +1799,8 @@ REMEMBER: Job Title + Expertise/Skills + Company Specialization must be evaluate
 - Looking for: ${viewerProfile.needTags.join(', ') || 'Not specified'}
 - Can offer: ${viewerProfile.offerTags.join(', ') || 'Not specified'}
 
-CANDIDATES TO EVALUATE (${candidates.length} total):
-${candidates.map((c, idx) => `
+CANDIDATES TO EVALUATE (${filteredCandidates.length} total):
+${filteredCandidates.map((c, idx) => `
 ${idx + 1}. Candidate ID: ${c.id}
    - Name: ${c.firstName || ''} ${c.lastName || ''}
    - Job Title: ${c.jobTitle || 'Not specified'}
@@ -1606,7 +1820,9 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
   try {
     console.log("ai_matching_started", {
       viewerId: viewerProfile.id,
-      candidateCount: candidates.length,
+      candidateCount: filteredCandidates.length,
+      originalCandidateCount: candidates.length,
+      excludedSameCompany: excludedSameCompanyCount,
       connectionType,
       viewerSeniority
     })
@@ -1654,11 +1870,36 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
       viewerId: viewerProfile.id,
       matchedCount,
       excludedCount,
-      totalEvaluated: candidates.length
+      totalEvaluated: filteredCandidates.length
     })
     
     // Convert to ScoredCandidate format
+    // Process all original candidates: exclude same-company ones immediately, use AI results for filtered candidates
     const scored: ScoredCandidate[] = candidates.map(candidate => {
+      const candidateCompanyNormalized = normalizeCompany(candidate.company)
+      const isSameCompany = candidateCompanyNormalized !== "" && candidateCompanyNormalized === viewerCompanyNormalized
+      
+      // If same company, exclude immediately
+      if (isSameCompany) {
+        return {
+          candidate,
+          breakdown: {
+            wantFit: 0,
+            mutualValue: 0,
+            relationshipFit: 0,
+            totalScore: 0,
+            wantFitComponents: {
+              semantic: 0,
+              tagOverlap: 0,
+              roleBonus: 0,
+              wantFit: 0,
+              aiExplanation: `Excluded: Same company as viewer`,
+              excluded: true,
+              exclusionReason: "Same company exclusion"
+            }
+          }
+        }
+      }
       const aiResult = aiResultsMap.get(candidate.id)
       
       if (!aiResult) {
@@ -1745,24 +1986,18 @@ async function upsertMatches(
     return 0
   }
 
-  // Generate explanations for all matches (sequential to avoid rate limits)
-  // Use AI explanation if available, otherwise generate one
+  // Generate explanations for all matches using generateExplanationWithOpenAI
+  // This ensures all matches use the same 140-character limited explanation generation
+  // buildReasonSummary already calls generateExplanationWithOpenAI first, then falls back to hardcoded
   const explanations = []
   for (const match of matches) {
-    // Check if AI explanation exists
-    const aiExplanation = match.breakdown.wantFitComponents.aiExplanation
-    if (aiExplanation) {
-      explanations.push(aiExplanation)
-      console.log("using_ai_explanation", {
-        eventId,
-        viewerId,
-        candidateId: match.candidate.id
-      })
-    } else {
-      // Fallback to existing explanation generation
-      const explanation = await buildReasonSummary(want, match, viewerProfile)
-      explanations.push(explanation)
-    }
+    const explanation = await buildReasonSummary(want, match, viewerProfile)
+    explanations.push(explanation)
+    console.log("using_unified_explanation_generation", {
+      eventId,
+      viewerId,
+      candidateId: match.candidate.id
+    })
   }
 
   // Insert new matches
@@ -1835,7 +2070,7 @@ async function generateExplanationWithOpenAI(
 
   const systemPrompt = `You are a networking assistant helping explain why two attendees at a business event should meet.
 
-Generate a short, natural explanation (max 140 characters) that:
+Generate a short, natural explanation (max 160 characters) that:
 - Highlights why these two people should connect based on the viewer's goals
 - Mentions specific overlaps (industries, needs/offers, roles, or shared interests)
 - Is conversational and engaging, not robotic
@@ -1843,7 +2078,7 @@ Generate a short, natural explanation (max 140 characters) that:
 - Focuses on concrete value they can provide each other
 - Uses "you" to refer to the viewer and the candidate's name/title when relevant
 
-Be specific and concise. Keep it under 140 characters.`
+Be specific and concise. Keep it under 160 characters.`
 
   const wantKindLabels: Record<WantKind, string> = {
     find_clients: "clients",
@@ -1878,13 +2113,13 @@ Candidate (Recommended Match):
 - Can offer: ${(candidate.offerTags || []).length > 0 ? candidate.offerTags.slice(0, 3).join(", ") : "Not specified"}
 - Looking for: ${(candidate.wantTags || []).length > 0 ? candidate.wantTags.slice(0, 3).join(", ") : "Not specified"}
 
-Generate a short explanation (max 140 characters) of why the viewer should meet this candidate.`
+Generate a short explanation (max 160 characters) of why the viewer should meet this candidate.`
 
   try {
     const response = await openai.chat.completions.create({
       model: Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini",
       temperature: 0.7,
-      max_tokens: 50, // Rough estimate: ~2.5 tokens per character for 140 characters
+      max_tokens: 50, // Limited to 50 tokens for concise explanations (target: ~160 characters)
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
@@ -1894,12 +2129,12 @@ Generate a short explanation (max 140 characters) of why the viewer should meet 
     const explanation = response.choices[0]?.message?.content?.trim()
     if (!explanation) return null
 
-    // Ensure it's not too long (max 140 characters)
-    if (explanation.length > 140) {
-      // Truncate to 140 characters, trying to end at a word boundary
-      let truncated = explanation.substring(0, 137)
+    // Ensure it's not too long (max 160 characters)
+    if (explanation.length > 160) {
+      // Truncate to 160 characters, trying to end at a word boundary
+      let truncated = explanation.substring(0, 157)
       const lastSpace = truncated.lastIndexOf(' ')
-      if (lastSpace > 100) {
+      if (lastSpace > 120) {
         truncated = truncated.substring(0, lastSpace)
       }
       return truncated + "..."

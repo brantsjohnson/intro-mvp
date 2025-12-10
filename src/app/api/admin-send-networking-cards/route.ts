@@ -1,0 +1,96 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+
+export async function POST(request: NextRequest) {
+  try {
+    const { eventId } = await request.json()
+
+    if (!eventId) {
+      return NextResponse.json(
+        { error: 'eventId is required' },
+        { status: 400 }
+      )
+    }
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    // Get all users who attended the event
+    const { data: attendees, error: attendeesError } = await supabase
+      .from('attendance')
+      .select('user_id')
+      .eq('event_id', eventId)
+
+    if (attendeesError) {
+      console.error('Error fetching attendees:', attendeesError)
+      return NextResponse.json(
+        { error: 'Failed to fetch attendees' },
+        { status: 500 }
+      )
+    }
+
+    if (!attendees || attendees.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: 'No attendees found for this event',
+        sent: 0,
+      })
+    }
+
+    // Send networking cards to all attendees
+    // Use environment variable or construct from request
+    const protocol = request.headers.get('x-forwarded-proto') || 'https'
+    const host = request.headers.get('host') || 'localhost:3000'
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || `${protocol}://${host}`
+    
+    const results = []
+    for (const attendee of attendees) {
+      try {
+        const response = await fetch(`${baseUrl}/api/send-networking-card`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            eventId,
+            userId: attendee.user_id,
+          }),
+        })
+
+        const result = await response.json()
+        results.push({
+          userId: attendee.user_id,
+          success: response.ok,
+          error: result.error,
+        })
+      } catch (error) {
+        console.error(`Error sending card to user ${attendee.user_id}:`, error)
+        results.push({
+          userId: attendee.user_id,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length
+    const failureCount = results.length - successCount
+
+    return NextResponse.json({
+      success: true,
+      sent: successCount,
+      failed: failureCount,
+      total: results.length,
+      results,
+    })
+  } catch (error) {
+    console.error('Error in admin-send-networking-cards:', error)
+    return NextResponse.json(
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    )
+  }
+}
+
