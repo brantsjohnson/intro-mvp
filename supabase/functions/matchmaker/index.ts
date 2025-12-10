@@ -1856,6 +1856,14 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
       connectionType,
       viewerSeniority
     })
+    console.log("ai_matching_prompt_debug", {
+      viewerId: viewerProfile.id,
+      wantKind: want.kind,
+      hiringFunction,
+      preFilterLimit: PRE_FILTER_LIMIT,
+      candidatesSentToAI: filteredCandidates.length,
+      model: Deno.env.get("OPENAI_MODEL") || "gpt-4o"
+    })
 
     const response = await openai.chat.completions.create({
       model: Deno.env.get("OPENAI_MODEL") || "gpt-4o",
@@ -1869,6 +1877,12 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
     })
 
     const result = JSON.parse(response.choices[0].message.content)
+    console.log("ai_matching_response_received", {
+      viewerId: viewerProfile.id,
+      candidatesSentToAI: filteredCandidates.length,
+      matchesReturned: result?.matches?.length ?? 0,
+      excludedReturned: result?.excluded?.length ?? 0
+    })
     
     // Create a map of candidate IDs to AI results
     const aiResultsMap = new Map<string, AIMatchResult>()
