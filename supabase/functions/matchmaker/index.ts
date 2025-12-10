@@ -1737,7 +1737,7 @@ function selectTopN(
 
 interface AIMatchResult {
   candidateId: string
-  score: number
+  score?: number // Optional since AI now provides qualitative-only responses
   explanation: string
   excluded: boolean
   exclusionReason?: string
@@ -1864,7 +1864,7 @@ ${aiCandidates.map((c) => `
   Connection Types: ${c.connectionTypes?.join(', ') || 'Not specified'}
 `).join('\n')}
 
-Evaluate each candidate following the decision tree rules. Return JSON with matches (sorted by score descending) and excluded candidates.`
+Evaluate each candidate following the decision tree rules. Return JSON with matches and excluded candidates.`
 
   try {
     console.log("ai_matching_started", {
@@ -1908,8 +1908,15 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
     
     // Process matches
     if (result.matches && Array.isArray(result.matches)) {
-      result.matches.forEach((match: AIMatchResult) => {
-        aiResultsMap.set(match.candidateId, match)
+      result.matches.forEach((match: any) => {
+        // AI may not provide score in qualitative mode; use placeholder
+        aiResultsMap.set(match.candidateId, {
+          candidateId: match.candidateId,
+          score: match.score ?? 0.5, // Default to neutral if not provided
+          explanation: match.explanation || "",
+          excluded: match.excluded ?? false,
+          exclusionReason: match.exclusionReason
+        })
       })
     }
     
@@ -1963,8 +1970,6 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
           }
         }
       }
-      const aiResult = aiResultsMap.get(candidate.id)
-      
       const aiResult = aiResultsMap.get(candidate.id)
       
       if (!aiResult) {
