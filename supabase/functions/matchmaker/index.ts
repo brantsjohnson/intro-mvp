@@ -2061,18 +2061,37 @@ async function upsertMatches(
     return 0
   }
 
-  // Generate explanations for all matches using generateExplanationWithOpenAI
-  // This ensures all matches use the same 140-character limited explanation generation
-  // buildReasonSummary already calls generateExplanationWithOpenAI first, then falls back to hardcoded
+  // Generate explanations for all matches
+  // If using AI matching, prefer the AI's explanation from the matching step
+  // Otherwise, generate a new explanation via buildReasonSummary
   const explanations = []
   for (const match of matches) {
-    const explanation = await buildReasonSummary(want, match, viewerProfile)
+    let explanation: string
+    if (usingAI && match.breakdown.wantFitComponents.aiExplanation) {
+      // Use the AI's matching explanation directly
+      explanation = match.breakdown.wantFitComponents.aiExplanation
+      // Truncate to 160 chars if needed (to match database constraints)
+      if (explanation.length > 160) {
+        const truncated = explanation.substring(0, 157)
+        const lastSpace = truncated.lastIndexOf(' ')
+        explanation = lastSpace > 120 ? truncated.substring(0, lastSpace) + "..." : truncated + "..."
+      }
+      console.log("using_ai_matching_explanation", {
+        eventId,
+        viewerId,
+        candidateId: match.candidate.id,
+        explanationLength: explanation.length
+      })
+    } else {
+      // Fallback to generating explanation via buildReasonSummary
+      explanation = await buildReasonSummary(want, match, viewerProfile)
+      console.log("using_generated_explanation", {
+        eventId,
+        viewerId,
+        candidateId: match.candidate.id
+      })
+    }
     explanations.push(explanation)
-    console.log("using_unified_explanation_generation", {
-      eventId,
-      viewerId,
-      candidateId: match.candidate.id
-    })
   }
 
   // Insert new matches
