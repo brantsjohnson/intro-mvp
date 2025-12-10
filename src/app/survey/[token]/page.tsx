@@ -3,7 +3,7 @@
 import { use, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Card } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Star } from "lucide-react"
 
 const DEFAULT_FIXED_QUESTIONS = [
@@ -145,7 +145,7 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
               fill={star <= currentRating ? "currentColor" : "none"}
               stroke={star <= currentRating ? "currentColor" : "currentColor"}
               style={{
-                color: star <= currentRating ? "#9C4C05" : "#30423A",
+                color: star <= currentRating ? "#72A557" : "#7D7A73",
               }}
             />
           </button>
@@ -175,7 +175,7 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
     if (status === "submitted") {
       return (
         <div className="text-center space-y-3 py-10">
-          <h2 className="text-xl font-semibold text-foreground">Thanks for your feedback!</h2>
+          <h2 className="text-xl font-bold text-foreground uppercase" style={{ letterSpacing: '0.02em' }}>Thanks for your feedback!</h2>
           <p className="text-muted-foreground">
             Your responses were recorded. We hope you enjoyed {config?.eventName || "the event"}.
           </p>
@@ -187,13 +187,13 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
       <div className="space-y-8">
         {questions.map((question) => (
           <div key={question.key} className="space-y-3">
-            <p className="text-sm font-medium text-foreground">{question.text}</p>
+            <p className="text-base font-medium text-foreground">{question.text}</p>
             <StarRating questionKey={question.key} />
           </div>
         ))}
 
         <div className="space-y-3 pt-2">
-          <p className="text-sm font-medium text-foreground">
+          <p className="text-base font-medium text-foreground">
             {config?.openQuestion || DEFAULT_OPEN_QUESTION}
           </p>
           <Textarea
@@ -209,7 +209,7 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
         <Button
           onClick={handleSubmit}
           disabled={status === "submitting"}
-          className="w-full h-12 gradient-primary text-primary-foreground font-semibold rounded-full hover:opacity-90 transition-opacity"
+          className="w-full h-12 rounded-concave"
         >
           {status === "submitting" ? "Submitting..." : "Submit survey"}
         </Button>
@@ -218,16 +218,18 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
   }
 
   return (
-    <div className="min-h-screen bg-cover bg-center bg-fixed px-4 py-12" style={{ backgroundImage: "url('/background.jpg')" }}>
+    <div className="min-h-screen bg-background px-4 py-12">
       <div className="mx-auto max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-foreground">
+          <h1 className="text-2xl font-bold text-foreground uppercase" style={{ letterSpacing: '0.02em' }}>
             Thank you so much for coming to {config?.eventName || "the event"}
           </h1>
         </div>
 
-        <Card className="p-8 bg-card border-border shadow-elevation">
-          {renderBody()}
+        <Card className="bg-card border-border shadow-elevation">
+          <CardContent className="p-8">
+            {renderBody()}
+          </CardContent>
         </Card>
       </div>
     </div>
