@@ -7,18 +7,28 @@ import { GradientButton } from "@/components/ui/gradient-button"
 import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
 import { toast } from "sonner"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Calendar, MapPin } from "lucide-react"
 
 interface Event {
   event_id: string
   event_name: string
   event_code: string
+  event_location: string | null
+  event_starts_at: string | null
+  event_ends_at: string | null
 }
+
+// Allowed emails that can see all events
+const ALLOWED_EMAILS = ['alexisbinch5@gmail.com', 'brantshanonjohnson@gmail.com']
 
 export function EventJoinPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isAutoJoining, setIsAutoJoining] = useState(false)
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
+  const [isLoadingEvents, setIsLoadingEvents] = useState(false)
+  const [availableEvents, setAvailableEvents] = useState<Event[]>([])
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [canSeeAllEvents, setCanSeeAllEvents] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClientComponentClient()
@@ -40,6 +50,22 @@ export function EventJoinPage() {
           return
         }
 
+        // Get user email
+        const { data: userData } = await supabase
+          .from('users')
+          .select('email')
+          .eq('user_id', user.id)
+          .single()
+
+        const email = userData?.email || user.email
+        setUserEmail(email || null)
+        
+        // Check if user can see all events
+        if (email && ALLOWED_EMAILS.includes(email.toLowerCase())) {
+          setCanSeeAllEvents(true)
+          await loadAllEvents()
+        }
+
         // User is authenticated - handle event joining
         if (eventCode) {
           await handleAutoJoinEvent(eventCode)
@@ -54,6 +80,29 @@ export function EventJoinPage() {
 
     checkAuthAndHandleEvent()
   }, [searchParams, router, supabase.auth])
+
+  const loadAllEvents = async () => {
+    setIsLoadingEvents(true)
+    try {
+      const { data: events, error } = await supabase
+        .from('events')
+        .select('event_id, event_name, event_code, event_location, event_starts_at, event_ends_at')
+        .order('event_starts_at', { ascending: false, nullsFirst: false })
+
+      if (error) {
+        console.error('Error loading events:', error)
+        toast.error('Failed to load events')
+        return
+      }
+
+      setAvailableEvents(events || [])
+    } catch (error) {
+      console.error('Error loading events:', error)
+      toast.error('Failed to load events')
+    } finally {
+      setIsLoadingEvents(false)
+    }
+  }
 
   const handleAutoJoinEvent = async (eventCode: string) => {
     setIsAutoJoining(true)
@@ -186,6 +235,22 @@ export function EventJoinPage() {
     )
   }
 
+  const handleSelectEvent = async (event: Event) => {
+    await handleJoinEvent(event.event_code)
+  }
+
+  const formatEventDate = (dateString: string | null) => {
+    if (!dateString) return null
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  }
+
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -212,20 +277,94 @@ export function EventJoinPage() {
       </header>
 
       <main className="container mx-auto px-4 py-4">
-        <div className="max-w-md mx-auto">
-          <Card className="bg-card border-border shadow-elevation">
-            <CardHeader className="text-center">
-              <CardTitle className="text-xl">Join An Event</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <EventJoinScanner
-                onJoinEvent={handleJoinEvent}
-                onScanQR={() => {}} // QR scanning is handled internally by EventJoinScanner
-                isLoading={isLoading}
-              />
-            </CardContent>
-          </Card>
-        </div>
+        {canSeeAllEvents ? (
+          <div className="max-w-2xl mx-auto">
+            <Card className="bg-card border-border shadow-elevation">
+              <CardHeader className="text-center">
+                <CardTitle className="text-xl">Select An Event</CardTitle>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Choose an event to join from the list below
+                </p>
+              </CardHeader>
+              <CardContent>
+                {isLoadingEvents ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-muted-foreground">Loading events...</p>
+                  </div>
+                ) : availableEvents.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No events available</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {availableEvents.map((event) => (
+                      <Card
+                        key={event.event_id}
+                        className="bg-card border-border shadow-elevation cursor-pointer hover:shadow-[0px_3px_4px_rgba(0,0,0,0.25)] transition-shadow"
+                        onClick={() => handleSelectEvent(event)}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-foreground mb-1">
+                                {event.event_name}
+                              </h3>
+                              <div className="space-y-1 text-sm text-muted-foreground">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-medium text-foreground">
+                                    {event.event_code}
+                                  </span>
+                                </div>
+                                {event.event_location && (
+                                  <div className="flex items-center gap-2">
+                                    <MapPin className="h-4 w-4" />
+                                    <span>{event.event_location}</span>
+                                  </div>
+                                )}
+                                {event.event_starts_at && (
+                                  <div className="flex items-center gap-2">
+                                    <Calendar className="h-4 w-4" />
+                                    <span>{formatEventDate(event.event_starts_at)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <GradientButton
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleSelectEvent(event)
+                              }}
+                              disabled={isLoading}
+                              size="sm"
+                            >
+                              Join
+                            </GradientButton>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <div className="max-w-md mx-auto">
+            <Card className="bg-card border-border shadow-elevation">
+              <CardHeader className="text-center">
+                <CardTitle className="text-xl">Join An Event</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <EventJoinScanner
+                  onJoinEvent={handleJoinEvent}
+                  onScanQR={() => {}} // QR scanning is handled internally by EventJoinScanner
+                  isLoading={isLoading}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </main>
     </div>
   )
