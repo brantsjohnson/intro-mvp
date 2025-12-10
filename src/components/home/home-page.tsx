@@ -25,8 +25,7 @@ import {
   Plus,
   QrCode,
   UserPlus,
-  ArrowRight,
-  RefreshCw
+  ArrowRight
 } from "lucide-react"
 
 interface StructuredMatchExplanation {
@@ -1402,20 +1401,6 @@ export function HomePage() {
                     <Users className="h-5 w-5" />
                     <span>People You Should Know</span>
                   </h2>
-                  {currentEvent.matchmaking_enabled && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleRefreshMatches}
-                      disabled={isRefreshing}
-                      className="h-8 w-8 p-0"
-                      title="Refresh matches"
-                    >
-                      <RefreshCw 
-                        className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} 
-                      />
-                    </Button>
-                  )}
                 </div>
               </div>
               
