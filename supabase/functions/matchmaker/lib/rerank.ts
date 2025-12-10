@@ -96,6 +96,8 @@ export async function rerankWithAI(
   const prompt = `You are a networking matchmaker. Reorder the provided candidates to maximize the viewer's success.
 You MUST return all candidates provided - you cannot drop any. Only reorder them.
 
+CRITICAL: Always use gender-neutral language in all explanations and descriptions. Never assume someone's gender. Use "they/them/their" pronouns, or refer to people by their name, title, or role. Never use "he/him/his" or "she/her" pronouns.
+
 BEFORE SCORING: Infer each person's normalized function and seniority from their job title (e.g., "Account Executive" → sales/IC, "VP of Engineering" → engineering/vp, "Founder" → exec/founder).
 
 Use buyer-persona intelligence:
@@ -128,7 +130,7 @@ ${candidateSummaries}`
         {
           role: "system",
           content:
-            "Re-order candidates to maximize the viewer's success. Respond with JSON only, no prose."
+            "Re-order candidates to maximize the viewer's success. Respond with JSON only, no prose. Always use gender-neutral language - never assume gender. Use \"they/them/their\" pronouns or refer to people by name/title."
         },
         { role: "user", content: prompt }
       ]
