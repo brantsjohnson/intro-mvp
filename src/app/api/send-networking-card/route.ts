@@ -294,35 +294,37 @@ export async function POST(request: NextRequest) {
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <link href="https://fonts.googleapis.com/css2?family=Changa+One&display=swap" rel="stylesheet">
+            <link href="https://fonts.googleapis.com/css2?family=Changa+One&family=Avenir+Next:wght@400;500&display=swap" rel="stylesheet">
           </head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
-            <h1 style="font-size: 24px; margin-bottom: 20px; color: #333;">Thank you for attending ${escapeHtml(metrics.eventName)}!</h1>
-            <p style="font-size: 16px; margin-bottom: 20px; color: #333;">Here's your networking summary:</p>
-            ${surveyLink ? `
-            <div style="background: #f8faf9; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; margin-bottom: 20px;">
-              <p style="font-size: 15px; margin: 0 0 12px 0; color: #111827;">Before viewing your recap, can you answer 3 quick questions (incl. the organizer's custom one)?</p>
-              <div style="text-align: center;">
-                <a href="${surveyLink}" style="display: inline-block; background: #1f4b3f; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 9999px; font-weight: 600;">
-                  Take the 30-second survey
-                </a>
+          <body style="font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #3A3835; margin: 0; padding: 40px 20px; background-color: #EDEBE6;">
+            <div style="max-width: 600px; margin: 0 auto;">
+              <div style="background: rgba(237, 235, 230, 0.5); border: 1.5px solid #BEBCB8; border-radius: 56px; padding: 40px; box-shadow: 0px 2px 2px rgba(0, 0, 0, 0.15);">
+                <h1 style="font-family: 'Changa One', cursive; font-size: 28px; margin-bottom: 20px; color: #3A3835; text-transform: uppercase; letter-spacing: 0.02em;">Thank you for attending ${escapeHtml(metrics.eventName)}!</h1>
+                <p style="font-size: 16px; margin-bottom: 20px; color: #3A3835;">Here's your networking summary:</p>
+                ${surveyLink ? `
+                <div style="background: rgba(237, 235, 230, 0.6); border: 1.5px solid #BEBCB8; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                  <p style="font-size: 15px; margin: 0 0 12px 0; color: #3A3835;">Before viewing your recap, can you answer 3 quick questions (incl. the organizer's custom one)?</p>
+                  <div style="text-align: center;">
+                    <a href="${surveyLink}" style="display: inline-block; background: #72A557; color: #FFFFFF; text-decoration: none; padding: 12px 20px; border-radius: 48px; font-weight: 500; border: none;">
+                      Take the 30-second survey
+                    </a>
+                  </div>
+                </div>
+                ` : ''}
+                
+                <!-- Embedded HTML Card -->
+                ${emailCardHTML}
+                
+                <!-- Download Section -->
+                <div style="background: rgba(237, 235, 230, 0.6); border: 1.5px solid #BEBCB8; border-radius: 8px; padding: 16px; margin-top: 20px; text-align: center;">
+                  <p style="font-size: 14px; color: #3A3835; margin: 0 0 12px 0;">Want to save or share your networking summary?</p>
+                  <p style="font-size: 12px; color: #7D7A73; margin: 0;">Download the PNG version attached to this email</p>
+                </div>
               </div>
+              <p style="font-size: 12px; color: #7D7A73; margin-top: 24px; text-align: center;">
+                Powered by <strong style="font-family: 'Changa One', cursive;">INTRO</strong>
+              </p>
             </div>
-            ` : ''}
-            
-            <!-- Embedded HTML Card -->
-            ${emailCardHTML}
-            
-            <!-- Download Section -->
-            <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-top: 20px; text-align: center;">
-              <p style="font-size: 14px; color: #666; margin: 0 0 12px 0;">Want to save or share your networking summary?</p>
-              <p style="font-size: 12px; color: #999; margin: 0;">Download the PNG version attached to this email</p>
-            </div>
-            
-            <p style="font-size: 14px; color: #666; margin-top: 20px; text-align: center;">
-              Powered by <strong>Intro</strong><br />
-              <span style="font-size: 12px;">introevent.site</span>
-            </p>
           </body>
         </html>
       `,

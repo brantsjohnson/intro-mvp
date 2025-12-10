@@ -120,25 +120,33 @@ export class EmailService {
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <link href="https://fonts.googleapis.com/css2?family=Changa+One&family=Avenir+Next:wght@400;500&display=swap" rel="stylesheet">
         </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #F6F7F4; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #15201C;">
-          <h1 style="color: #F6F7F4; margin: 0 0 30px 0; font-size: 24px; text-align: center;">You have a new message!</h1>
-          <p style="font-size: 16px; margin: 0 0 20px 0; color: #F6F7F4;">
-            <strong>${this.escapeHtml(senderName)}</strong> sent you a message on Intro.
-          </p>
-          ${messagePreview ? `
-            <div style="background: transparent; padding: 15px; border-radius: 6px; border-left: 4px solid #9C4C05; margin: 20px 0;">
-              <p style="margin: 0; font-style: italic; color: #A9B1AA;">"${this.escapeHtml(messagePreview)}"</p>
+        <body style="font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #3A3835; margin: 0; padding: 40px 20px; background-color: #EDEBE6;">
+          <div style="max-width: 600px; margin: 0 auto;">
+            <div style="background: rgba(237, 235, 230, 0.5); border: 1.5px solid #BEBCB8; border-radius: 56px; padding: 40px; box-shadow: 0px 2px 2px rgba(0, 0, 0, 0.15);">
+              <h1 style="font-family: 'Changa One', cursive; color: #3A3835; margin: 0 0 30px 0; font-size: 28px; text-align: center; text-transform: uppercase; letter-spacing: 0.02em;">You have a new message!</h1>
+              <p style="font-size: 16px; margin: 0 0 20px 0; color: #3A3835;">
+                <strong>${this.escapeHtml(senderName)}</strong> sent you a message on Intro.
+              </p>
+              ${messagePreview ? `
+                <div style="background: rgba(237, 235, 230, 0.6); padding: 16px; border-radius: 8px; border-left: 4px solid #72A557; margin: 20px 0;">
+                  <p style="margin: 0; font-style: italic; color: #7D7A73;">"${this.escapeHtml(messagePreview)}"</p>
+                </div>
+              ` : ''}
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${link}" style="display: inline-block; background: #72A557; color: #FFFFFF; text-decoration: none; padding: 12px 30px; border-radius: 48px; font-weight: 500; font-size: 16px; border: none;">
+                  View Message
+                </a>
+              </div>
+              <p style="font-size: 14px; color: #7D7A73; margin: 30px 0 0 0; text-align: center;">
+                <a href="${link}" style="color: #72A557; text-decoration: none;">${link}</a>
+              </p>
             </div>
-          ` : ''}
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${link}" style="display: inline-block; background: linear-gradient(135deg, #1A2C24 0%, #0C1A14 100%); color: #F6F7F4; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: 600; font-size: 16px;">
-              View Message
-            </a>
+            <p style="font-size: 12px; color: #7D7A73; margin-top: 24px; text-align: center;">
+              Powered by <strong style="font-family: 'Changa One', cursive;">INTRO</strong>
+            </p>
           </div>
-          <p style="font-size: 14px; color: #A9B1AA; margin: 30px 0 0 0; text-align: center;">
-            <a href="${link}" style="color: #9C4C05; text-decoration: none;">${link}</a>
-          </p>
         </body>
       </html>
     `
@@ -170,27 +178,35 @@ export class EmailService {
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <link href="https://fonts.googleapis.com/css2?family=Changa+One&family=Avenir+Next:wght@400;500&display=swap" rel="stylesheet">
         </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #F6F7F4; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #15201C;">
-          <h1 style="color: #F6F7F4; margin: 0 0 30px 0; font-size: 24px; text-align: center;">You have new matches!</h1>
-          <p style="font-size: 16px; margin: 0 0 20px 0; color: #F6F7F4;">
-            We found <strong>${matchCount} ${matchCount === 1 ? 'person' : 'people'}</strong> you should connect with at <strong>${this.escapeHtml(eventName)}</strong>.
-          </p>
-          <div style="background: transparent; padding: 15px; border-radius: 6px; border-left: 4px solid #9C4C05; margin: 20px 0;">
-            <p style="margin: 0; color: #A9B1AA;">
-              ${matchCount === 1 
-                ? 'Your match is ready to view. Start a conversation and make a meaningful connection!' 
-                : 'Your matches are ready to view. Start conversations and make meaningful connections!'}
+        <body style="font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #3A3835; margin: 0; padding: 40px 20px; background-color: #EDEBE6;">
+          <div style="max-width: 600px; margin: 0 auto;">
+            <div style="background: rgba(237, 235, 230, 0.5); border: 1.5px solid #BEBCB8; border-radius: 56px; padding: 40px; box-shadow: 0px 2px 2px rgba(0, 0, 0, 0.15);">
+              <h1 style="font-family: 'Changa One', cursive; color: #3A3835; margin: 0 0 30px 0; font-size: 28px; text-align: center; text-transform: uppercase; letter-spacing: 0.02em;">You have new matches!</h1>
+              <p style="font-size: 16px; margin: 0 0 20px 0; color: #3A3835;">
+                We found <strong>${matchCount} ${matchCount === 1 ? 'person' : 'people'}</strong> you should connect with at <strong>${this.escapeHtml(eventName)}</strong>.
+              </p>
+              <div style="background: rgba(237, 235, 230, 0.6); padding: 16px; border-radius: 8px; border-left: 4px solid #72A557; margin: 20px 0;">
+                <p style="margin: 0; color: #7D7A73;">
+                  ${matchCount === 1 
+                    ? 'Your match is ready to view. Start a conversation and make a meaningful connection!' 
+                    : 'Your matches are ready to view. Start conversations and make meaningful connections!'}
+                </p>
+              </div>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${link}" style="display: inline-block; background: #72A557; color: #FFFFFF; text-decoration: none; padding: 12px 30px; border-radius: 48px; font-weight: 500; font-size: 16px; border: none;">
+                  View Matches
+                </a>
+              </div>
+              <p style="font-size: 14px; color: #7D7A73; margin: 30px 0 0 0; text-align: center;">
+                <a href="${link}" style="color: #72A557; text-decoration: none;">${link}</a>
+              </p>
+            </div>
+            <p style="font-size: 12px; color: #7D7A73; margin-top: 24px; text-align: center;">
+              Powered by <strong style="font-family: 'Changa One', cursive;">INTRO</strong>
             </p>
           </div>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${link}" style="display: inline-block; background: linear-gradient(135deg, #1A2C24 0%, #0C1A14 100%); color: #F6F7F4; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: 600; font-size: 16px;">
-              View Matches
-            </a>
-          </div>
-          <p style="font-size: 14px; color: #A9B1AA; margin: 30px 0 0 0; text-align: center;">
-            <a href="${link}" style="color: #9C4C05; text-decoration: none;">${link}</a>
-          </p>
         </body>
       </html>
     `
