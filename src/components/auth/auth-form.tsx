@@ -1,13 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, FormEvent } from "react"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { createClientComponentClient } from "@/lib/supabase"
-import { toast } from "sonner"
 
 export function AuthForm() {
   const [isSignUp, setIsSignUp] = useState(false)
@@ -18,49 +17,47 @@ export function AuthForm() {
   const [consent, setConsent] = useState(false)
   const [showPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  
+
   const searchParams = useSearchParams()
-  const eventCode = searchParams.get('eventCode')
+  const eventCode = searchParams.get("eventCode") // Legacy support
+  const encryptedCode = searchParams.get("code") // New encrypted code
+  const codeToUse = encryptedCode || eventCode
   const supabase = createClientComponentClient()
 
   const startOAuth = async (provider: "google" | "linkedin_oidc") => {
     setIsLoading(true)
     try {
-      // Use environment variable for production URL, fallback to current origin
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
-      const redirectUrl = eventCode 
-        ? `${baseUrl}/auth/callback?eventCode=${eventCode}`
+      const redirectUrl = codeToUse
+        ? `${baseUrl}/auth/callback?code=${codeToUse}`
         : `${baseUrl}/auth/callback`
-      
+
       console.log(`Starting ${provider} OAuth with redirect URL:`, redirectUrl)
-      
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo: redirectUrl,
           scopes: provider === "linkedin_oidc" ? "openid profile email" : undefined,
-        }
+        },
       })
-      
+
       if (error) {
         console.error(`${provider} OAuth error:`, error)
-        toast.error(error.message)
       } else {
         console.log(`${provider} OAuth initiated successfully`)
       }
     } catch (err) {
-      console.error('OAuth exception:', err)
-      toast.error("An error occurred during authentication")
+      console.error("OAuth exception:", err)
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleEmailAuth = async (e: React.FormEvent) => {
+  const handleEmailAuth = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    
+
     if (isSignUp && !consent) {
-      toast.error("Please accept the terms and privacy policy")
       return
     }
 
@@ -74,36 +71,39 @@ export function AuthForm() {
             data: {
               first_name: firstName,
               last_name: lastName,
-            }
-          }
+            },
+          },
         })
-        
+
         if (error) {
-          toast.error(error.message)
+          console.error("Sign up error:", error)
         } else if (data.user) {
           // Profile will be created automatically by database trigger
-          toast.success("Account created successfully! Check your email for confirmation.")
+          console.log("Sign up successful, user created:", data.user.id)
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
-        
+
         if (error) {
-          toast.error(error.message)
+          console.error("Sign in error:", error)
         } else {
-          toast.success("Signed in successfully")
-          // Redirect to event join if eventCode is provided, otherwise go to home
-          if (eventCode) {
+          // Redirect based on code type
+          if (encryptedCode) {
+            // Encrypted code - go to onboarding (profile check happens there)
+            window.location.href = `/onboarding?code=${encryptedCode}`
+          } else if (eventCode) {
+            // Legacy event code - go to event join page
             window.location.href = `/event/join?code=${eventCode}`
           } else {
             window.location.href = "/"
           }
         }
       }
-    } catch {
-      toast.error("An error occurred during authentication")
+    } catch (err) {
+      console.error("Email auth exception:", err)
     } finally {
       setIsLoading(false)
     }
@@ -122,12 +122,22 @@ export function AuthForm() {
         <button
           onClick={() => startOAuth("linkedin_oidc")}
           disabled={isLoading}
-            className="w-full bg-[#0A66C2] text-white py-3 px-4 rounded-concave font-medium flex items-center justify-center space-x-3 hover:bg-[#084b8a] transition-colors disabled:opacity-50"
+          className="w-full bg-[#0A66C2] text-white py-3 px-4 rounded-concave font-medium flex items-center justify-center space-x-3 hover:bg-[#084b8a] transition-colors disabled:opacity-50"
         >
-          <svg className="w-5 h-5" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
+          <svg
+            className="w-5 h-5"
+            viewBox="0 0 34 34"
+            xmlns="http://www.w3.org/2000/svg"
+          >
             <g>
-              <path d="M34 2.5v29c0 1.38-1.12 2.5-2.5 2.5h-29C1.12 34 0 32.88 0 31.5v-29C0 1.12 1.12 0 2.5 0h29C32.88 0 34 1.12 34 2.5z" fill="#0A66C2"/>
-              <path d="M25.43 25.39h-3.71v-5.59c0-1.33-.03-3.04-1.85-3.04-1.86 0-2.15 1.45-2.15 2.94v5.68h-3.71V13.5h3.56v1.62h.05c.5-.95 1.72-1.95 3.54-1.95 3.79 0 4.49 2.49 4.49 5.73v6.49zM10.08 11.88a2.14 2.14 0 01-2.12-2.14 2.14 2.14 0 112.13 2.14h-.01zM11.94 25.39H8.22V13.5h3.72v11.89z" fill="#fff"/>
+              <path
+                d="M34 2.5v29c0 1.38-1.12 2.5-2.5 2.5h-29C1.12 34 0 32.88 0 31.5v-29C0 1.12 1.12 0 2.5 0h29C32.88 0 34 1.12 34 2.5z"
+                fill="#0A66C2"
+              />
+              <path
+                d="M25.43 25.39h-3.71v-5.59c0-1.33-.03-3.04-1.85-3.04-1.86 0-2.15 1.45-2.15 2.94v5.68h-3.71V13.5h3.56v1.62h.05c.5-.95 1.72-1.95 3.54-1.95 3.79 0 4.49 2.49 4.49 5.73v6.49zM10.08 11.88a2.14 2.14 0 01-2.12-2.14 2.14 2.14 0 112.13 2.14h-.01zM11.94 25.39H8.22V13.5h3.72v11.89z"
+                fill="#fff"
+              />
             </g>
           </svg>
           <span>Sign in with LinkedIn</span>
@@ -162,9 +172,9 @@ export function AuthForm() {
 
         {/* Separator */}
         <div className="relative flex items-center">
-          <div className="flex-1 border-t border-border"></div>
+          <div className="flex-1 border-t border-border" />
           <span className="px-3 text-sm font-title text-muted-foreground">OR</span>
-          <div className="flex-1 border-t border-border"></div>
+          <div className="flex-1 border-t border-border" />
         </div>
 
         {/* Email/Password Form */}
@@ -176,7 +186,7 @@ export function AuthForm() {
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 required={isSignUp}
-                className="bg-input text-foreground rounded-concave border-border placeholder:text-muted-foreground"
+                className="bg-input text-foreground rounded-2xl border-border placeholder:text-muted-foreground"
                 placeholder="First Name"
               />
               <Input
@@ -184,7 +194,7 @@ export function AuthForm() {
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 required={isSignUp}
-                className="bg-input text-foreground rounded-concave border-border placeholder:text-muted-foreground"
+                className="bg-input text-foreground rounded-2xl border-border placeholder:text-muted-foreground"
                 placeholder="Last Name"
               />
             </div>
@@ -195,7 +205,7 @@ export function AuthForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="bg-input text-foreground rounded-concave border-border"
+            className="bg-input text-foreground rounded-2xl border-border"
             placeholder="Email"
           />
 
@@ -204,7 +214,7 @@ export function AuthForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="bg-input text-foreground rounded-concave border-border"
+            className="bg-input text-foreground rounded-2xl border-border"
             placeholder="Password"
           />
 
@@ -225,9 +235,12 @@ export function AuthForm() {
                 id="consent"
                 checked={consent}
                 onCheckedChange={(checked) => setConsent(checked as boolean)}
-                className="mt-0.5 h-5 w-5 border-2"
+                className="mt-0.5 h-5 w-5 border-2 border-[#656361]"
               />
-              <Label htmlFor="consent" className="text-sm text-foreground leading-relaxed cursor-pointer flex-1">
+              <Label
+                htmlFor="consent"
+                className="text-sm text-foreground leading-relaxed cursor-pointer flex-1"
+              >
                 By signing up, I accept the{" "}
                 <a href="/terms" className="text-accent hover:underline">
                   Terms of Service
@@ -236,7 +249,8 @@ export function AuthForm() {
                 <a href="/privacy" className="text-accent hover:underline">
                   Privacy Policy
                 </a>
-                . I understand that my name and image will be visible to event attendees and that OpenAI will be used for matching.
+                . I understand that my name and image will be visible to event attendees and that
+                OpenAI will be used for matching.
               </Label>
             </div>
           )}

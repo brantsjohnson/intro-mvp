@@ -52,27 +52,56 @@ export async function POST(request: NextRequest) {
     const [aId, bId] =
       scannerUserId < targetUserId ? [scannerUserId, targetUserId] : [targetUserId, scannerUserId]
 
-    const { error: upsertError } = await supabase
+    // Check if connection already exists
+    const { data: existingConnection, error: checkError } = await supabase
       .from("connections")
-      .upsert(
-        [
-          {
-            event_id: eventId,
-            a_id: aId,
-            b_id: bId,
+      .select("connection_id, connection_kind")
+      .eq("event_id", eventId)
+      .eq("a_id", aId)
+      .eq("b_id", bId)
+      .maybeSingle()
+
+    if (checkError) {
+      console.error("Error checking existing connection:", checkError)
+      throw checkError
+    }
+
+    // If connection already exists, return success
+    if (existingConnection) {
+      // If it's a pending request, upgrade it to confirmed
+      if (existingConnection.connection_kind === "user_request_pending") {
+        const { error: updateError } = await supabase
+          .from("connections")
+          .update({
             connection_kind: "user_added",
             user_add_method: "qr",
             created_by_user_id: scannerUserId,
-          },
-        ],
-        { onConflict: "event_id,a_id,b_id", ignoreDuplicates: false }
-      )
+          })
+          .eq("connection_id", existingConnection.connection_id)
 
-    if (upsertError) {
-      if (upsertError.code === "23505") {
-        return NextResponse.json({ success: true, alreadyConnected: true })
+        if (updateError) {
+          console.error("Error updating pending connection:", updateError)
+          throw updateError
+        }
       }
-      throw upsertError
+      return NextResponse.json({ success: true, alreadyConnected: true })
+    }
+
+    // Create new connection
+    const { error: insertError } = await supabase
+      .from("connections")
+      .insert({
+        event_id: eventId,
+        a_id: aId,
+        b_id: bId,
+        connection_kind: "user_added",
+        user_add_method: "qr",
+        created_by_user_id: scannerUserId,
+      })
+
+    if (insertError) {
+      console.error("Error inserting connection:", insertError)
+      throw insertError
     }
 
     await refreshPairMatchExplanation(supabase, eventId, aId, bId)
@@ -82,6 +111,8 @@ export async function POST(request: NextRequest) {
       eventId,
       aId,
       bId,
+      scannerUserId, // Return scanner ID so target user can navigate to scanner's profile
+      targetUserId,  // Return target ID so scanner can navigate to target's profile
     })
   } catch (error: any) {
     console.error("connect-qr error:", error)

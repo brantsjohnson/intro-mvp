@@ -1,6 +1,5 @@
 import QRCode from 'qrcode'
 import { createClientComponentClient } from '@/lib/supabase'
-import { toast } from 'sonner'
 
 export interface QRCodeData {
   userId: string
@@ -86,7 +85,6 @@ export class QRCodeService {
       const now = Date.now()
       const maxAge = 24 * 60 * 60 * 1000 // 24 hours
       if (now - data.timestamp > maxAge) {
-        toast.error('This QR code has expired')
         return null
       }
 
@@ -109,7 +107,6 @@ export class QRCodeService {
       
       // Don't allow self-connection
       if (scannerUserId === qrData.userId) {
-        toast.error('You cannot connect with yourself')
         return false
       }
 
@@ -129,20 +126,14 @@ export class QRCodeService {
 
       if (!response.ok) {
         console.error('connect-qr error', payload)
-        toast.error(payload?.error || 'Failed to create connection')
-        return false
+        // Throw error with details so it can be caught and displayed
+        throw new Error(payload.error || payload.details || 'Failed to create connection')
       }
 
-      if (payload.alreadyConnected) {
-        toast.info('You are already connected with this person')
-        return true
-      }
-
-      toast.success('Connection created successfully!')
-      return true
+      // Return the payload so we can access scannerUserId and targetUserId
+      return payload
     } catch (error) {
       console.error('Error creating connection:', error)
-      toast.error('Failed to create connection')
       return false
     }
   }

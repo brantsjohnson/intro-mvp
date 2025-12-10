@@ -7,9 +7,12 @@ import { toast } from "sonner"
 
 import { createClientComponentClient } from "@/lib/supabase"
 import { getAvatarUrl } from "@/lib/utils"
+import { haptics } from "@/lib/haptics"
 import { Button } from "@/components/ui/button"
+import { restartGuide } from "@/components/ui/user-guide"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { PresenceAvatar } from "@/components/ui/presence-avatar"
 import {
   Select,
@@ -44,6 +47,13 @@ interface AttendanceRecord {
   checkedInAt: string | null
 }
 
+// Helper function to convert text to Title Case
+function toTitleCase(text: string): string {
+  return text.replace(/\w\S*/g, (txt) => {
+    return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+  })
+}
+
 export function SettingsPage() {
   const router = useRouter()
   const supabase = useMemo(() => createClientComponentClient(), [])
@@ -60,6 +70,7 @@ export function SettingsPage() {
   })
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+  const [originalSelectedEventId, setOriginalSelectedEventId] = useState<string | null>(null)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
@@ -71,6 +82,12 @@ export function SettingsPage() {
     selectedAttendance &&
       selectedAttendance.businessNeed.trim() !== selectedAttendance.originalBusinessNeed.trim()
   )
+
+  const isEventSelectionDirty = Boolean(
+    selectedEventId && originalSelectedEventId && selectedEventId !== originalSelectedEventId
+  )
+
+  const isEventSectionDirty = isBusinessNeedDirty || isEventSelectionDirty
 
   const isProfileDirty = profile
     ? (profile.company ?? "") !== profileDraft.company.trim() ||
@@ -88,7 +105,6 @@ export function SettingsPage() {
 
       if (authError) {
         console.error("Failed to load auth user:", authError)
-        toast.error("We couldn’t load your profile. Please refresh and try again.")
         setIsLoading(false)
         return
       }
@@ -126,7 +142,6 @@ export function SettingsPage() {
 
       if (userError) {
         console.error("Failed to load profile row:", userError)
-        toast.error("We couldn’t load your profile details. Please try again.")
       } else if (userRow) {
         const avatarUrl = getAvatarUrl(userRow.photo_url)
         console.log('[SettingsPage] Avatar URL conversion:', {
@@ -155,7 +170,6 @@ export function SettingsPage() {
 
       if (attendanceError) {
         console.error("Failed to load attendance rows:", attendanceError)
-        toast.error("We couldn’t load your event preferences right now.")
         setAttendanceRecords([])
         setSelectedEventId(null)
       } else {
@@ -172,13 +186,19 @@ export function SettingsPage() {
 
         if (mapped.length === 0) {
           setSelectedEventId(null)
+          setOriginalSelectedEventId(null)
         } else {
-          setSelectedEventId((prev) => {
-            if (prev && mapped.some((record) => record.eventId === prev)) {
-              return prev
-            }
-            return mapped[0].eventId
-          })
+          // Try to load saved preference from localStorage first
+          const savedEventId = typeof window !== 'undefined' 
+            ? localStorage.getItem(`current_event_id_${user.id}`)
+            : null
+          
+          const eventIdToSelect = savedEventId && mapped.some((record) => record.eventId === savedEventId)
+            ? savedEventId
+            : mapped[0].eventId
+          
+          setSelectedEventId(eventIdToSelect)
+          setOriginalSelectedEventId(eventIdToSelect)
         }
       }
 
@@ -191,7 +211,6 @@ export function SettingsPage() {
   const handleSaveProfile = async () => {
     if (!userId || !profile) return
     if (!isProfileDirty) {
-      toast.info("No profile changes to save.")
       return
     }
 
@@ -210,7 +229,6 @@ export function SettingsPage() {
 
       if (error) {
         console.error("Failed to update profile:", error)
-        toast.error("We couldn’t update your profile. Please try again.")
         return
       }
 
@@ -229,10 +247,8 @@ export function SettingsPage() {
         jobTitle: trimmedJobTitle,
       })
 
-      toast.success("Profile saved.")
     } catch (error) {
       console.error("Unexpected error updating profile:", error)
-      toast.error("Something went wrong while saving. Please try again.")
     } finally {
       setIsSavingProfile(false)
     }
@@ -256,7 +272,6 @@ export function SettingsPage() {
 
       if (error) {
         console.error("Failed to toggle presence:", error)
-        toast.error("We couldn’t update your presence. Please try again.")
         return
       }
 
@@ -268,12 +283,8 @@ export function SettingsPage() {
         )
       )
 
-      toast.success(
-        nextCheckedInAt ? "You’re now marked as here." : "You’re no longer marked as here."
-      )
     } catch (error) {
       console.error("Unexpected error toggling presence:", error)
-      toast.error("Something went wrong while updating presence.")
     } finally {
       setIsPresenceUpdating(false)
     }
@@ -304,9 +315,12 @@ export function SettingsPage() {
   }
 
   const handleSaveBusinessNeed = async () => {
-    if (!userId || !selectedAttendance) return
-    if (!isBusinessNeedDirty) {
-      toast.info("No changes to save.")
+    if (!userId || !selectedAttendance) {
+      toast.error("Unable to save: user or event not found")
+      return
+    }
+    if (!isEventSectionDirty) {
+      toast.info("No changes to save")
       return
     }
 
@@ -314,22 +328,61 @@ export function SettingsPage() {
 
     setIsSavingBusinessNeed(true)
     try {
-      const { error } = await supabase
-        .from("attendance")
-        .update({
-          business_need_text: trimmedNeed.length > 0 ? trimmedNeed : null,
-          last_profile_change_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId)
-        .eq("event_id", selectedAttendance.eventId)
+      // Save business need if it changed
+      if (isBusinessNeedDirty) {
+        const { error } = await supabase
+          .from("attendance")
+          .update({
+            business_need_text: trimmedNeed.length > 0 ? trimmedNeed : null,
+            last_profile_change_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", userId)
+          .eq("event_id", selectedAttendance.eventId)
 
-      if (error) {
-        console.error("Failed to update business need:", error)
-        toast.error("We couldn’t update your business need. Please try again.")
-        return
+        if (error) {
+          console.error("Failed to update business need:", error)
+          toast.error("Failed to save business need. Please try again.")
+          setIsSavingBusinessNeed(false)
+          return
+        }
       }
 
+      // Save event preference if event selection changed
+      if (isEventSelectionDirty && selectedEventId) {
+        // Store in localStorage for immediate access
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`current_event_id_${userId}`, selectedEventId)
+        }
+        
+        // Also try to store in users table if there's a current_event_id column
+        // (This will silently fail if the column doesn't exist, which is fine)
+        try {
+          await supabase
+            .from("users")
+            .update({ 
+              current_event_id: selectedEventId 
+            } as any)
+            .eq("user_id", userId)
+        } catch (err) {
+          // Column might not exist, that's okay - localStorage is the fallback
+          console.log("Note: current_event_id column may not exist in users table")
+        }
+        
+        // Update original to reflect the save
+        setOriginalSelectedEventId(selectedEventId)
+      }
+
+      // Show success feedback
+      if (isEventSelectionDirty && isBusinessNeedDirty) {
+        toast.success("Event switched and business need saved!")
+      } else if (isEventSelectionDirty) {
+        toast.success(`Switched to ${selectedAttendance.eventName}!`)
+      } else {
+        toast.success("Business need saved successfully!")
+      }
+
+      // Update local state
       setAttendanceRecords((records) =>
         records.map((record) =>
           record.eventId === selectedAttendance.eventId
@@ -341,11 +394,15 @@ export function SettingsPage() {
             : record
         )
       )
+      
+      // Reset dirty flags
+      if (isEventSelectionDirty) {
+        setOriginalSelectedEventId(selectedEventId)
+      }
 
-      toast.success("Business need saved.")
 
       if (selectedAttendance.eventId && userId) {
-        void toast.promise(
+        toast.promise(
           (async () => {
             const deriveResponse = await fetch("/api/derive-attendance", {
               method: "POST",
@@ -389,13 +446,14 @@ export function SettingsPage() {
       }
     } catch (updateError) {
       console.error("Unexpected error updating business need:", updateError)
-      toast.error("Something went wrong while saving. Please try again.")
+      toast.error("An unexpected error occurred. Please try again.")
     } finally {
       setIsSavingBusinessNeed(false)
     }
   }
 
   const handleAddEvent = () => {
+    haptics.light()
     router.push("/event/join")
   }
 
@@ -406,7 +464,6 @@ export function SettingsPage() {
       router.push("/auth")
     } catch (error) {
       console.error("Error signing out:", error)
-      toast.error("Failed to sign out. Please try again.")
       setIsLoggingOut(false)
     }
   }
@@ -446,12 +503,14 @@ export function SettingsPage() {
             <button
               aria-label="Go back"
               onClick={() => router.back()}
-              className="flex h-10 w-10 items-center justify-center rounded-full shadow-elevation transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary bg-primary"
+              className="flex h-12 w-12 items-center justify-center rounded-2xl shadow-elevation transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary bg-primary"
             >
-              <ArrowLeft className="h-5 w-5 text-white" />
+              <ArrowLeft className="h-6 w-6 text-white" />
             </button>
             <div className="flex-1 text-center">
-              <h1 className="text-lg font-semibold text-foreground sm:text-xl">Profile Settings</h1>
+              <h1 className="text-lg font-semibold text-foreground sm:text-xl" style={{ textTransform: 'none' }}>
+                {toTitleCase("Profile Settings")}
+              </h1>
             </div>
             <div className="h-10 w-10" />
           </div>
@@ -460,55 +519,56 @@ export function SettingsPage() {
 
       <main className="mx-auto mt-4 flex max-w-2xl flex-col gap-4 px-4 pb-20">
         <Card className="bg-card border-border shadow-elevation">
-          <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center">
+          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
             <PresenceAvatar
               src={profile.avatarUrl || undefined}
               fallback={`${profile.firstName?.[0] ?? ""}${profile.lastName?.[0] ?? ""}`}
               isPresent={Boolean(selectedAttendance?.checkedInAt)}
-              size="lg"
+              size="xl"
+              className="h-24 w-24"
             />
             <div className="flex-1 space-y-2">
-              <h2 className="text-2xl font-semibold text-foreground">
-                {profile.firstName} {profile.lastName}
-              </h2>
-              <div className="space-y-1 text-sm text-muted-foreground">
-                <p>{profile.jobTitle ?? "Job title not set"}</p>
-                <p>{profile.company ?? "Company not set"}</p>
+              <div className="space-y-0">
+                <h2 className="text-lg font-semibold text-foreground leading-tight" style={{ textTransform: 'none' }}>
+                  {toTitleCase(profile.firstName)}
+                </h2>
+                <h2 className="text-lg font-semibold text-foreground leading-tight" style={{ textTransform: 'none' }}>
+                  {toTitleCase(profile.lastName)}
+                </h2>
               </div>
-              {selectedAttendance && (
-                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                  Attending: {selectedAttendance.eventName}
-                </p>
-              )}
+              <div className="text-sm text-muted-foreground">
+                {profile.jobTitle || profile.company ? (
+                  <p style={{ textTransform: 'none' }}>
+                    <span className="font-semibold text-foreground">
+                      {profile.jobTitle ? toTitleCase(profile.jobTitle) : "Job title not set"}
+                    </span>
+                    {profile.jobTitle && profile.company && " | "}
+                    {profile.company && <span>{toTitleCase(profile.company)}</span>}
+                  </p>
+                ) : (
+                  <p style={{ textTransform: 'none' }}>Job title and company not set</p>
+                )}
+              </div>
             </div>
             {selectedAttendance && (
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Presence
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground" style={{ textTransform: 'none' }}>
+                  Status: <span className="font-medium text-foreground">{selectedAttendance.checkedInAt ? "Here" : "Away"}</span>
                 </span>
                 <button
                   onClick={handleTogglePresence}
                   disabled={isPresenceUpdating}
-                  className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-elevation transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4B915A]"
+                  className="relative inline-flex h-6 w-11 items-center rounded-2xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   style={{
-                    background: selectedAttendance.checkedInAt
-                      ? "linear-gradient(135deg, #4B915A 0%, #0B3E16 100%)"
-                      : "linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 100%)",
+                    backgroundColor: selectedAttendance.checkedInAt ? "#4B915A" : "#D1D1D1",
                   }}
+                  aria-label={selectedAttendance.checkedInAt ? "Mark as away" : "Mark as here"}
                 >
-                  <span className="flex h-2.5 w-2.5 items-center justify-center rounded-full bg-black/20">
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{
-                        backgroundColor: selectedAttendance.checkedInAt ? "#90E29D" : "#D1D1D1",
-                      }}
-                    />
-                  </span>
-                  {isPresenceUpdating
-                    ? "Updating…"
-                    : selectedAttendance.checkedInAt
-                      ? "Here"
-                    : "Mark as here"}
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-xl bg-white transition-transform ${
+                      selectedAttendance.checkedInAt ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
                 </button>
               </div>
             )}
@@ -517,27 +577,22 @@ export function SettingsPage() {
 
         <Card className="bg-card border-border shadow-elevation">
           <CardHeader className="pb-2">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-2">
               <div>
-                <CardTitle className="text-base font-semibold text-foreground">About</CardTitle>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Keep your headline up to date
+                <CardTitle className="text-base font-semibold text-foreground" style={{ textTransform: 'none' }}>
+                  {toTitleCase("About")}
+                </CardTitle>
+                <p className="text-xs text-muted-foreground font-body" style={{ textTransform: 'none' }}>
+                  {toTitleCase("Keep your headline up to date")}
                 </p>
               </div>
-              <Button
-                size="sm"
-                onClick={handleSaveProfile}
-                disabled={!isProfileDirty || isSavingProfile}
-                className="bg-primary text-primary-foreground hover:opacity-90"
-              >
-                {isSavingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save profile
-              </Button>
             </div>
           </CardHeader>
           <CardContent className="pt-0 pb-4 grid gap-4 md:grid-cols-2">
-            <label className="flex flex-col gap-2 text-sm text-foreground">
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">Company</span>
+            <div className="flex flex-col gap-2">
+              <Label className="text-sm font-title text-foreground">
+                {toTitleCase("Company")}
+              </Label>
               <Input
                 value={profileDraft.company}
                 onChange={(event) =>
@@ -545,9 +600,11 @@ export function SettingsPage() {
                 }
                 placeholder="Where do you work?"
               />
-            </label>
-            <label className="flex flex-col gap-2 text-sm text-foreground">
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">Job Title</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label className="text-sm font-title text-foreground">
+                {toTitleCase("Job Title")}
+              </Label>
               <Input
                 value={profileDraft.jobTitle}
                 onChange={(event) =>
@@ -555,15 +612,26 @@ export function SettingsPage() {
                 }
                 placeholder="What’s your role?"
               />
-            </label>
+              <div className="flex items-center justify-end gap-3 mt-2">
+                <Button
+                  size="sm"
+                  onClick={handleSaveProfile}
+                  disabled={!isProfileDirty || isSavingProfile}
+                  className="bg-primary text-primary-foreground hover:opacity-90"
+                >
+                  {isSavingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save profile
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         <Card className="bg-card border-border shadow-elevation">
           <CardHeader className="pb-2">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle className="text-base font-semibold text-foreground">
-                Current event
+              <CardTitle className="text-base font-semibold text-foreground" style={{ textTransform: 'none' }}>
+                {toTitleCase("Current event")}
               </CardTitle>
               <Button
                 size="sm"
@@ -584,20 +652,32 @@ export function SettingsPage() {
             ) : (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-2">
-                  <label className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Change event
-                  </label>
+                  <Label className="text-sm font-title text-foreground">
+                    {toTitleCase("Change event")}
+                  </Label>
                   <Select
                     value={selectedEventId ?? undefined}
-                    onValueChange={(value) => setSelectedEventId(value)}
+                    onValueChange={(value) => {
+                      console.log("Switching to event:", value)
+                      const newEvent = attendanceRecords.find(r => r.eventId === value)
+                      setSelectedEventId(value)
+                      if (newEvent) {
+                        toast.info(`Selected ${newEvent.eventName}. Click "Save changes" to switch.`)
+                      }
+                    }}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select an event" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-popover border-border">
                       {attendanceRecords.map((record) => (
-                        <SelectItem value={record.eventId} key={record.eventId}>
-                          {record.eventName}
+                        <SelectItem 
+                          value={record.eventId} 
+                          key={record.eventId} 
+                          style={{ textTransform: 'none' }}
+                          className="bg-popover hover:bg-accent"
+                        >
+                          {toTitleCase(record.eventName)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -607,11 +687,17 @@ export function SettingsPage() {
                 {selectedAttendance && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-medium text-foreground">
-                        Business need for this event
+                      <h3 className="text-sm font-medium text-foreground font-body" style={{ textTransform: 'none' }}>
+                        {toTitleCase("Business need for this event")}
                       </h3>
-                      {isBusinessNeedDirty && (
-                        <span className="text-xs font-medium text-primary">Unsaved changes</span>
+                      {isEventSectionDirty && (
+                        <span className="text-xs font-medium text-primary">
+                          {isEventSelectionDirty && isBusinessNeedDirty 
+                            ? "Unsaved changes" 
+                            : isEventSelectionDirty 
+                            ? "Event switch pending" 
+                            : "Unsaved changes"}
+                        </span>
                       )}
                     </div>
                     <Textarea
@@ -624,15 +710,23 @@ export function SettingsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        disabled={!isBusinessNeedDirty || isSavingBusinessNeed}
-                        onClick={handleResetBusinessNeed}
+                        disabled={!isEventSectionDirty || isSavingBusinessNeed}
+                        onClick={() => {
+                          if (isBusinessNeedDirty) {
+                            handleResetBusinessNeed()
+                          }
+                          if (isEventSelectionDirty && originalSelectedEventId) {
+                            setSelectedEventId(originalSelectedEventId)
+                            toast.info("Event selection reset")
+                          }
+                        }}
                       >
                         Reset
                       </Button>
                       <Button
                         size="sm"
                         onClick={handleSaveBusinessNeed}
-                        disabled={!isBusinessNeedDirty || isSavingBusinessNeed}
+                        disabled={!isEventSectionDirty || isSavingBusinessNeed}
                         className="bg-primary text-primary-foreground hover:opacity-90"
                       >
                         {isSavingBusinessNeed ? (
@@ -652,14 +746,29 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Redo Onboarding Guide Button */}
+        <div className="flex justify-center pt-4">
+          <Button
+            variant="outline"
+            onClick={() => {
+              restartGuide("intro-homepage-guide-completed")
+            }}
+            className="border-border text-foreground hover:bg-card/80"
+            style={{ textTransform: 'none' }}
+          >
+            {toTitleCase("Redo Onboarding Guide")}
+          </Button>
+        </div>
+
         {/* Logout Button */}
-        <div className="flex justify-center pt-4 pb-8">
+        <div className="flex justify-center pb-8">
           <Button
             variant="outline"
             onClick={() => setShowLogoutDialog(true)}
             className="border-destructive/40 text-destructive hover:bg-destructive/10"
+            style={{ textTransform: 'none' }}
           >
-            Log out
+            {toTitleCase("Log out")}
           </Button>
         </div>
       </main>
@@ -668,8 +777,10 @@ export function SettingsPage() {
       <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Log out?</DialogTitle>
-            <DialogDescription>
+            <DialogTitle style={{ textTransform: 'none' }}>
+              Log out?
+            </DialogTitle>
+            <DialogDescription style={{ textTransform: 'none' }}>
               Are you sure you want to log out? You'll need to sign in again to access your account.
             </DialogDescription>
           </DialogHeader>
@@ -678,21 +789,23 @@ export function SettingsPage() {
               variant="outline"
               onClick={() => setShowLogoutDialog(false)}
               disabled={isLoggingOut}
+              style={{ textTransform: 'none' }}
             >
-              Cancel
+              {toTitleCase("Cancel")}
             </Button>
             <Button
               onClick={handleLogout}
               disabled={isLoggingOut}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              style={{ textTransform: 'none' }}
             >
               {isLoggingOut ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Logging out...
+                  {toTitleCase("Logging out...")}
                 </>
               ) : (
-                "Log out"
+                toTitleCase("Log out")
               )}
             </Button>
           </DialogFooter>

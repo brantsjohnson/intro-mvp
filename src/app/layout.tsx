@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Toaster } from "@/components/ui/sonner";
+import { ConditionalToaster } from "@/components/ui/conditional-toaster";
 import { PageTransitionWrapper } from "@/components/ui/page-transition-wrapper";
 
 export const metadata: Metadata = {
@@ -21,7 +21,7 @@ export default function RootLayout({
         <PageTransitionWrapper>
         {children}
         </PageTransitionWrapper>
-        <Toaster />
+        <ConditionalToaster />
       </body>
     </html>
   );

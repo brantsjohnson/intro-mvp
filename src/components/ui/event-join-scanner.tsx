@@ -274,7 +274,7 @@ export function EventJoinScanner({
           <GradientButton 
             type="submit"
             disabled={!isCodeComplete || isLoading}
-            className="max-w-xs rounded-full py-3 text-base font-medium"
+            className="max-w-xs rounded-2xl py-3 text-base font-medium"
           >
             {isLoading ? (
               "Joining..."
@@ -289,15 +289,10 @@ export function EventJoinScanner({
       </form>
 
       {/* Divider with OR */}
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t-2 border-border"></div>
-        </div>
-        <div className="relative flex justify-center items-center">
-          <div className="flex-1 border-t-2 border-border"></div>
-          <span className="px-4 text-foreground text-2xl font-semibold">OR</span>
-          <div className="flex-1 border-t-2 border-border"></div>
-        </div>
+      <div className="flex items-center justify-center">
+        <div className="flex-1 border-t-2 border-border"></div>
+        <span className="px-4 text-foreground text-2xl font-semibold">OR</span>
+        <div className="flex-1 border-t-2 border-border"></div>
       </div>
 
       {/* QR Scanner Box */}
@@ -326,7 +321,7 @@ export function EventJoinScanner({
               <GradientButton 
                 onClick={stopScanning}
                 variant="outline"
-                className="max-w-xs rounded-full py-3 text-base font-medium"
+                className="max-w-xs rounded-2xl py-3 text-base font-medium"
               >
                 <X className="h-5 w-5 mr-2" />
                 Stop Scanning
@@ -339,7 +334,7 @@ export function EventJoinScanner({
               <GradientButton 
                 onClick={startScanning}
                 disabled={isLoading}
-                className="rounded-full py-3 px-6 text-base font-medium"
+                className="rounded-2xl py-3 px-6 text-base font-medium"
               >
                 <Camera className="h-5 w-5 mr-2" />
                 Scan QR Code

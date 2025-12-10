@@ -11,7 +11,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { createClientComponentClient } from "@/lib/supabase"
 import { MessageService, ThreadWithDetails } from "@/lib/message-service-simple"
 import { getAvatarUrl } from "@/lib/utils"
-import { toast } from "sonner"
 import { ArrowLeft, MailPlus, MessageCircle, Search, Users } from "lucide-react"
 import { format, isThisYear, isToday } from "date-fns"
 
@@ -51,6 +50,7 @@ export function MessagesPage() {
   const [threads, setThreads] = useState<ThreadListItem[]>([])
   const [filteredThreads, setFilteredThreads] = useState<ThreadListItem[]>([])
   const [attendees, setAttendees] = useState<EventAttendee[]>([])
+  const [topMatches, setTopMatches] = useState<EventAttendee[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isAttendeeLoading, setIsAttendeeLoading] = useState(false)
@@ -132,9 +132,89 @@ export function MessagesPage() {
       setThreads(enriched)
     } catch (error) {
       console.error("Error loading threads:", error)
-      toast.error("Failed to load conversations")
     }
   }, [decorateThreads, eventId, messageService])
+
+  const loadTopMatches = useCallback(async (currentUserId: string) => {
+    if (!eventId) return
+
+    try {
+      const { data: edges, error: edgesError } = await supabase
+        .from("connections")
+        .select("a_id, b_id, match_explanation_text, match_score_breakdown_json, created_at, match_algorithm_version")
+        .eq("event_id", eventId)
+        .eq("connection_kind", "system_match")
+        .or(`a_id.eq.${currentUserId},b_id.eq.${currentUserId}`)
+        .order("created_at", { ascending: false })
+        .limit(10) // Get more than 3 to account for deduplication
+
+      if (edgesError || !edges) {
+        console.error("Error loading top matches:", edgesError)
+        setTopMatches([])
+        return
+      }
+
+      const edgesList = (edges ?? []) as any[]
+
+      // Deduplicate by user pair - keep only the most recent match per (a_id, b_id) pair
+      const matchMap = new Map<string, any>()
+      for (const edge of edgesList) {
+        const pairKey = edge.a_id < edge.b_id ? `${edge.a_id}-${edge.b_id}` : `${edge.b_id}-${edge.a_id}`
+        const existing = matchMap.get(pairKey)
+        
+        if (!existing || new Date(edge.created_at) > new Date(existing.created_at)) {
+          matchMap.set(pairKey, edge)
+        }
+      }
+
+      const deduplicatedEdges = Array.from(matchMap.values())
+      const otherUserIds = deduplicatedEdges
+        .slice(0, 3) // Take top 3
+        .map(e => (e.a_id === currentUserId ? e.b_id : e.a_id))
+        .filter(Boolean) as string[]
+
+      if (otherUserIds.length === 0) {
+        setTopMatches([])
+        return
+      }
+
+      const { data: others, error: othersError } = await supabase
+        .from("users")
+        .select("user_id, first_name, last_name, career_title, company_name, photo_url")
+        .in("user_id", otherUserIds)
+
+      if (othersError || !others) {
+        console.error("Error loading match user profiles:", othersError)
+        setTopMatches([])
+        return
+      }
+
+      const formatted: EventAttendee[] = (others || [])
+        .map((u: any) => ({
+          id: u.user_id,
+          first_name: u.first_name || "",
+          last_name: u.last_name || "",
+          job_title: u.career_title || null,
+          avatar_url: getAvatarUrl(u.photo_url),
+          company: u.company_name || null
+        }))
+        .filter(Boolean) as EventAttendee[]
+
+      // Maintain order based on the match order
+      const orderedMatches: EventAttendee[] = []
+      for (const userId of otherUserIds) {
+        const match = formatted.find(m => m.id === userId)
+        if (match) {
+          orderedMatches.push(match)
+        }
+      }
+
+      setTopMatches(orderedMatches)
+    } catch (error) {
+      console.error("Error loading top matches:", error)
+      setTopMatches([])
+    }
+  }, [eventId, supabase])
 
   const loadAttendees = useCallback(async (currentUserId: string) => {
     if (!eventId) return
@@ -159,7 +239,6 @@ export function MessagesPage() {
 
       if (error) {
         console.error("Error loading event attendees:", error)
-        toast.error("Failed to load attendees")
         return
       }
 
@@ -194,7 +273,6 @@ export function MessagesPage() {
 
   useEffect(() => {
     if (!eventId) {
-      toast.error("Event ID is required")
       router.push("/home")
       return
     }
@@ -213,11 +291,11 @@ export function MessagesPage() {
         await Promise.all([
           loadEventDetails(),
           loadThreads(),
-          loadAttendees(user.id)
+          loadAttendees(user.id),
+          loadTopMatches(user.id)
         ])
       } catch (error) {
         console.error("Error initializing messages page:", error)
-        toast.error("Unable to load messages")
       } finally {
         if (isMounted) {
           setIsLoading(false)
@@ -252,7 +330,7 @@ export function MessagesPage() {
         pollingIntervalRef.current = null
       }
     }
-  }, [eventId, router, supabase, loadEventDetails, loadThreads, loadAttendees, messageService])
+  }, [eventId, router, supabase, loadEventDetails, loadThreads, loadAttendees, loadTopMatches, messageService])
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -270,20 +348,44 @@ export function MessagesPage() {
   }, [threads, searchQuery])
 
   const filteredAttendeesForDialog = useMemo(() => {
-    if (!attendeeSearchQuery.trim()) return attendees
-
-    const query = attendeeSearchQuery.toLowerCase()
-    return attendees.filter((attendee) => {
-      const fullName = `${attendee.first_name} ${attendee.last_name}`.trim().toLowerCase()
-      const job = attendee.job_title?.toLowerCase() || ""
-      const company = attendee.company?.toLowerCase() || ""
-      return (
-        fullName.includes(query) ||
-        job.includes(query) ||
-        company.includes(query)
-      )
-    })
-  }, [attendees, attendeeSearchQuery])
+    // Get top match IDs to exclude from regular attendees list
+    const topMatchIds = new Set(topMatches.map(m => m.id))
+    
+    // Filter regular attendees (excluding top matches)
+    const otherAttendees = attendees.filter(attendee => !topMatchIds.has(attendee.id))
+    
+    // If there's a search query, filter both lists
+    if (attendeeSearchQuery.trim()) {
+      const query = attendeeSearchQuery.toLowerCase()
+      const filteredTopMatches = topMatches.filter((attendee) => {
+        const fullName = `${attendee.first_name} ${attendee.last_name}`.trim().toLowerCase()
+        const job = attendee.job_title?.toLowerCase() || ""
+        const company = attendee.company?.toLowerCase() || ""
+        return (
+          fullName.includes(query) ||
+          job.includes(query) ||
+          company.includes(query)
+        )
+      })
+      
+      const filteredOthers = otherAttendees.filter((attendee) => {
+        const fullName = `${attendee.first_name} ${attendee.last_name}`.trim().toLowerCase()
+        const job = attendee.job_title?.toLowerCase() || ""
+        const company = attendee.company?.toLowerCase() || ""
+        return (
+          fullName.includes(query) ||
+          job.includes(query) ||
+          company.includes(query)
+        )
+      })
+      
+      // Return top matches first, then others
+      return [...filteredTopMatches, ...filteredOthers]
+    }
+    
+    // No search query: return top matches first, then everyone else
+    return [...topMatches, ...otherAttendees]
+  }, [attendees, topMatches, attendeeSearchQuery])
 
   const handleThreadClick = (thread: ThreadListItem) => {
     if (!eventId) return
@@ -332,7 +434,7 @@ export function MessagesPage() {
       <header className="border-b border-border bg-background sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-            <GradientButton onClick={() => router.back()} size="icon">
+            <GradientButton onClick={() => router.back()} size="icon" className="!rounded-2xl">
               <ArrowLeft className="h-4 w-4" />
             </GradientButton>
 
@@ -343,8 +445,21 @@ export function MessagesPage() {
               )}
             </div>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <GradientButton asChild>
+            <Dialog 
+              open={isDialogOpen} 
+              onOpenChange={(open) => {
+                setIsDialogOpen(open)
+                if (open && eventId) {
+                  // Load top matches when dialog opens
+                  supabase.auth.getUser().then(({ data: { user } }) => {
+                    if (user) {
+                      loadTopMatches(user.id)
+                    }
+                  })
+                }
+              }}
+            >
+              <GradientButton asChild className="!rounded-2xl">
                 <DialogTrigger className="flex items-center justify-center p-2">
                   <MailPlus className="h-4 w-4" aria-hidden="true" />
                   <span className="sr-only">New message</span>
@@ -372,41 +487,49 @@ export function MessagesPage() {
                     </div>
                   ) : (
                     <div className="max-h-72 overflow-y-auto space-y-2">
-                      {filteredAttendeesForDialog.map((attendee) => {
+                      {filteredAttendeesForDialog.map((attendee, index) => {
                         const fullName = `${attendee.first_name} ${attendee.last_name}`.trim()
                         const subtitleParts = [attendee.job_title, attendee.company].filter(Boolean)
+                        const isTopMatch = topMatches.some(m => m.id === attendee.id)
+                        const showDivider = isTopMatch && index === topMatches.length - 1 && filteredAttendeesForDialog.length > topMatches.length
 
                         return (
-                          <Card
-                            key={attendee.id}
-                            className="cursor-pointer border-border bg-card hover:bg-card/80 transition-all shadow-sm hover:shadow-[0px_3px_4px_rgba(0,0,0,0.15)]"
-                            onClick={() => handleStartConversation(attendee)}
-                          >
-                            <CardContent className="p-3">
-                              <div className="flex items-center space-x-3">
-                                <PresenceAvatar
-                                  src={attendee.avatar_url || undefined}
-                                  fallback={fullName
-                                    .split(" ")
-                                    .map((part) => part[0])
-                                    .join("")}
-                                  isPresent={false}
-                                  size="md"
-                                />
-                                <div className="min-w-0 flex-1">
-                                  <p className="font-medium text-foreground truncate">{fullName}</p>
-                                  {subtitleParts.length > 0 && (
-                                    <p className="text-sm text-muted-foreground truncate">
-                                      {subtitleParts.join(" · ")}
-                                    </p>
-                                  )}
+                          <div key={attendee.id}>
+                            <Card
+                              className="cursor-pointer border-border bg-card hover:bg-card/80 transition-all shadow-sm hover:shadow-[0px_3px_4px_rgba(0,0,0,0.15)]"
+                              onClick={() => handleStartConversation(attendee)}
+                            >
+                              <CardContent className="p-3">
+                                <div className="flex items-center space-x-3">
+                                  <PresenceAvatar
+                                    src={attendee.avatar_url || undefined}
+                                    fallback={fullName
+                                      .split(" ")
+                                      .map((part) => part[0])
+                                      .join("")}
+                                    isPresent={false}
+                                    size="md"
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-medium text-foreground truncate">{fullName}</p>
+                                    {subtitleParts.length > 0 && (
+                                      <p className="text-sm text-muted-foreground truncate">
+                                        {subtitleParts.join(" · ")}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <Button variant="ghost" size="icon">
+                                    <MessageCircle className="h-4 w-4" />
+                                  </Button>
                                 </div>
-                                <Button variant="ghost" size="icon">
-                                  <MessageCircle className="h-4 w-4" />
-                                </Button>
+                              </CardContent>
+                            </Card>
+                            {showDivider && (
+                              <div className="my-2 px-3">
+                                <div className="border-t border-border"></div>
                               </div>
-                            </CardContent>
-                          </Card>
+                            )}
+                          </div>
                         )
                       })}
                     </div>
@@ -487,7 +610,7 @@ export function MessagesPage() {
                                 </span>
                               )}
                               {unreadCount > 0 && (
-                                <span className="inline-flex items-center justify-center rounded-full bg-accent px-2 py-0.5 text-[11px] font-medium text-white">
+                                <span className="inline-flex items-center justify-center rounded-xl bg-accent px-2 py-0.5 text-[11px] font-medium text-white">
                                   {unreadCount > 99 ? "99+" : unreadCount}
                                 </span>
                               )}

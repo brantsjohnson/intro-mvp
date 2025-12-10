@@ -38,7 +38,7 @@ export function MessageComposer({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={disabled}
-        className="flex-1 min-h-[44px] max-h-32 resize-none rounded-xl"
+        className="flex-1 min-h-[44px] max-h-32 resize-none"
         rows={1}
       />
       <GradientButton

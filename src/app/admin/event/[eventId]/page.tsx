@@ -7,10 +7,20 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { GradientButton } from "@/components/ui/gradient-button"
-import { Checkbox } from "@/components/ui/checkbox"
+import { EventQRCodeService } from "@/lib/event-qr-service"
 import { createClientComponentClient } from "@/lib/supabase"
+import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
-import { ArrowLeft, Save, Users, Play, Upload, Mail } from "lucide-react"
+import {
+  ArrowLeft,
+  Save,
+  Users,
+  Play,
+  Copy,
+  QrCode,
+  Link as LinkIcon,
+  Mail,
+} from "lucide-react"
 import Image from "next/image"
 
 interface Event {
@@ -28,7 +38,7 @@ export default function AdminEventEditPage() {
   const router = useRouter()
   const params = useParams()
   const eventId = params?.eventId as string
-  
+
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isMatching, setIsMatching] = useState(false)
@@ -36,26 +46,62 @@ export default function AdminEventEditPage() {
   const [event, setEvent] = useState<Event | null>(null)
   const [questionSchema, setQuestionSchema] = useState<string>("")
   const [editedEventName, setEditedEventName] = useState<string>("")
+
+  // QR / join link
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null)
+  const [joinUrl, setJoinUrl] = useState<string>("")
+
+  // Logo + survey + flags
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [surveyQuestion, setSurveyQuestion] = useState<string>("")
   const [showRefreshButton, setShowRefreshButton] = useState<boolean>(false)
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
   const [isSendingCards, setIsSendingCards] = useState(false)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
-  
+
   const supabase = createClientComponentClient()
+  const qrService = new EventQRCodeService()
 
   useEffect(() => {
     if (eventId) {
       loadEvent()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
   useEffect(() => {
     if (event) {
       loadMatchCount()
+      generateQRCodeAndUrl()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event])
+
+  const generateQRCodeAndUrl = async () => {
+    if (!event) return
+
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.introevent.site"
+      const url = qrService.generateEncryptedJoinUrl(event.event_code, baseUrl)
+      setJoinUrl(url)
+
+      const qrCode = await qrService.generateEventQRCode(event.event_code, baseUrl)
+      if (qrCode) {
+        setQrCodeUrl(qrCode)
+      }
+    } catch (error) {
+      console.error("Error generating QR code:", error)
+    }
+  }
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch (error) {
+      console.error("Failed to copy:", error)
+    }
+  }
 
   const loadEvent = async () => {
     setIsLoading(true)
@@ -68,80 +114,77 @@ export default function AdminEventEditPage() {
 
       if (error) {
         console.error("Error loading event:", error)
-        toast.error("Failed to load event")
         router.push("/admin/create-event")
         return
       }
 
       setEvent(data)
       setEditedEventName(data.event_name || "")
-      // Convert onboarding_question_schema to JSON string for editing
       setQuestionSchema(
-        data.onboarding_question_schema 
+        data.onboarding_question_schema
           ? JSON.stringify(data.onboarding_question_schema, null, 2)
-          : "{}"
+          : "{}",
       )
-      // Set logo URL from matching_config
-      const matchingConfig = data.matching_config as { logo_url?: string; survey_question?: string; show_refresh_button?: boolean } | null
-      let logoUrlFromDb = matchingConfig?.logo_url || null
-      console.log('Loading event - matching_config:', data.matching_config)
-      console.log('Loading logo URL from database:', logoUrlFromDb)
 
-      // Load survey question (optional)
-      setSurveyQuestion(matchingConfig?.survey_question || "")
-      
-      // Load show_refresh_button setting
-      setShowRefreshButton(matchingConfig?.show_refresh_button ?? false)
-      
-      // If no logo in database, check bucket for existing logo files
+      const matchingConfig =
+        (data.matching_config as {
+          logo_url?: string
+          survey_question?: string
+          show_refresh_button?: boolean
+        } | null) || {}
+
+      let logoUrlFromDb = matchingConfig.logo_url || null
+      console.log("Loading event - matching_config:", data.matching_config)
+      console.log("Loading logo URL from database:", logoUrlFromDb)
+
+      setSurveyQuestion(matchingConfig.survey_question || "")
+      setShowRefreshButton(matchingConfig.show_refresh_button ?? false)
+
+      // If no logo saved in matching_config, try to infer from bucket
       if (!logoUrlFromDb) {
         try {
           const { data: files, error: listError } = await supabase.storage
-            .from('event-assets')
+            .from("event-assets")
             .list(eventId, {
-              sortBy: { column: 'created_at', order: 'desc' },
-              limit: 10
+              sortBy: { column: "created_at", order: "desc" },
+              limit: 10,
             })
 
           if (!listError && files && files.length > 0) {
-            // Find the most recent logo file
-            const latestLogo = files.find(f => f.name.startsWith('logo-')) || files[0]
+            const latestLogo = files.find((f) => f.name.startsWith("logo-")) || files[0]
             if (latestLogo) {
               const logoPath = `${eventId}/${latestLogo.name}`
               const { data: urlData } = supabase.storage
-                .from('event-assets')
+                .from("event-assets")
                 .getPublicUrl(logoPath)
-              
+
               logoUrlFromDb = urlData.publicUrl
-              console.log('Found logo in bucket, auto-setting:', logoUrlFromDb)
-              
-              // Update database with the logo URL
+              console.log("Found logo in bucket, auto-setting:", logoUrlFromDb)
+
               const updatedConfig = {
-                ...(matchingConfig || {}),
-                logo_url: logoUrlFromDb
+                ...matchingConfig,
+                logo_url: logoUrlFromDb,
               }
-              
+
               await supabase
-                .from('events')
+                .from("events")
                 .update({
-                  matching_config: updatedConfig
+                  matching_config: updatedConfig,
                 })
-                .eq('event_id', eventId)
-              
-              console.log('Auto-saved logo URL to database')
+                .eq("event_id", eventId)
+
+              console.log("Auto-saved logo URL to database")
             }
           }
         } catch (error) {
-          console.error('Error checking bucket for logo:', error)
-          // Don't fail the page load if bucket check fails
+          console.error("Error checking bucket for logo:", error)
         }
       }
-      
-      console.log('Final logo URL:', logoUrlFromDb)
+
+      console.log("Final logo URL:", logoUrlFromDb)
       setLogoUrl(logoUrlFromDb)
     } catch (error) {
       console.error("Error loading event:", error)
-      toast.error("An error occurred")
     } finally {
       setIsLoading(false)
     }
@@ -162,35 +205,31 @@ export default function AdminEventEditPage() {
 
   const handleStartMatching = async () => {
     if (!event) return
-    
+
     setIsMatching(true)
     try {
-      const response = await fetch('/api/admin-start-matching', {
-        method: 'POST',
+      const response = await fetch("/api/admin-start-matching", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           eventCode: event.event_code,
-          force: true
-        })
+          force: true,
+        }),
       })
 
       const result = await response.json()
-      
+
       if (response.ok) {
-        toast.success(`Matching started! ${result.matchmaker_result?.processed || 0} users processed.`)
-        // Reload match count after a delay
         setTimeout(() => {
           loadMatchCount()
         }, 2000)
       } else {
-        toast.error(result.error || 'Failed to start matching')
-        console.error('Matching error:', result)
+        console.error("Matching error:", result)
       }
     } catch (error) {
-      console.error('Error starting matching:', error)
-      toast.error('Failed to start matching')
+      console.error("Error starting matching:", error)
     } finally {
       setIsMatching(false)
     }
@@ -201,91 +240,78 @@ export default function AdminEventEditPage() {
 
     setIsUploadingLogo(true)
     try {
-      // Upload to Supabase storage
-      const fileExt = file.name.split('.').pop()
+      const fileExt = file.name.split(".").pop()
       const fileName = `${eventId}/logo-${Date.now()}.${fileExt}`
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('event-assets')
+
+      const { error: uploadError } = await supabase.storage
+        .from("event-assets")
         .upload(fileName, file, {
           contentType: file.type,
-          upsert: true
+          upsert: true,
         })
 
       if (uploadError) {
-        console.error('Error uploading logo:', uploadError)
-        toast.error('Failed to upload logo')
+        console.error("Error uploading logo:", uploadError)
+        toast.error("Failed to upload logo")
         return
       }
 
-      // Get public URL
       const { data: urlData } = supabase.storage
-        .from('event-assets')
+        .from("event-assets")
         .getPublicUrl(fileName)
 
       const newLogoUrl = urlData.publicUrl
 
-      // Update event matching_config with logo URL
       const currentConfig = event.matching_config || {}
       const updatedConfig = {
         ...currentConfig,
-        logo_url: newLogoUrl
+        logo_url: newLogoUrl,
       }
-      
-      console.log('Updating matching_config with:', updatedConfig)
-      
+
+      console.log("Updating matching_config with:", updatedConfig)
+
       const { error: updateError } = await supabase
-        .from('events')
+        .from("events")
         .update({
-          matching_config: updatedConfig
+          matching_config: updatedConfig,
         })
-        .eq('event_id', eventId)
+        .eq("event_id", eventId)
 
       if (updateError) {
-        console.error('Error updating logo URL:', updateError)
-        toast.error('Failed to save logo URL')
+        console.error("Error updating logo URL:", updateError)
+        toast.error("Failed to save logo URL")
         return
       }
 
-      console.log('Database update successful. Updated matching_config:', updatedConfig)
-      
-      // Verify the update by reading it back
+      console.log("Database update successful. Updated matching_config:", updatedConfig)
+
       const { data: verifyData, error: verifyError } = await supabase
-        .from('events')
-        .select('matching_config')
-        .eq('event_id', eventId)
+        .from("events")
+        .select("matching_config")
+        .eq("event_id", eventId)
         .single()
-      
+
       if (!verifyError && verifyData) {
         const verifiedLogoUrl = (verifyData.matching_config as { logo_url?: string })?.logo_url
-        console.log('Verified logo URL from database:', verifiedLogoUrl)
-        if (verifiedLogoUrl !== newLogoUrl) {
-          console.warn('Logo URL mismatch! Expected:', newLogoUrl, 'Got:', verifiedLogoUrl)
-        }
+        console.log("Verified logo URL from database:", verifiedLogoUrl)
       }
-      
-      // Update state immediately so user sees the logo
+
       setLogoUrl(newLogoUrl)
-      console.log('logoUrl state set to:', newLogoUrl)
-      
-      // Update local event state
+      console.log("logoUrl state set to:", newLogoUrl)
+
       setEvent({
         ...event,
-        matching_config: updatedConfig
+        matching_config: updatedConfig,
       })
-      
-      // Clear the file input after successful upload
+
       if (fileInputRef.current) {
-        fileInputRef.current.value = ''
+        fileInputRef.current.value = ""
       }
-      
-      toast.success('Logo uploaded successfully!')
-      
-      // Don't reload immediately - the state is already updated
-      // Reloading can cause the logo to disappear if there's a timing issue
+
+      toast.success("Logo uploaded successfully!")
     } catch (error) {
-      console.error('Error uploading logo:', error)
-      toast.error('Failed to upload logo')
+      console.error("Error uploading logo:", error)
+      toast.error("Failed to upload logo")
     } finally {
       setIsUploadingLogo(false)
     }
@@ -293,88 +319,74 @@ export default function AdminEventEditPage() {
 
   const handleSetLogoFromBucket = async () => {
     if (!event) return
-    
+
     setIsUploadingLogo(true)
     try {
-      // List files in the bucket for this event
       const { data: files, error: listError } = await supabase.storage
-        .from('event-assets')
+        .from("event-assets")
         .list(eventId, {
-          sortBy: { column: 'created_at', order: 'desc' },
-          limit: 1
+          sortBy: { column: "created_at", order: "desc" },
+          limit: 1,
         })
 
       if (listError || !files || files.length === 0) {
-        console.error('Error listing files or no files found:', listError)
-        toast.error('No logo files found in bucket')
+        console.error("Error listing files or no files found:", listError)
+        toast.error("No logo files found in bucket")
         return
       }
 
-      // Get the most recent logo file
-      const latestLogo = files.find(f => f.name.startsWith('logo-')) || files[0]
+      const latestLogo = files.find((f) => f.name.startsWith("logo-")) || files[0]
       const logoPath = `${eventId}/${latestLogo.name}`
-      
-      // Get public URL
+
       const { data: urlData } = supabase.storage
-        .from('event-assets')
+        .from("event-assets")
         .getPublicUrl(logoPath)
 
       const logoUrl = urlData.publicUrl
-      console.log('Setting logo from bucket:', logoUrl)
+      console.log("Setting logo from bucket:", logoUrl)
 
-      // Update database
       const currentConfig = event.matching_config || {}
       const updatedConfig = {
         ...currentConfig,
-        logo_url: logoUrl
+        logo_url: logoUrl,
       }
-      
-      const { error: updateError, count } = await supabase
-        .from('events')
+
+      const { error: updateError } = await supabase
+        .from("events")
         .update({
-          matching_config: updatedConfig
+          matching_config: updatedConfig,
         })
-        .eq('event_id', eventId)
-        .select('matching_config')
+        .eq("event_id", eventId)
 
       if (updateError) {
-        console.error('Error updating logo URL:', updateError)
-        toast.error('Failed to save logo URL')
+        console.error("Error updating logo URL:", updateError)
+        toast.error("Failed to save logo URL")
         return
       }
 
-      console.log('Database update successful. Rows updated:', count)
-      console.log('Logo URL saved to database:', logoUrl)
-      
-      // Verify the update by reading it back
+      console.log("Logo URL saved to database:", logoUrl)
+
       const { data: verifyData, error: verifyError } = await supabase
-        .from('events')
-        .select('matching_config')
-        .eq('event_id', eventId)
+        .from("events")
+        .select("matching_config")
+        .eq("event_id", eventId)
         .single()
-      
+
       if (!verifyError && verifyData) {
         const verifiedLogoUrl = (verifyData.matching_config as { logo_url?: string })?.logo_url
-        console.log('Verified logo URL from database:', verifiedLogoUrl)
-        if (verifiedLogoUrl !== logoUrl) {
-          console.warn('Logo URL mismatch! Expected:', logoUrl, 'Got:', verifiedLogoUrl)
-        }
+        console.log("Verified logo URL from database:", verifiedLogoUrl)
       }
-      
-      // Update state immediately
+
       setLogoUrl(logoUrl)
       setEvent({
         ...event,
-        matching_config: updatedConfig
+        matching_config: updatedConfig,
       })
-      
-      toast.success('Logo set from bucket!')
-      
-      // Don't reload immediately - let the user see the logo first
-      // The state is already updated, so reloading isn't necessary
+
+      toast.success("Logo set from bucket!")
     } catch (error) {
-      console.error('Error setting logo from bucket:', error)
-      toast.error('Failed to set logo from bucket')
+      console.error("Error setting logo from bucket:", error)
+      toast.error("Failed to set logo from bucket")
     } finally {
       setIsUploadingLogo(false)
     }
@@ -385,10 +397,10 @@ export default function AdminEventEditPage() {
 
     setIsSendingCards(true)
     try {
-      const response = await fetch('/api/admin-send-networking-cards', {
-        method: 'POST',
+      const response = await fetch("/api/admin-send-networking-cards", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           eventId: event.event_id,
@@ -399,21 +411,23 @@ export default function AdminEventEditPage() {
 
       if (response.ok) {
         if (result.failed > 0) {
-          // Show detailed error information for failures
           const failedResults = result.results?.filter((r: any) => !r.success) || []
-          const errorMessages = failedResults.map((r: any) => r.error || 'Unknown error').join(', ')
-          toast.error(`Sent ${result.sent} networking cards, ${result.failed} failed. Errors: ${errorMessages}`, {
-            duration: 10000,
-          })
+          const errorMessages = failedResults
+            .map((r: any) => r.error || "Unknown error")
+            .join(", ")
+          toast.error(
+            `Sent ${result.sent} networking cards, ${result.failed} failed. Errors: ${errorMessages}`,
+            { duration: 10000 },
+          )
         } else {
           toast.success(`Sent ${result.sent} networking cards`)
         }
       } else {
-        toast.error(result.error || 'Failed to send networking cards')
+        toast.error(result.error || "Failed to send networking cards")
       }
     } catch (error) {
-      console.error('Error sending networking cards:', error)
-      toast.error('Failed to send networking cards')
+      console.error("Error sending networking cards:", error)
+      toast.error("Failed to send networking cards")
     } finally {
       setIsSendingCards(false)
     }
@@ -424,33 +438,30 @@ export default function AdminEventEditPage() {
 
     setIsSaving(true)
     try {
-      // Update event name if changed
       if (editedEventName !== event.event_name) {
-        const updateResponse = await fetch('/api/update-event', {
-          method: 'PUT',
+        const updateResponse = await fetch("/api/update-event", {
+          method: "PUT",
           headers: {
-            'Content-Type': 'application/json'
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             eventId: event.event_id,
-            eventName: editedEventName
-          })
+            eventName: editedEventName,
+          }),
         })
 
         if (!updateResponse.ok) {
-          const error = await updateResponse.json()
-          toast.error(error.error || 'Failed to update event name')
+          await updateResponse.json()
           setIsSaving(false)
           return
         }
       }
 
-      // Validate JSON
       let parsedSchema
       try {
         parsedSchema = JSON.parse(questionSchema)
       } catch (e) {
-        toast.error("Invalid JSON format. Please check your syntax.")
+        console.error("Invalid JSON schema:", e)
         setIsSaving(false)
         return
       }
@@ -461,28 +472,24 @@ export default function AdminEventEditPage() {
         show_refresh_button: showRefreshButton,
       }
 
-      // Preserve matching_config when updating onboarding_question_schema
       const { error } = await supabase
         .from("events")
         .update({
           onboarding_question_schema: parsedSchema,
-          matching_config: updatedMatchingConfig // Preserve matching_config and survey question
+          matching_config: updatedMatchingConfig,
         })
         .eq("event_id", eventId)
 
       if (error) {
         console.error("Error updating event:", error)
-        toast.error("Failed to save onboarding questions")
+        setIsSaving(false)
         return
       }
 
-      // Reload event to ensure everything is in sync
       await loadEvent()
-      
       toast.success("Onboarding questions saved successfully!")
     } catch (error) {
       console.error("Error saving event:", error)
-      toast.error("An error occurred while saving")
     } finally {
       setIsSaving(false)
     }
@@ -490,9 +497,9 @@ export default function AdminEventEditPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Loading event...</p>
         </div>
       </div>
@@ -501,7 +508,7 @@ export default function AdminEventEditPage() {
 
   if (!event) {
     return (
-      <div className="min-h-screen bg-cover bg-center bg-fixed flex items-center justify-center" style={{ backgroundImage: "url('/background.jpg')" }}>
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <p className="text-muted-foreground mb-4">Event not found</p>
           <GradientButton onClick={() => router.push("/admin/create-event")}>
@@ -513,31 +520,22 @@ export default function AdminEventEditPage() {
   }
 
   return (
-    <div className="min-h-screen bg-cover bg-center bg-fixed" style={{ backgroundImage: "url('/background.jpg')" }}>
+    <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-background sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <GradientButton
-                onClick={() => router.back()}
-                variant="outline"
-                size="icon"
-              >
+              <GradientButton onClick={() => router.back()} variant="outline" size="icon">
                 <ArrowLeft className="h-4 w-4" />
               </GradientButton>
               <div className="ml-4">
                 <h1 className="text-lg font-semibold text-foreground">
                   Edit Event: {event.event_name}
                 </h1>
-                <p className="text-sm text-muted-foreground">
-                  Event Code: {event.event_code}
-                </p>
+                <p className="text-sm text-muted-foreground">Event Code: {event.event_code}</p>
               </div>
             </div>
-            <GradientButton
-              onClick={handleSave}
-              disabled={isSaving}
-            >
+            <GradientButton onClick={handleSave} disabled={isSaving}>
               <Save className="h-4 w-4 mr-2" />
               {isSaving ? "Saving..." : "Save Changes"}
             </GradientButton>
@@ -555,10 +553,10 @@ export default function AdminEventEditPage() {
             <CardContent className="space-y-4">
               <div>
                 <Label>Event Name</Label>
-                <Input 
-                  value={editedEventName} 
+                <Input
+                  value={editedEventName}
                   onChange={(e) => setEditedEventName(e.target.value)}
-                  className="mt-1" 
+                  className="mt-1"
                 />
               </div>
               <div>
@@ -573,25 +571,23 @@ export default function AdminEventEditPage() {
               )}
               <div>
                 <Label>Event Logo</Label>
-                
-                {/* Always show logo if it exists, above the upload section */}
+
                 {logoUrl ? (
                   <div className="mt-2 mb-4 p-3 bg-muted/30 rounded-lg border border-border">
                     <p className="text-xs font-medium text-muted-foreground mb-2">
                       Current Event Logo
                     </p>
                     <div className="relative inline-block">
-                      {/* Use regular img tag to avoid Next.js Image issues */}
-                      <img 
-                        src={logoUrl} 
-                        alt="Event logo" 
+                      <img
+                        src={logoUrl}
+                        alt="Event logo"
                         className="max-w-[200px] max-h-[80px] object-contain border border-border rounded bg-white p-2"
                         onError={(e) => {
-                          console.error('Error loading logo image:', logoUrl)
-                          console.error('Image error event:', e)
+                          console.error("Error loading logo image:", logoUrl)
+                          console.error("Image error event:", e)
                         }}
                         onLoad={() => {
-                          console.log('Logo image loaded successfully:', logoUrl)
+                          console.log("Logo image loaded successfully:", logoUrl)
                         }}
                       />
                     </div>
@@ -602,12 +598,11 @@ export default function AdminEventEditPage() {
                 ) : (
                   <div className="mt-2 mb-4 p-3 bg-muted/30 rounded-lg border border-border">
                     <p className="text-xs text-muted-foreground">
-                      No logo uploaded yet. Logo URL state: {logoUrl || 'null'}
+                      No logo uploaded yet. Logo URL state: {logoUrl || "null"}
                     </p>
                   </div>
                 )}
-                
-                {/* Upload section */}
+
                 <div className={logoUrl ? "mt-4" : "mt-2"}>
                   <div className="flex items-center gap-2 mb-2">
                     <Input
@@ -624,7 +619,7 @@ export default function AdminEventEditPage() {
                       disabled={isUploadingLogo}
                     />
                     {isUploadingLogo && (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
                     )}
                   </div>
                   {!logoUrl && (
@@ -639,10 +634,9 @@ export default function AdminEventEditPage() {
                     </GradientButton>
                   )}
                   <p className="text-xs text-muted-foreground mt-1">
-                    {logoUrl 
+                    {logoUrl
                       ? "Upload a new logo to replace the current one"
-                      : "Upload a logo to display on networking summary cards (will be converted to grayscale)"
-                    }
+                      : "Upload a logo to display on networking summary cards (will be converted to grayscale)"}
                   </p>
                 </div>
               </div>
@@ -654,7 +648,8 @@ export default function AdminEventEditPage() {
             <CardHeader>
               <CardTitle>Post-event Survey</CardTitle>
               <p className="text-sm text-muted-foreground mt-2">
-                Set the organizer-defined rating question. Attendees also answer two fixed ratings and one open-ended question after receiving their recap.
+                Set the organizer-defined rating question. Attendees also answer two fixed ratings
+                and one open-ended question after receiving their recap.
               </p>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -679,7 +674,74 @@ export default function AdminEventEditPage() {
             </CardContent>
           </Card>
 
-          {/* Matching Card */}
+          {/* Custom Join Link & QR Code */}
+          <Card className="bg-card border-border shadow-elevation">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <LinkIcon className="h-5 w-5" />
+                Custom Join Link & QR Code
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-2">
+                Share this link or QR code to allow users to automatically join the event. Users
+                will skip the join page and be added directly.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Join Link</Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <Input value={joinUrl} readOnly className="font-mono text-sm" />
+                  <GradientButton
+                    onClick={() => copyToClipboard(joinUrl)}
+                    variant="outline"
+                    size="icon"
+                    title="Copy link"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </GradientButton>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Click the copy button to share this link. Users clicking it will automatically
+                  join the event.
+                </p>
+              </div>
+
+              {qrCodeUrl && (
+                <div className="flex flex-col items-center gap-2 pt-4 border-t border-border">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <QrCode className="h-4 w-4" />
+                    QR Code
+                  </Label>
+                  <div className="bg-white p-2 rounded-lg">
+                    <Image
+                      src={qrCodeUrl}
+                      alt={`QR Code for ${event.event_code}`}
+                      width={200}
+                      height={200}
+                      className="rounded"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Scan to automatically join event {event.event_code}
+                  </p>
+                  <GradientButton
+                    onClick={() => {
+                      const link = document.createElement("a")
+                      link.href = qrCodeUrl
+                      link.download = `qr-code-${event.event_code}.png`
+                      link.click()
+                    }}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Download QR Code
+                  </GradientButton>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Matching */}
           <Card className="bg-card border-border shadow-elevation">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -694,21 +756,17 @@ export default function AdminEventEditPage() {
                     Run AI-powered matching for all users in this event
                   </p>
                   {matchCount !== null && (
-                    <p className="text-sm font-medium mt-1">
-                      Current matches: {matchCount}
-                    </p>
+                    <p className="text-sm font-medium mt-1">Current matches: {matchCount}</p>
                   )}
                 </div>
-                <GradientButton
-                  onClick={handleStartMatching}
-                  disabled={isMatching}
-                >
+                <GradientButton onClick={handleStartMatching} disabled={isMatching}>
                   <Play className="h-4 w-4 mr-2" />
                   {isMatching ? "Running..." : "Start Matching"}
                 </GradientButton>
               </div>
               <p className="text-xs text-muted-foreground">
-                This will match all users in the event using vector similarity, shared interests, and career proximity.
+                This will match all users in the event using vector similarity, shared interests,
+                and career proximity.
               </p>
               <div className="flex items-center space-x-3 pt-2 border-t border-border">
                 <Checkbox
@@ -716,17 +774,14 @@ export default function AdminEventEditPage() {
                   checked={showRefreshButton}
                   onCheckedChange={(checked) => setShowRefreshButton(checked === true)}
                 />
-                <Label
-                  htmlFor="show-refresh-button"
-                  className="text-sm cursor-pointer"
-                >
-                  Show "Refresh Matches" button to users
+                <Label htmlFor="show-refresh-button" className="text-sm cursor-pointer">
+                  Show &quot;Refresh Matches&quot; button to users
                 </Label>
               </div>
             </CardContent>
           </Card>
 
-          {/* Networking Cards Card */}
+          {/* Networking Cards */}
           <Card className="bg-card border-border shadow-elevation">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -744,10 +799,7 @@ export default function AdminEventEditPage() {
                     Each attendee will receive a personalized PNG summary via email
                   </p>
                 </div>
-                <GradientButton
-                  onClick={handleSendNetworkingCards}
-                  disabled={isSendingCards}
-                >
+                <GradientButton onClick={handleSendNetworkingCards} disabled={isSendingCards}>
                   <Mail className="h-4 w-4 mr-2" />
                   {isSendingCards ? "Sending..." : "Send Cards"}
                 </GradientButton>
@@ -755,12 +807,13 @@ export default function AdminEventEditPage() {
             </CardContent>
           </Card>
 
-          {/* Onboarding Questions Card */}
+          {/* Onboarding Questions */}
           <Card className="bg-card border-border shadow-elevation">
             <CardHeader>
               <CardTitle>Onboarding Questions Schema</CardTitle>
               <p className="text-sm text-muted-foreground mt-2">
-                Configure the onboarding questions for this event. This is a JSON schema that defines the adaptive Q&A questions.
+                Configure the onboarding questions for this event. This is a JSON schema that
+                defines the adaptive Q&amp;A questions.
               </p>
             </CardHeader>
             <CardContent>
@@ -774,7 +827,8 @@ export default function AdminEventEditPage() {
                   placeholder='{"version": "v1", "questions": []}'
                 />
                 <p className="text-xs text-muted-foreground">
-                  Edit the JSON schema to customize onboarding questions. The schema will be validated before saving.
+                  Edit the JSON schema to customize onboarding questions. The schema will be
+                  validated before saving.
                 </p>
               </div>
             </CardContent>

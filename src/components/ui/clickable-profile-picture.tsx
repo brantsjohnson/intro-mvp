@@ -76,7 +76,7 @@ export function ClickableProfilePicture({
         {isPresent && (
           <div 
             className={cn(
-              "absolute -bottom-0.5 -right-0.5 rounded-full bg-primary border-2 border-background",
+              "absolute -bottom-0.5 -right-0.5 rounded-lg bg-primary border-2 border-background",
               presenceDotSizes[size]
             )}
           />

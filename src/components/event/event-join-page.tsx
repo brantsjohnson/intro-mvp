@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
+import { haptics } from "@/lib/haptics"
 import { toast } from "sonner"
 import { ArrowLeft, Calendar, MapPin } from "lucide-react"
 
@@ -19,7 +20,7 @@ interface Event {
 }
 
 // Allowed emails that can see all events
-const ALLOWED_EMAILS = ['alexisbinch5@gmail.com', 'brantshanonjohnson@gmail.com']
+const ALLOWED_EMAILS = ["alexisbinch5@gmail.com", "brantshanonjohnson@gmail.com"]
 
 export function EventJoinPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -29,6 +30,7 @@ export function EventJoinPage() {
   const [availableEvents, setAvailableEvents] = useState<Event[]>([])
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [canSeeAllEvents, setCanSeeAllEvents] = useState(false)
+
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClientComponentClient()
@@ -37,29 +39,31 @@ export function EventJoinPage() {
   useEffect(() => {
     const checkAuthAndHandleEvent = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        const eventCode = searchParams.get('code')
-        
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        const eventCode = searchParams.get("code")
+
         if (!user) {
           // User is not authenticated - redirect to auth with event code
           if (eventCode) {
             router.push(`/auth?eventCode=${eventCode}`)
           } else {
-            router.push('/auth')
+            router.push("/auth")
           }
           return
         }
 
         // Get user email
         const { data: userData } = await supabase
-          .from('users')
-          .select('email')
-          .eq('user_id', user.id)
+          .from("users")
+          .select("email")
+          .eq("user_id", user.id)
           .single()
 
         const email = userData?.email || user.email
         setUserEmail(email || null)
-        
+
         // Check if user can see all events
         if (email && ALLOWED_EMAILS.includes(email.toLowerCase())) {
           setCanSeeAllEvents(true)
@@ -72,33 +76,36 @@ export function EventJoinPage() {
         }
       } catch (error) {
         console.error("Error checking auth:", error)
-        router.push('/auth')
+        router.push("/auth")
       } finally {
         setIsCheckingAuth(false)
       }
     }
 
     checkAuthAndHandleEvent()
-  }, [searchParams, router, supabase.auth])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, router])
 
   const loadAllEvents = async () => {
     setIsLoadingEvents(true)
     try {
       const { data: events, error } = await supabase
-        .from('events')
-        .select('event_id, event_name, event_code, event_location, event_starts_at, event_ends_at')
-        .order('event_starts_at', { ascending: false, nullsFirst: false })
+        .from("events")
+        .select(
+          "event_id, event_name, event_code, event_location, event_starts_at, event_ends_at",
+        )
+        .order("event_starts_at", { ascending: false, nullsFirst: false })
 
       if (error) {
-        console.error('Error loading events:', error)
-        toast.error('Failed to load events')
+        console.error("Error loading events:", error)
+        toast.error("Failed to load events")
         return
       }
 
       setAvailableEvents(events || [])
     } catch (error) {
-      console.error('Error loading events:', error)
-      toast.error('Failed to load events')
+      console.error("Error loading events:", error)
+      toast.error("Failed to load events")
     } finally {
       setIsLoadingEvents(false)
     }
@@ -107,12 +114,10 @@ export function EventJoinPage() {
   const handleAutoJoinEvent = async (eventCode: string) => {
     setIsAutoJoining(true)
     try {
-      // User is authenticated - auto-join the event
       await handleJoinEvent(eventCode)
-      // handleJoinEvent will handle the redirect, so we don't need to do anything here
+      // handleJoinEvent handles redirect
     } catch (error) {
       console.error("Error in auto-join:", error)
-      toast.error("Failed to join event automatically")
     } finally {
       setIsAutoJoining(false)
     }
@@ -121,9 +126,10 @@ export function EventJoinPage() {
   const handleJoinEvent = async (eventCode: string) => {
     setIsLoading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       if (!user) {
-        toast.error("Please sign in first")
         return
       }
 
@@ -136,12 +142,10 @@ export function EventJoinPage() {
 
       if (eventError) {
         console.error("Event query error:", eventError)
-        toast.error("Failed to check event. Please try again.")
         return
       }
 
       if (!event) {
-        toast.error("Event not found or inactive")
         return
       }
 
@@ -157,67 +161,66 @@ export function EventJoinPage() {
 
       if (memberCheckError) {
         console.error("Error checking membership:", memberCheckError)
-        toast.error("Failed to check membership. Please try again.")
         return
       }
 
       if (existingMember) {
-        toast.success("You're already a member of this event! Redirecting to event...")
         // Redirect to home page since they're already in the event
-        router.push('/home')
+        router.push("/home")
         return
       }
 
       // Join the event
-      const { error: joinError } = await supabase
-        .from("attendance")
-        .insert({
-          event_id: typedEvent.event_id,
-          user_id: user.id,
-          checked_in_at: new Date().toISOString()
-        })
+      const { error: joinError } = await supabase.from("attendance").insert({
+        event_id: typedEvent.event_id,
+        user_id: user.id,
+        checked_in_at: new Date().toISOString(),
+      })
 
       if (joinError) {
-        toast.error("Failed to join event")
+        console.error("Error joining event:", joinError)
         return
       }
 
+      // Success haptic feedback
+      haptics.success()
+
       // Trigger match refresh for the new user (in background)
       try {
-        await fetch('/api/refresh-matches', {
-          method: 'POST',
+        await fetch("/api/refresh-matches", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
-          body: JSON.stringify({ 
-            eventId: typedEvent.event_id, 
-            newUserId: user.id 
+          body: JSON.stringify({
+            eventId: typedEvent.event_id,
+            newUserId: user.id,
           }),
         })
       } catch (error) {
-        console.error('Failed to refresh matches for new user:', error)
-        // Don't show error to user, this is a background process
+        console.error("Failed to refresh matches for new user:", error)
+        // Background-only; no user-facing error
       }
 
-      toast.success("Successfully joined event!")
       // Redirect to onboarding step 3 (networking goals) for this specific event
       router.push(`/onboarding?from=event-join&eventId=${typedEvent.event_id}`)
     } catch (error) {
       console.error("Error joining event:", error)
-      toast.error("An error occurred")
     } finally {
       setIsLoading(false)
     }
   }
-
 
   // Show loading state while checking authentication
   if (isCheckingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Loading...</p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Do not refresh this page. Could take 30 seconds.
+          </p>
         </div>
       </div>
     )
@@ -228,7 +231,7 @@ export function EventJoinPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Joining event...</p>
         </div>
       </div>
@@ -242,12 +245,12 @@ export function EventJoinPage() {
   const formatEventDate = (dateString: string | null) => {
     if (!dateString) return null
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
     })
   }
 
@@ -258,17 +261,15 @@ export function EventJoinPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
             <GradientButton
-              onClick={() => router.push('/onboarding')}
+              onClick={() => router.push("/onboarding")}
               variant="outline"
               size="icon"
             >
               <ArrowLeft className="h-4 w-4" />
             </GradientButton>
-            
+
             <div className="flex-1 text-center">
-              <h1 className="text-lg font-semibold text-foreground">
-                JOIN EVENT
-              </h1>
+              <h1 className="text-lg font-semibold text-foreground">JOIN EVENT</h1>
             </div>
 
             <div className="w-10" /> {/* Spacer */}
@@ -289,7 +290,7 @@ export function EventJoinPage() {
               <CardContent>
                 {isLoadingEvents ? (
                   <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
                     <p className="text-muted-foreground">Loading events...</p>
                   </div>
                 ) : availableEvents.length === 0 ? (
@@ -358,7 +359,9 @@ export function EventJoinPage() {
               <CardContent>
                 <EventJoinScanner
                   onJoinEvent={handleJoinEvent}
-                  onScanQR={() => {}} // QR scanning is handled internally by EventJoinScanner
+                  onScanQR={() => {
+                    /* QR scanning handled internally */
+                  }}
                   isLoading={isLoading}
                 />
               </CardContent>

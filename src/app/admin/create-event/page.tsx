@@ -8,8 +8,7 @@ import { Label } from "@/components/ui/label"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { EventQRCodeService } from "@/lib/event-qr-service"
 import { createClientComponentClient } from "@/lib/supabase"
-import { toast } from "sonner"
-import { ArrowLeft, Plus, Edit, QrCode, Calendar, MapPin } from "lucide-react"
+import { ArrowLeft, Plus, Edit, QrCode, Calendar, MapPin, Copy, Link as LinkIcon } from "lucide-react"
 import Image from "next/image"
 
 interface Event {
@@ -29,6 +28,7 @@ export default function CreateEventPage() {
   const [loadingEvents, setLoadingEvents] = useState(true)
   const [editingEventId, setEditingEventId] = useState<string | null>(null)
   const [qrCodes, setQrCodes] = useState<Record<string, string>>({})
+  const [joinUrls, setJoinUrls] = useState<Record<string, string>>({})
   const [formData, setFormData] = useState({
     eventCode: "",
     eventName: "",
@@ -44,21 +44,35 @@ export default function CreateEventPage() {
   }, [])
 
   useEffect(() => {
-    // Generate QR codes for all events
-    const generateQRCodes = async () => {
+    // Generate QR codes and join URLs for all events
+    const generateQRCodesAndUrls = async () => {
       const codes: Record<string, string> = {}
+      const urls: Record<string, string> = {}
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.introevent.site'
+      
       for (const event of events) {
-        const qrCode = await qrService.generateEventQRCode(event.event_code)
+        const qrCode = await qrService.generateEventQRCode(event.event_code, baseUrl)
         if (qrCode) {
           codes[event.event_id] = qrCode
         }
+        const joinUrl = qrService.generateEncryptedJoinUrl(event.event_code, baseUrl)
+        urls[event.event_id] = joinUrl
       }
       setQrCodes(codes)
+      setJoinUrls(urls)
     }
     if (events.length > 0) {
-      generateQRCodes()
+      generateQRCodesAndUrls()
     }
   }, [events])
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch (error) {
+      console.error('Failed to copy:', error)
+    }
+  }
 
   const loadEvents = async () => {
     setLoadingEvents(true)
@@ -70,14 +84,12 @@ export default function CreateEventPage() {
 
       if (error) {
         console.error("Error loading events:", error)
-        toast.error("Failed to load events")
         return
       }
 
       setEvents(data || [])
     } catch (error) {
       console.error("Error loading events:", error)
-      toast.error("An error occurred")
     } finally {
       setLoadingEvents(false)
     }
@@ -87,12 +99,10 @@ export default function CreateEventPage() {
     e.preventDefault()
     
     if (!formData.eventCode || !formData.eventName) {
-      toast.error("Event code and name are required")
       return
     }
 
     if (formData.eventCode.length !== 6) {
-      toast.error("Event code must be exactly 6 characters")
       return
     }
 
@@ -116,11 +126,9 @@ export default function CreateEventPage() {
       const result = await response.json()
 
       if (!response.ok) {
-        toast.error(result.error || 'Failed to create event')
         return
       }
 
-      toast.success(`Event ${result.event.event_code} created successfully!`)
       // Reset form
       setFormData({
         eventCode: "",
@@ -133,7 +141,6 @@ export default function CreateEventPage() {
       await loadEvents()
     } catch (error) {
       console.error('Error creating event:', error)
-      toast.error('An error occurred while creating the event')
     } finally {
       setIsLoading(false)
     }
@@ -194,17 +201,14 @@ export default function CreateEventPage() {
       const result = await response.json()
 
       if (!response.ok) {
-        toast.error(result.error || 'Failed to update event')
         return
       }
 
-      toast.success("Event updated successfully!")
       setEditingEventId(null)
       setEditFormData({})
       await loadEvents()
     } catch (error) {
       console.error('Error updating event:', error)
-      toast.error('An error occurred while updating the event')
     }
   }
 
@@ -244,7 +248,7 @@ export default function CreateEventPage() {
   }
 
   return (
-    <div className="min-h-screen bg-cover bg-center bg-fixed" style={{ backgroundImage: "url('/background.jpg')" }}>
+    <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-background sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center">
@@ -373,7 +377,7 @@ export default function CreateEventPage() {
                               {event.event_name}
                             </h3>
                             {isEventLive(event) && (
-                              <span className="px-2 py-1 text-xs font-medium bg-green-500/20 text-green-500 rounded-full">
+                              <span className="px-2 py-1 text-xs font-medium bg-green-500/20 text-green-500 rounded-xl">
                                 LIVE
                               </span>
                             )}
@@ -408,22 +412,58 @@ export default function CreateEventPage() {
                         </div>
                       </div>
 
-                      {/* QR Code */}
-                      {qrCodes[event.event_id] && (
-                        <div className="flex flex-col items-center gap-2 pt-4 border-t border-border">
-                          <Label className="text-sm font-medium">QR Code</Label>
-                          <div className="bg-white p-2 rounded-lg">
-                            <Image
-                              src={qrCodes[event.event_id]}
-                              alt={`QR Code for ${event.event_code}`}
-                              width={200}
-                              height={200}
-                              className="rounded"
-                            />
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Scan to join event {event.event_code}
-                          </p>
+                      {/* Custom Join Link & QR Code */}
+                      {(joinUrls[event.event_id] || qrCodes[event.event_id]) && (
+                        <div className="flex flex-col gap-4 pt-4 border-t border-border">
+                          {/* Join Link */}
+                          {joinUrls[event.event_id] && (
+                            <div>
+                              <Label className="text-sm font-medium flex items-center gap-2 mb-2">
+                                <LinkIcon className="h-4 w-4" />
+                                Custom Join Link
+                              </Label>
+                              <div className="flex items-center gap-2">
+                                <Input 
+                                  value={joinUrls[event.event_id]} 
+                                  readOnly 
+                                  className="font-mono text-sm" 
+                                />
+                                <GradientButton
+                                  onClick={() => copyToClipboard(joinUrls[event.event_id])}
+                                  variant="outline"
+                                  size="icon"
+                                  title="Copy link"
+                                >
+                                  <Copy className="h-4 w-4" />
+                                </GradientButton>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Share this link to allow users to automatically join the event.
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* QR Code */}
+                          {qrCodes[event.event_id] && (
+                            <div className="flex flex-col items-center gap-2">
+                              <Label className="text-sm font-medium flex items-center gap-2">
+                                <QrCode className="h-4 w-4" />
+                                QR Code
+                              </Label>
+                              <div className="bg-white p-2 rounded-lg">
+                                <Image
+                                  src={qrCodes[event.event_id]}
+                                  alt={`QR Code for ${event.event_code}`}
+                                  width={200}
+                                  height={200}
+                                  className="rounded"
+                                />
+                              </div>
+                              <p className="text-xs text-muted-foreground text-center">
+                                Scan to automatically join event {event.event_code}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
 

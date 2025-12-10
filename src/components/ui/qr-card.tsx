@@ -9,7 +9,6 @@ import { QrCode, Camera, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { QRCodeService } from "@/lib/qr-service"
 import { createClientComponentClient } from "@/lib/supabase"
-import { toast } from "sonner"
 
 interface QRCardProps {
   onScanClick: () => void
@@ -30,7 +29,6 @@ export function QRCard({ onScanClick, eventId, className }: QRCardProps) {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error('You must be logged in to generate QR code')
         return
       }
 
@@ -41,7 +39,6 @@ export function QRCard({ onScanClick, eventId, className }: QRCardProps) {
       }
       
       if (!currentEventId) {
-        toast.error('You must be in an event to generate QR code')
         return
       }
 
@@ -50,11 +47,9 @@ export function QRCard({ onScanClick, eventId, className }: QRCardProps) {
       if (url) {
         setQrCodeUrl(url)
       } else {
-        toast.error('Failed to generate QR code')
       }
     } catch (error) {
       console.error('Error generating QR code:', error)
-      toast.error('Failed to generate QR code')
     } finally {
       setIsGenerating(false)
     }

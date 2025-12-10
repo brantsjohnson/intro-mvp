@@ -13,11 +13,20 @@ const Toaster = ({ ...props }: ToasterProps) => {
       position="top-center"
       style={
         {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
+          "--normal-bg": "var(--background)", // Use beige background instead of popover
+          "--normal-text": "var(--foreground)",
           "--normal-border": "var(--border)",
         } as React.CSSProperties
       }
+      toastOptions={{
+        style: {
+          background: "var(--background)", // Beige background
+          color: "var(--foreground)",
+          border: "1px solid var(--border)",
+          pointerEvents: "auto", // Allow interaction but don't cover content on scroll
+        },
+        className: "toast-notification",
+      }}
       {...props}
     />
   )
