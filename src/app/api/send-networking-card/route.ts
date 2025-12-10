@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import puppeteer from 'puppeteer'
-import { computeExecutablePath, install, Browser, detectBrowserPlatform } from '@puppeteer/browsers'
 import sharp from 'sharp'
 import { randomUUID } from 'crypto'
 import { EmailService } from '@/lib/email-service'
@@ -97,150 +95,41 @@ export async function POST(request: NextRequest) {
     // Generate HTML for the card with border colors
     const html = generateCardHTML(metrics, borderColors)
 
-    // Convert HTML to PNG using Puppeteer
-    let browser
-    try {
-      // Dynamically import chromium to avoid type resolution issues in environments without local types
-      // @ts-ignore - package has no bundled type definitions
-      const chromiumModule = await import('@sparticuz/chromium-min')
-      const chromium = (chromiumModule as any).default ?? chromiumModule
-      
-      // Prefer prebuilt Chromium bundle for serverless to avoid missing OS deps
-      let executablePath: string | undefined = await chromium.executablePath
-      
-      // If chromium-min did not provide a path (e.g., local dev), try @puppeteer/browsers
-      if (!executablePath) {
-        try {
-          const cacheDir = process.env.PUPPETEER_CACHE_DIR || '/tmp/.puppeteer'
-          const platform = detectBrowserPlatform()
-          
-          if (platform) {
-            // Use a pinned stable Chrome build; adjust as needed
-            const buildId = '131.0.6778.85'
-            
-            // First, try to compute the path (in case Chrome is already installed)
-            executablePath = computeExecutablePath({
-              browser: Browser.CHROME,
-              buildId,
-              platform,
-              cacheDir,
-            })
-            
-            // If the path doesn't exist, install Chrome
-            const fs = await import('fs/promises')
-            try {
-              await fs.access(executablePath)
-              console.log('Using existing Chrome from cache:', executablePath)
-            } catch {
-              // Chrome not found, install it
-              console.log('Chrome not found in cache, installing...')
-              await install({
-                browser: Browser.CHROME,
-                buildId,
-                platform,
-                cacheDir,
-              })
-              executablePath = computeExecutablePath({
-                browser: Browser.CHROME,
-                buildId,
-                platform,
-                cacheDir,
-              })
-              console.log('Chrome installed at:', executablePath)
-            }
-          }
-        } catch (browserError) {
-          console.warn('Failed to setup Chrome via @puppeteer/browsers, trying default Puppeteer:', browserError)
-          // Fall back to default Puppeteer behavior (will use bundled Chromium if available)
-        }
-      }
-      
-      const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-gpu',
-          ...(chromium.args || []),
-        ],
-        executablePath,
-      }
-      
-      browser = await puppeteer.launch(launchOptions)
-    } catch (puppeteerError) {
-      console.error('Failed to launch Puppeteer:', puppeteerError)
-      throw new Error(`Puppeteer launch failed: ${puppeteerError instanceof Error ? puppeteerError.message : 'Unknown error'}. This often happens in serverless environments. Make sure Puppeteer dependencies are properly installed.`)
+    // Render HTML to PNG using Browserless (hosted Chrome) to avoid local Chrome deps
+    const browserlessToken = process.env.BROWSERLESS_TOKEN
+    if (!browserlessToken) {
+      throw new Error('Missing BROWSERLESS_TOKEN env var for Browserless rendering')
     }
-    
-    let pngBuffer: Buffer
-    let contentHeight: number
-    let logoBounds: { x: number; y: number; width: number; height: number } | null = null
-    let cardBounds: Array<{ x: number; y: number; width: number; height: number }> = []
-    
-    try {
-      const page = await browser.newPage()
-      // Set initial viewport (will be adjusted based on content)
-      await page.setViewport({ width: 1200, height: 800 })
-      await page.setContent(html, { waitUntil: 'networkidle0' })
-      
-      // Get the actual content height
-      contentHeight = await page.evaluate(() => {
-        return Math.max(
-          document.body.scrollHeight,
-          document.body.offsetHeight,
-          document.documentElement.clientHeight,
-          document.documentElement.scrollHeight,
-          document.documentElement.offsetHeight
-        )
-      })
-      
-      // Set viewport to match content height (add small padding)
-      await page.setViewport({ width: 1200, height: contentHeight + 20 })
-      
-      // Get logo bounds and card bounds before taking screenshot
-      
-      if (metrics.eventLogoUrl) {
-        logoBounds = await page.evaluate(() => {
-          const logo = document.querySelector('.event-logo') as HTMLElement
-          if (logo) {
-            const rect = logo.getBoundingClientRect()
-            return {
-              x: Math.round(rect.left),
-              y: Math.round(rect.top),
-              width: Math.round(rect.width),
-              height: Math.round(rect.height)
-            }
-          }
-          return null
-        })
-      }
-      
-      // Get bounds for all cards (always, regardless of whether we have colors)
-      cardBounds = await page.evaluate(() => {
-        const cards = document.querySelectorAll('.card')
-        return Array.from(cards).map(card => {
-          const rect = card.getBoundingClientRect()
-          return {
-            x: Math.round(rect.left),
-            y: Math.round(rect.top),
-            width: Math.round(rect.width),
-            height: Math.round(rect.height)
-          }
-        })
-      })
-      console.log(`Found ${cardBounds.length} cards to apply borders to`)
-      
-      // Take screenshot of the full content
-      const screenshot = await page.screenshot({ type: 'png', fullPage: false })
-      pngBuffer = Buffer.from(screenshot)
-    } finally {
-      await browser.close()
+
+    // Convert HTML to a data URL for Browserless to load
+    const htmlBase64 = Buffer.from(html, 'utf8').toString('base64')
+    const dataUrl = `data:text/html;base64,${htmlBase64}`
+
+    const browserlessUrl = `https://chrome.browserless.io/screenshot?token=${browserlessToken}`
+    const response = await fetch(browserlessUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: dataUrl,
+        options: {
+          viewport: { width: 1200, height: 800 },
+          fullPage: true,
+          waitUntil: 'networkidle0',
+        },
+      }),
+    })
+
+    if (!response.ok) {
+      const text = await response.text()
+      throw new Error(`Browserless screenshot failed: ${response.status} ${text}`)
     }
+
+    const screenshotArrayBuffer = await response.arrayBuffer()
+    // Convert ArrayBuffer to Node Buffer
+    const pngBuffer: Buffer = Buffer.from(new Uint8Array(screenshotArrayBuffer))
+
+    // No DOM measurements available from Browserless screenshot; keep empty to skip overlays
+    const cardBounds: Array<{ x: number; y: number; width: number; height: number }> = []
 
     // Keep image in full color to match website UI
     let finalBuffer = pngBuffer
