@@ -1937,6 +1937,24 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
       })
     }
     
+    // Log candidate ID mapping for debugging
+    const candidateIdsInPrompt = new Set(aiCandidates.map(c => c.id))
+    const aiMatchIds = new Set(result.matches?.map((m: any) => m.candidateId) || [])
+    const aiExcludedIds = new Set(result.excluded?.map((e: any) => e.candidateId) || [])
+    const unmappedMatchIds = Array.from(aiMatchIds).filter(id => !candidateIdsInPrompt.has(id))
+    const unmappedExcludedIds = Array.from(aiExcludedIds).filter(id => !candidateIdsInPrompt.has(id))
+    
+    if (unmappedMatchIds.length > 0 || unmappedExcludedIds.length > 0) {
+      console.warn("ai_matching_id_mismatch", {
+        viewerId: viewerProfile.id,
+        unmappedMatchIds,
+        unmappedExcludedIds,
+        candidateIdsInPrompt: Array.from(candidateIdsInPrompt),
+        aiMatchIds: Array.from(aiMatchIds),
+        aiExcludedIds: Array.from(aiExcludedIds)
+      })
+    }
+    
     const excludedCount = result.excluded?.length || 0
     const matchedCount = result.matches?.length || 0
     
@@ -1978,9 +1996,14 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
       
       if (!aiResult) {
         // Fallback: candidate wasn't in AI response, give neutral placeholder
+        // This should only happen if candidate was filtered out before sending to AI
+        // or if AI didn't return a result for this candidate
         console.warn("ai_matching_missing_candidate", {
           candidateId: candidate.id,
-          viewerId: viewerProfile.id
+          candidateName: `${candidate.firstName} ${candidate.lastName}`,
+          viewerId: viewerProfile.id,
+          wasInAIPrompt: aiCandidates.some(c => c.id === candidate.id),
+          aiResultsMapKeys: Array.from(aiResultsMap.keys())
         })
         return {
           candidate,
@@ -2001,6 +2024,24 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
       
       // Use AI explanation; no numeric score provided, so use neutral score baseline unless excluded
       const baseScore = aiResult.excluded ? 0 : 0.5
+      
+      // Log successful mapping for debugging
+      if (aiResult.excluded) {
+        console.log("ai_matching_candidate_excluded", {
+          viewerId: viewerProfile.id,
+          candidateId: candidate.id,
+          candidateName: `${candidate.firstName} ${candidate.lastName}`,
+          exclusionReason: aiResult.exclusionReason
+        })
+      } else {
+        console.log("ai_matching_candidate_matched", {
+          viewerId: viewerProfile.id,
+          candidateId: candidate.id,
+          candidateName: `${candidate.firstName} ${candidate.lastName}`,
+          explanation: aiResult.explanation?.substring(0, 100)
+        })
+      }
+      
       return {
         candidate,
         breakdown: {
@@ -2021,8 +2062,24 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
       }
     })
     
-    // Filter out excluded candidates or keep them with score 0 (they'll rank at the bottom)
-    return scored.sort((a, b) => b.breakdown.totalScore - a.breakdown.totalScore)
+    // Filter out excluded candidates - they should never be selected as matches
+    const nonExcluded = scored.filter(s => !s.breakdown.wantFitComponents.excluded)
+    
+    // Log mapping verification
+    console.log("ai_matching_candidate_mapping", {
+      viewerId: viewerProfile.id,
+      totalCandidates: candidates.length,
+      aiMatchesCount: matchedCount,
+      aiExcludedCount: excludedCount,
+      mappedCandidates: scored.length,
+      nonExcludedCount: nonExcluded.length,
+      excludedInResults: scored.filter(s => s.breakdown.wantFitComponents.excluded).length,
+      aiMatchIds: result.matches?.map((m: any) => m.candidateId) || [],
+      aiExcludedIds: result.excluded?.map((e: any) => e.candidateId) || []
+    })
+    
+    // Sort by score descending (matches should have score > 0, excluded have score 0)
+    return nonExcluded.sort((a, b) => b.breakdown.totalScore - a.breakdown.totalScore)
     
   } catch (error) {
     console.error("ai_matching_error", {
