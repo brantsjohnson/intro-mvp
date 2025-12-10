@@ -126,9 +126,7 @@ export async function POST(request: NextRequest) {
     const puppeteer = await import('puppeteer-core')
     const chromium = await import('@sparticuz/chromium')
     
-    // Configure Chromium for serverless
-    chromium.setGraphicsMode(false) // Disable GPU for serverless
-    
+    // Launch browser with serverless-optimized Chromium
     const browser = await puppeteer.default.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
