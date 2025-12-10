@@ -64,12 +64,14 @@ export async function POST(request: NextRequest) {
 
         const result = await response.json()
         if (!response.ok) {
-          console.error(`Failed to send card to user ${attendee.user_id}:`, result.error || result.details || 'Unknown error')
+          const errorMsg = result.details ? `${result.error}: ${result.details}` : (result.error || 'Unknown error')
+          console.error(`Failed to send card to user ${attendee.user_id}:`, errorMsg)
+          console.error('Full error response:', JSON.stringify(result, null, 2))
         }
         results.push({
           userId: attendee.user_id,
           success: response.ok,
-          error: result.error || result.details || (response.ok ? undefined : 'Unknown error'),
+          error: result.details ? `${result.error}: ${result.details}` : (result.error || result.details || (response.ok ? undefined : 'Unknown error')),
         })
       } catch (error) {
         console.error(`Error sending card to user ${attendee.user_id}:`, error)

@@ -8,8 +8,12 @@ import { getNetworkingMetrics, type NetworkingData } from '@/lib/networking-metr
 import { Database } from '@/lib/database.types'
 
 export async function POST(request: NextRequest) {
+  let eventId: string | undefined
+  let userId: string | undefined
   try {
-    const { eventId, userId } = await request.json()
+    const body = await request.json()
+    eventId = body.eventId
+    userId = body.userId
 
     if (!eventId || !userId) {
       return NextResponse.json(
@@ -93,10 +97,16 @@ export async function POST(request: NextRequest) {
     const html = generateCardHTML(metrics, borderColors)
 
     // Convert HTML to PNG using Puppeteer
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    })
+    let browser
+    try {
+      browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      })
+    } catch (puppeteerError) {
+      console.error('Failed to launch Puppeteer:', puppeteerError)
+      throw new Error(`Puppeteer launch failed: ${puppeteerError instanceof Error ? puppeteerError.message : 'Unknown error'}. This often happens in serverless environments. Make sure Puppeteer dependencies are properly installed.`)
+    }
     
     let pngBuffer: Buffer
     let contentHeight: number
@@ -306,8 +316,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, result })
   } catch (error) {
     console.error('Error generating networking card:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorStack = error instanceof Error ? error.stack : undefined
+    console.error('Error details:', {
+      message: errorMessage,
+      stack: errorStack,
+      eventId,
+      userId,
+    })
     return NextResponse.json(
-      { error: 'Failed to generate card', details: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        error: 'Failed to generate card', 
+        details: errorMessage,
+        stack: process.env.NODE_ENV === 'development' ? errorStack : undefined
+      },
       { status: 500 }
     )
   }
