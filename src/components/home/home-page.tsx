@@ -27,6 +27,13 @@ import {
   UserPlus,
   ArrowRight
 } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface StructuredMatchExplanation {
   connection_type: string
@@ -98,6 +105,8 @@ export function HomePage() {
   const [withdrawTarget, setWithdrawTarget] = useState<ManualConnectionItem | null>(null)
   const [isWithdrawing, setIsWithdrawing] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [availableEvents, setAvailableEvents] = useState<Array<{ id: string; name: string; code: string }>>([])
+  const [canSwitchEvents, setCanSwitchEvents] = useState(false)
   
   const router = useRouter()
   const supabase = createClientComponentClient() as any
@@ -195,13 +204,45 @@ export function HomePage() {
       }
       setProfile(mappedProfile)
 
-      // Load current event from attendance join events (most recent)
-      const { data: attendanceRows, error: attendanceError } = await supabase
+      // Check localStorage for preferred event (for allowed users)
+      const preferredEventId = typeof window !== 'undefined' 
+        ? window.localStorage.getItem(`preferredEvent:${user.id}`)
+        : null
+
+      // Load current event from attendance join events
+      // First try preferred event if it exists, otherwise get most recent
+      let query = supabase
         .from("attendance")
         .select("checked_in_at, event_id, onboarding_completed, why_attending_text, connection_types_selected, connection_followups_json, business_need_text, events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
+
+      // If user has a preferred event, try to load it first
+      if (preferredEventId) {
+        query = query.eq("event_id", preferredEventId)
+      }
+
+      query = query.order("created_at", { ascending: false })
+      let { data: attendanceRows, error: attendanceError } = await query.limit(1)
+
+      // If preferred event doesn't exist, fall back to most recent
+      if (preferredEventId && (!attendanceRows || attendanceRows.length === 0)) {
+        // Clear invalid preference
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem(`preferredEvent:${user.id}`)
+        }
+        // Load most recent event
+        const { data: fallbackRows, error: fallbackError } = await supabase
+          .from("attendance")
+          .select("checked_in_at, event_id, onboarding_completed, why_attending_text, connection_types_selected, connection_followups_json, business_need_text, events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+
+        if (!fallbackError && fallbackRows) {
+          attendanceRows = fallbackRows
+          attendanceError = fallbackError
+        }
+      }
 
       console.log(`[loadUserData] Attendance query result (source: ${source}):`, { 
         attendanceRows: attendanceRows?.length || 0, 
@@ -272,6 +313,122 @@ export function HomePage() {
       loadUserData('user-changed')
     }
   }, [user, loadUserData])
+
+  // Load all events user is part of (for event switching)
+  const loadUserEvents = useCallback(async () => {
+    if (!user) return
+
+    try {
+      // Get user email to check if they can switch events
+      const { data: userData } = await supabase
+        .from('users')
+        .select('email')
+        .eq('user_id', user.id)
+        .single()
+
+      const email = userData?.email || user.email
+      
+      // Check if user can switch events (for allowed emails)
+      const ALLOWED_EMAILS = ['alexisbinch5@gmail.com', 'brantshanonjohnson@gmail.com']
+      const canSwitch = email && ALLOWED_EMAILS.includes(email.toLowerCase())
+      setCanSwitchEvents(canSwitch || false)
+
+      // Load all events user is part of
+      const { data: attendanceRows, error } = await supabase
+        .from("attendance")
+        .select(`
+          event_id,
+          events:event_id(
+            event_id,
+            event_name,
+            event_code
+          )
+        `)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Error loading user events:", error)
+        return
+      }
+
+      const events = (attendanceRows || [])
+        .map((row: any) => ({
+          id: row.events?.event_id,
+          name: row.events?.event_name || "Unnamed event",
+          code: row.events?.event_code || "",
+        }))
+        .filter((e: any) => e.id) // Filter out any null events
+
+      setAvailableEvents(events)
+    } catch (error) {
+      console.error("Error loading user events:", error)
+    }
+  }, [user, supabase])
+
+  // Load user events when user changes
+  useEffect(() => {
+    if (user) {
+      loadUserEvents()
+    }
+  }, [user, loadUserEvents])
+
+  // Handle event switching
+  const handleEventSwitch = async (eventId: string) => {
+    if (!user || !eventId) return
+
+    // Store preference in localStorage
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(`preferredEvent:${user.id}`, eventId)
+    }
+
+    // Find the selected event from available events
+    const selectedEvent = availableEvents.find(e => e.id === eventId)
+    if (!selectedEvent) {
+      toast.error("Event not found")
+      return
+    }
+
+    // Load full event details
+    const { data: eventData, error: eventError } = await supabase
+      .from("attendance")
+      .select(`
+        checked_in_at,
+        event_id,
+        events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)
+      `)
+      .eq("user_id", user.id)
+      .eq("event_id", eventId)
+      .single()
+
+    if (eventError || !eventData?.events) {
+      toast.error("Failed to load event")
+      return
+    }
+
+    const row: any = eventData
+    const mappedEvent: Event = {
+      id: row.events.event_id,
+      name: row.events.event_name,
+      code: row.events.event_code,
+      starts_at: row.events.event_starts_at,
+      ends_at: row.events.event_ends_at,
+      location: row.events.event_location,
+      header_image_url: null,
+      is_active: true,
+      matchmaking_enabled: true,
+    }
+
+    setCurrentEvent(mappedEvent)
+    setIsPresent(!!row.checked_in_at)
+    
+    // Reload all data for the new event
+    loadMatches(mappedEvent.id)
+    const connectionData = await loadConnections(mappedEvent.id)
+    await loadDirectory(mappedEvent.id, connectionData)
+    
+    toast.success(`Switched to ${mappedEvent.name}`)
+  }
 
   const loadUnreadCount = useCallback(async () => {
     if (!currentEvent || !user) {
@@ -1244,16 +1401,36 @@ export function HomePage() {
               />
             </button>
             
-            {/* Center: Intro wordmark */}
+            {/* Center: Intro wordmark OR Event switcher if multiple events */}
             <div className="flex-1 text-center">
-              <h1 
-                className="text-2xl font-bold text-accent"
-                style={{ 
-                  fontFamily: 'Changa One, cursive'
-                }}
-              >
-                INTRO
-              </h1>
+              {canSwitchEvents && availableEvents.length > 1 ? (
+                <Select
+                  value={currentEvent?.id || undefined}
+                  onValueChange={handleEventSwitch}
+                >
+                  <SelectTrigger className="w-full max-w-xs mx-auto border-primary/40 bg-background/80">
+                    <SelectValue placeholder="Select event">
+                      {currentEvent?.name || "Select event"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableEvents.map((event) => (
+                      <SelectItem key={event.id} value={event.id}>
+                        {event.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <h1 
+                  className="text-2xl font-bold text-accent"
+                  style={{ 
+                    fontFamily: 'Changa One, cursive'
+                  }}
+                >
+                  INTRO
+                </h1>
+              )}
             </div>
             
             {/* Right: Message icon with gradient and unread badge */}

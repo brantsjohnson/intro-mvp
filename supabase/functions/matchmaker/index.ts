@@ -1579,6 +1579,58 @@ function preFilterCandidates(
 }
 
 /**
+ * Extract the function/role that User A is looking for when hiring
+ * Returns a human-readable description of what they need
+ */
+function extractHiringFunction(
+  businessNeed: string | null,
+  needTags: string[]
+): string | null {
+  if (!businessNeed && (!needTags || needTags.length === 0)) {
+    return null
+  }
+  
+  const combinedText = [
+    businessNeed || "",
+    ...(needTags || [])
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+  
+  // Function detection patterns (ordered by specificity)
+  const functionPatterns: Array<{ pattern: RegExp; label: string }> = [
+    // Engineering/Software Development
+    { pattern: /\b(engineer|engineering|developer|dev|software engineer|software developer|programmer|coder|full.?stack|backend|frontend|fullstack|devops|sre|architect)\b/i, label: "engineering/software development" },
+    // Data Science
+    { pattern: /\b(data scientist|data science|ml engineer|machine learning|ai engineer|data engineer)\b/i, label: "data science/machine learning" },
+    // Marketing
+    { pattern: /\b(marketer|marketing|growth|demand gen|content|seo|sem|brand|social media)\b/i, label: "marketing" },
+    // Sales
+    { pattern: /\b(sales|account executive|ae|sdr|bdr|business development|bd|revenue)\b/i, label: "sales" },
+    // Product
+    { pattern: /\b(product manager|pm|product|product owner)\b/i, label: "product management" },
+    // Design
+    { pattern: /\b(designer|design|ux|ui|creative)\b/i, label: "design" },
+    // Data Analytics
+    { pattern: /\b(data analyst|analyst|analytics|bi|business intelligence)\b/i, label: "data analytics" },
+    // Customer Success
+    { pattern: /\b(customer success|csm|cs)\b/i, label: "customer success" },
+    // Operations
+    { pattern: /\b(operations|ops|operations manager)\b/i, label: "operations" },
+  ]
+  
+  // Check for explicit function mentions
+  for (const { pattern, label } of functionPatterns) {
+    if (pattern.test(combinedText)) {
+      return label
+    }
+  }
+  
+  return null
+}
+
+/**
  * Merge two sorted arrays of candidates
  * Complexity: O(n + m) instead of O((n+m) log(n+m)) for concatenation + sort
  */
@@ -1679,6 +1731,11 @@ async function scoreCandidatesWithAI(
   // Determine seniority level for guardrails
   const viewerSeniority = determineSeniorityLevel(viewerProfile.jobTitle, viewerProfile.careerYears)
   
+  // Extract hiring function if user is hiring
+  const hiringFunction = want.kind === "find_talent" 
+    ? extractHiringFunction(viewerProfile.businessNeed, viewerProfile.needTags)
+    : null
+  
   // Build comprehensive prompt with decision tree logic
   const systemPrompt = `You are the Intro Matchmaker AI, an expert system designed to create the most relevant and satisfying professional connections at events. Your primary goal is to find the best possible match (User B) for User A's explicit goal, ensuring practical value by prioritizing contextual fit (Company Specialization + Expertise) over superficial titles. Avoiding mismatches is as important as finding good matches.
 
@@ -1692,6 +1749,18 @@ PRIORITY 1 (HIGHEST): Business Need (Primary Filter)
 - If User A has a specific business need (e.g., "Need a patent attorney"), the match MUST have their Expertise/Skills AND Company Specialization directly aligned with solving that need.
 - Job Title alone is INSUFFICIENT. You MUST verify both Expertise/Skills AND Company Specialization match the need.
 - Example: If User A needs "patent attorney", a candidate with job title "Attorney" but whose company specializes in employment law should be EXCLUDED.
+
+PRIORITY 1.5 (CRITICAL FOR HIRING): Function/Role Matching
+- If User A is hiring ("find_talent" intent) and specifies a function/role (e.g., "engineer", "marketer", "salesperson"), the candidate MUST be in that SAME function.
+- FUNCTION is determined by: Job Title + Expertise/Skills (not just title alone)
+- STRICTLY EXCLUDE candidates whose function does NOT match, even if they have related skills.
+- Examples:
+  * "Need an engineer" → MUST match engineering/software development roles. EXCLUDE: Marketing Director, Data Scientist (unless they're also engineers), Product Manager (unless they code)
+  * "Need a marketer" → MUST match marketing roles. EXCLUDE: Engineers, Sales Directors
+  * "Need a salesperson" → MUST match sales roles. EXCLUDE: Marketing, Engineering
+- If User A says "engineer" or "engineering", look for: Software Engineer, Developer, Engineering Manager, CTO, etc. with engineering/development skills
+- If User A says "data scientist" but means "engineer", clarify: Data Scientists are NOT the same as Software Engineers. Only match if User A explicitly wants data science.
+- When in doubt about function mismatch, EXCLUDE rather than include.
 
 PRIORITY 2 (HIGH): Contextual Relevance
 - Matching is based on the COMBINATION of Job Title + Expertise/Skills + Company Specialization.
@@ -1725,7 +1794,18 @@ PRIORITY 6 (HIGH): Explanation Quality
 GUARDRAILS (STRICTLY ENFORCED - NO EXCEPTIONS)
 ================================================================================
 
-GUARDRAIL 1: Irrelevant Domain Exclusion
+GUARDRAIL 1: Function Mismatch Exclusion (CRITICAL FOR HIRING)
+- If User A is hiring ("find_talent") and specifies a function/role, STRICTLY EXCLUDE candidates whose primary function does NOT match.
+- Function is determined by analyzing Job Title + Expertise/Skills together:
+  * Engineering function: titles with "engineer", "developer", "dev", "software", "tech lead", "CTO" + skills like "coding", "programming", "software development"
+  * Marketing function: titles with "marketing", "growth", "brand", "content" + marketing skills
+  * Data Science function: titles with "data scientist", "data analyst", "ML engineer" + data/ML skills
+  * Sales function: titles with "sales", "account executive", "business development" + sales skills
+- DO NOT match a Marketing Director to someone looking for an "engineer" - these are DIFFERENT functions.
+- DO NOT match a Data Scientist to someone looking for a "software engineer" - these are DIFFERENT roles (unless User A explicitly wants data science).
+- Rationale: When hiring, function alignment is non-negotiable. A startup looking for an engineer cannot use a marketer or data scientist in that role.
+
+GUARDRAIL 1B: Irrelevant Domain Exclusion
 - STRICTLY EXCLUDE candidates whose company specialization or primary skills CONTRADICT User A's specific need, even if the job title is identical.
 - Example: If User A needs "patent attorney" and a candidate is an "Attorney" but their company specializes in employment law, they MUST be EXCLUDED.
 - Rationale: Prevents useless matches like matching a founder needing IP law with an employment lawyer.
@@ -1794,6 +1874,7 @@ REMEMBER: Job Title + Expertise/Skills + Company Specialization must be evaluate
 - Primary Goal: ${primaryGoal}
 - Connection Type: ${connectionType}
 - Business Need: ${viewerProfile.businessNeed || 'Not specified'}
+${want.kind === "find_talent" && hiringFunction ? `- ⚠️ HIRING INTENT: User A is HIRING and looking for: ${hiringFunction}. STRICTLY match candidates in this function only.` : want.kind === "find_talent" ? `- ⚠️ HIRING INTENT: User A is HIRING. Match candidates based on their explicit business need and function requirements.` : ''}
 - Why Attending: ${viewerProfile.whyAttending || 'Not specified'}
 - Expertise/Skills: ${[...viewerProfile.offerTags, ...viewerProfile.linkedinSkills].join(', ') || 'Not specified'}
 - Industries: ${viewerProfile.industryTags.join(', ') || 'Not specified'}
