@@ -1401,7 +1401,7 @@ export function HomePage() {
                       size="sm"
                       onClick={handleRefreshMatches}
                       disabled={isRefreshing}
-                      className="h-8 w-8 p-0 hidden"
+                      className="h-8 w-8 p-0"
                       title="Refresh matches"
                     >
                       <RefreshCw 
