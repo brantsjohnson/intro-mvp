@@ -100,53 +100,59 @@ export async function POST(request: NextRequest) {
     // Convert HTML to PNG using Puppeteer
     let browser
     try {
-      // Get Chrome executable path for serverless environments
-      let executablePath: string | undefined
+      // Dynamically import chromium to avoid type resolution issues in environments without local types
+      // @ts-ignore - package has no bundled type definitions
+      const chromiumModule = await import('@sparticuz/chromium-min')
+      const chromium = (chromiumModule as any).default ?? chromiumModule
       
-      // Try to get Chrome path from @puppeteer/browsers
-      // This is needed for serverless environments where Chrome isn't pre-installed
-      try {
-        const cacheDir = process.env.PUPPETEER_CACHE_DIR || '/tmp/.puppeteer'
-        const platform = detectBrowserPlatform()
-        
-        if (platform) {
-          // Use the latest stable Chrome build
-          const buildId = '131.0.6778.85' // Latest stable Chrome build
+      // Prefer prebuilt Chromium bundle for serverless to avoid missing OS deps
+      let executablePath: string | undefined = await chromium.executablePath
+      
+      // If chromium-min did not provide a path (e.g., local dev), try @puppeteer/browsers
+      if (!executablePath) {
+        try {
+          const cacheDir = process.env.PUPPETEER_CACHE_DIR || '/tmp/.puppeteer'
+          const platform = detectBrowserPlatform()
           
-          // First, try to compute the path (in case Chrome is already installed)
-          executablePath = computeExecutablePath({
-            browser: Browser.CHROME,
-            buildId,
-            platform,
-            cacheDir,
-          })
-          
-          // If the path doesn't exist, install Chrome
-          const fs = await import('fs/promises')
-          try {
-            await fs.access(executablePath)
-            console.log('Using existing Chrome from cache:', executablePath)
-          } catch {
-            // Chrome not found, install it
-            console.log('Chrome not found in cache, installing...')
-            await install({
-              browser: Browser.CHROME,
-              buildId,
-              platform,
-              cacheDir,
-            })
+          if (platform) {
+            // Use a pinned stable Chrome build; adjust as needed
+            const buildId = '131.0.6778.85'
+            
+            // First, try to compute the path (in case Chrome is already installed)
             executablePath = computeExecutablePath({
               browser: Browser.CHROME,
               buildId,
               platform,
               cacheDir,
             })
-            console.log('Chrome installed at:', executablePath)
+            
+            // If the path doesn't exist, install Chrome
+            const fs = await import('fs/promises')
+            try {
+              await fs.access(executablePath)
+              console.log('Using existing Chrome from cache:', executablePath)
+            } catch {
+              // Chrome not found, install it
+              console.log('Chrome not found in cache, installing...')
+              await install({
+                browser: Browser.CHROME,
+                buildId,
+                platform,
+                cacheDir,
+              })
+              executablePath = computeExecutablePath({
+                browser: Browser.CHROME,
+                buildId,
+                platform,
+                cacheDir,
+              })
+              console.log('Chrome installed at:', executablePath)
+            }
           }
+        } catch (browserError) {
+          console.warn('Failed to setup Chrome via @puppeteer/browsers, trying default Puppeteer:', browserError)
+          // Fall back to default Puppeteer behavior (will use bundled Chromium if available)
         }
-      } catch (browserError) {
-        console.warn('Failed to setup Chrome via @puppeteer/browsers, trying default Puppeteer:', browserError)
-        // Fall back to default Puppeteer behavior (will use bundled Chrome if available)
       }
       
       const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
@@ -160,12 +166,9 @@ export async function POST(request: NextRequest) {
           '--no-zygote',
           '--single-process',
           '--disable-gpu',
+          ...(chromium.args || []),
         ],
-      }
-      
-      // Only set executablePath if we successfully got it
-      if (executablePath) {
-        launchOptions.executablePath = executablePath
+        executablePath,
       }
       
       browser = await puppeteer.launch(launchOptions)
