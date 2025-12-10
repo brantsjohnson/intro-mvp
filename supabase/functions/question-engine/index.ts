@@ -174,6 +174,8 @@ serve(async (req) => {
           try {
             const analysisPrompt = `Analyze this person's personality from their free text responses. Infer MBTI, Big Five, and communication style.
 
+CRITICAL: Always use gender-neutral language. Never assume someone's gender. Use "they/them/their" pronouns, or refer to people by their name, title, or role. Never use "he/him/his" or "she/her" pronouns.
+
 Their responses:
 - Why attending: "${userContext.whyAttending || 'Not provided'}"
 - Business need: "${userContext.businessNeed || 'Not provided'}"
@@ -199,6 +201,8 @@ What personality traits can you infer? Be specific (e.g., "Extraverted, high Ope
 
         // Generate adaptive question using AI focused on personality discovery
         const prompt = `You're asking MAX 3-4 strategic personality questions at a networking event. Goal: Fill in gaps not covered by their free text responses.
+
+CRITICAL: Always use gender-neutral language in all questions and descriptions. Never assume someone's gender. Use "they/them/their" pronouns, or refer to people by their name, title, or role. Never use "he/him/his" or "she/her" pronouns.
 
 USER CONTEXT:
 Job: ${userContext.jobTitle} at ${userContext.company}

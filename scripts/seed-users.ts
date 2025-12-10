@@ -387,6 +387,8 @@ Business Need: ${businessNeed}`
       
       const personalityPrompt = `You are a personality assessment expert. Analyze the following Q&A responses and infer personality types.
 
+CRITICAL: Always use gender-neutral language in all descriptions and summaries. Never assume someone's gender. Use "they/them/their" pronouns, or refer to people by their name, title, or role. Never use "he/him/his" or "she/her" pronouns.
+
 USER CONTEXT:
 ${userContext}
 

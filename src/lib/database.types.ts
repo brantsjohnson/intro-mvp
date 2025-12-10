@@ -50,6 +50,9 @@ export type Database = {
           personality_confidence: Json | null
           personality_last_updated: string | null
           admin_event_codes: string[] | null
+          phone_number: string | null
+          sms_notifications_enabled: boolean | null
+          email_notifications_enabled: boolean | null
         }
         Insert: Partial<Database["public"]["Tables"]["users"]["Row"]> & {
           user_id: string
@@ -184,6 +187,83 @@ export type Database = {
         }
         Update: Partial<Database["public"]["Tables"]["messages"]["Row"]>
         Relationships: []
+      }
+      event_survey_tokens: {
+        Row: {
+          id: string
+          event_id: string
+          recipient_user_id: string | null
+          recipient_email: string
+          token: string
+          expires_at: string
+          used_at: string | null
+          created_at: string | null
+        }
+        Insert: Partial<Database["public"]["Tables"]["event_survey_tokens"]["Row"]> & {
+          event_id: string
+          recipient_email: string
+          token: string
+          expires_at?: string
+        }
+        Update: Partial<Database["public"]["Tables"]["event_survey_tokens"]["Row"]>
+        Relationships: [
+          {
+            foreignKeyName: "event_survey_tokens_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "event_survey_tokens_recipient_user_id_fkey"
+            columns: ["recipient_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          }
+        ]
+      }
+      event_survey_responses: {
+        Row: {
+          id: string
+          event_id: string
+          token_id: string | null
+          recipient_user_id: string | null
+          recipient_email: string | null
+          rating_custom: number | null
+          rating_useful: number | null
+          rating_business: number | null
+          open_answer: string | null
+          custom_question: string | null
+          created_at: string | null
+        }
+        Insert: Partial<Database["public"]["Tables"]["event_survey_responses"]["Row"]> & {
+          event_id: string
+        }
+        Update: Partial<Database["public"]["Tables"]["event_survey_responses"]["Row"]>
+        Relationships: [
+          {
+            foreignKeyName: "event_survey_responses_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "event_survey_responses_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "event_survey_tokens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_survey_responses_recipient_user_id_fkey"
+            columns: ["recipient_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          }
+        ]
       }
     }
     Views: {}
