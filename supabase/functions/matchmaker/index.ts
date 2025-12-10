@@ -2128,10 +2128,35 @@ async function upsertMatches(
       // Use the AI's matching explanation directly
       explanation = match.breakdown.wantFitComponents.aiExplanation
       // Truncate to 160 chars if needed (to match database constraints)
+      // Try to cut at sentence boundaries first, then word boundaries
       if (explanation.length > 160) {
-        const truncated = explanation.substring(0, 157)
-        const lastSpace = truncated.lastIndexOf(' ')
-        explanation = lastSpace > 120 ? truncated.substring(0, lastSpace) + "..." : truncated + "..."
+        const maxLength = 160
+        const minLength = 100 // Don't cut too early
+        
+        // First, try to find a sentence boundary (period, exclamation, question mark followed by space or end)
+        let cutPoint = -1
+        for (let i = maxLength - 3; i >= minLength; i--) {
+          const char = explanation[i]
+          if ((char === '.' || char === '!' || char === '?') && 
+              (i === explanation.length - 1 || explanation[i + 1] === ' ')) {
+            cutPoint = i + 1
+            break
+          }
+        }
+        
+        // If no sentence boundary found, try to find a word boundary (space)
+        if (cutPoint === -1) {
+          const truncated = explanation.substring(0, maxLength - 3)
+          const lastSpace = truncated.lastIndexOf(' ')
+          if (lastSpace >= minLength) {
+            cutPoint = lastSpace
+          } else {
+            // Fallback: cut at maxLength - 3 if no good word boundary
+            cutPoint = maxLength - 3
+          }
+        }
+        
+        explanation = explanation.substring(0, cutPoint).trim() + "..."
       }
       console.log("using_ai_matching_explanation", {
         eventId,
