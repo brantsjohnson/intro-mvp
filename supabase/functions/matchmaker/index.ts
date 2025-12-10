@@ -1787,129 +1787,29 @@ async function scoreCandidatesWithAI(
 
 CRITICAL: Always use gender-neutral language in all explanations and descriptions. Never assume someone's gender based on their name, title, or any other information. Use "they/them/their" pronouns, or refer to people by their name, title, or role. Never use "he/him/his" or "she/her" unless explicitly specified (which it never will be in this context).
 
-================================================================================
-MATCHING RULES (BY PRIORITY)
-================================================================================
+MATCHING RULES (PRIORITY ORDER)
+1) Want/Need Alignment (hard filter)
+- User A want comes from businessNeed + needTags + wantTags.
+- Only match if you can cite at least one explicit overlap between User A’s want and User B’s offerTags/linkedinSkills/industryTags/companySummary/connectionTypes.
+- If no overlap evidence, exclude or score very low.
 
-PRIORITY 1 (HIGHEST): Business Need (Primary Filter)
-- If User A has a specific business need (e.g., "Need a patent attorney"), the match MUST have their Expertise/Skills AND Company Specialization directly aligned with solving that need.
-- Job Title alone is INSUFFICIENT. You MUST verify both Expertise/Skills AND Company Specialization match the need.
-- Example: If User A needs "patent attorney", a candidate with job title "Attorney" but whose company specializes in employment law should be EXCLUDED.
+2) Function/Domain Fit
+- Prefer same-function/domain matches. For mentorship/learn_skill, strongly prefer same-function; only pick adjacent roles if no same-function exists and say so in the explanation.
+- Do NOT rely on title alone—confirm with skills/company specialization.
 
-PRIORITY 1.5 (CRITICAL FOR HIRING): Function/Role Matching
-- If User A is hiring ("find_talent" intent) and specifies a function/role (e.g., "engineer", "marketer", "salesperson"), the candidate MUST be in that SAME function.
-- FUNCTION is determined by: Job Title + Expertise/Skills (not just title alone)
-- STRICTLY EXCLUDE candidates whose function does NOT match, even if they have related skills.
-- Examples:
-  * "Need an engineer" → MUST match engineering/software development roles. EXCLUDE: Marketing Director, Data Scientist (unless they're also engineers), Product Manager (unless they code)
-  * "Need a marketer" → MUST match marketing roles. EXCLUDE: Engineers, Sales Directors
-  * "Need a salesperson" → MUST match sales roles. EXCLUDE: Marketing, Engineering
-- If User A says "engineer" or "engineering", look for: Software Engineer, Developer, Engineering Manager, CTO, etc. with engineering/development skills
-- If User A says "data scientist" but means "engineer", clarify: Data Scientists are NOT the same as Software Engineers. Only match if User A explicitly wants data science.
-- When in doubt about function mismatch, EXCLUDE rather than include.
+3) General Networking (fallback when no explicit need)
+- Use shared industry/skills/interests as secondary signals; keep seniority roughly aligned unless mentorship.
 
-PRIORITY 2 (HIGH): Contextual Relevance
-- Matching is based on the COMBINATION of Job Title + Expertise/Skills + Company Specialization.
-- You MUST look at these three layers together to determine true capability and domain context.
-- DO NOT rely on job title alone. Always cross-reference with Expertise/Skills and Company Specialization.
+GUARDRAILS
+- Same-company: exclude always.
+- No title hallucination: don’t assume capabilities not in skills/tags/company summary.
+- Seniority: avoid pairing very junior with very senior unless mentorship is explicit.
+- If you pick a non-obvious adjacent role, justify with the specific overlap.
 
-PRIORITY 3 (MEDIUM): General Connections
-- If the goal is "General Networking", prioritize matches based on:
-  * Shared Interests/Hobbies (for vibe/chemistry)
-  * Similar Functional Backgrounds/Fields
-  * Aligned Seniority (peers preferred)
-
-PRIORITY 4 (MEDIUM): Business Opportunities
-- Matching requires aligning on a value exchange based on specific needs (e.g., selling, co-founding, partnering).
-- Use Company Specialization and Role Relevance as the primary signals.
-- Look for complementary services, shared customer bases, or specific decision-making roles.
-
-PRIORITY 5 (MEDIUM): Mentorship
-- For mentees, find mentors with:
-  * Relevant Years of Experience
-  * An accessible seniority gap (not too disconnected)
-  * Expertise in the domains they wish to mentor in
-- If intent is mentorship/learn_skill, strongly prefer candidates in the SAME FUNCTION as User A (viewer role/title: ${viewerProfile.jobTitle || 'Not specified'}). Only choose adjacent roles (e.g., data science/product) if no same-function candidates exist, and state this explicitly in the explanation.
-
-PRIORITY 6 (HIGH): Explanation Quality
-- The output MUST generate a clear, concise, and persuasive explanation (max 3 sentences).
-- AVOID simply restating job titles.
-- FOCUS on practical value and contextual evidence (Expertise and Company Specialization).
-- Explain WHY the match is valuable, not just WHAT their title is.
-
-================================================================================
-GUARDRAILS (STRICTLY ENFORCED - NO EXCEPTIONS)
-================================================================================
-
-GUARDRAIL 1: Function Mismatch Exclusion (CRITICAL FOR HIRING)
-- If User A is hiring ("find_talent") and specifies a function/role, STRICTLY EXCLUDE candidates whose primary function does NOT match.
-- Function is determined by analyzing Job Title + Expertise/Skills together:
-  * Engineering function: titles with "engineer", "developer", "dev", "software", "tech lead", "CTO" + skills like "coding", "programming", "software development"
-  * Marketing function: titles with "marketing", "growth", "brand", "content" + marketing skills
-  * Data Science function: titles with "data scientist", "data analyst", "ML engineer" + data/ML skills
-  * Sales function: titles with "sales", "account executive", "business development" + sales skills
-- DO NOT match a Marketing Director to someone looking for an "engineer" - these are DIFFERENT functions.
-- DO NOT match a Data Scientist to someone looking for a "software engineer" - these are DIFFERENT roles (unless User A explicitly wants data science).
-- Rationale: When hiring, function alignment is non-negotiable. A startup looking for an engineer cannot use a marketer or data scientist in that role.
-
-GUARDRAIL 1B: Irrelevant Domain Exclusion
-- STRICTLY EXCLUDE candidates whose company specialization or primary skills CONTRADICT User A's specific need, even if the job title is identical.
-- Example: If User A needs "patent attorney" and a candidate is an "Attorney" but their company specializes in employment law, they MUST be EXCLUDED.
-- Rationale: Prevents useless matches like matching a founder needing IP law with an employment lawyer.
-
-GUARDRAIL 2: Seniority Mismatch
-- STRICTLY AVOID matching very junior users (e.g., Student, IC) with very senior users (e.g., VP, CEO).
-- EXCEPTIONS (only if ALL conditions met):
-  * The senior person is explicitly marked for "Mentorship" OR
-  * The connection type is explicitly 'Recruiting/Job Seeking' with a relevant recruiter
-- Rationale: Prevents the event from being seen as a detractor by senior attendees.
-
-GUARDRAIL 3: Title Overweighting
-- DO NOT assume a job title (e.g., "Marketing Director") automatically equates to a specific expertise (e.g., "SEO expert").
-- Contextual data (Expertise/Skills + Company Specialization) MUST confirm the ability.
-- If you cannot confirm capability from contextual data, score lower or exclude.
-- Rationale: Addresses the problem of assuming capability wrongly based on title alone.
-
-GUARDRAIL 4: Same Company Exclusion
-- STRICTLY EXCLUDE candidates who work at the same company as User A.
-- This is a hard rule with NO EXCEPTIONS - people from the same company should not be matched.
-- Rationale: Event attendees are looking to network with people from other companies, not their own colleagues.
-
-GUARDRAIL 5: Avoid Repetitive Explanations
-- DO NOT generate explanations that just repeat job titles or superficial profile data.
-- FOCUS on value and contextual fit.
-- Explain the SPECIFIC connection between User A's need and User B's demonstrated capability (from Expertise/Skills + Company Specialization).
-- Rationale: Addresses the problem of AI generating wrong or unhelpful explanations.
-
-================================================================================
-OUTPUT FORMAT
-================================================================================
-
-Return a JSON object with this structure:
-{
-  "matches": [
-    {
-      "candidateId": "uuid",
-      "score": 0.0-1.0,
-      "explanation": "Max 3 sentences. Focus on practical value and contextual evidence (Expertise and Company Specialization), NOT job titles. Explain WHY the match is valuable.",
-      "excluded": false
-    }
-  ],
-  "excluded": [
-    {
-      "candidateId": "uuid",
-      "exclusionReason": "Specific reason referencing which guardrail was violated (e.g., 'Company specialization in employment law contradicts need for patent attorney')"
-    }
-  ]
-}
-
-SCORING GUIDELINES:
-- 0.9-1.0: Perfect match (meets all criteria, strong contextual fit, all three layers align)
-- 0.7-0.89: Good match (meets most criteria, good contextual fit)
-- 0.5-0.69: Acceptable match (some fit, may have gaps in one layer)
-- 0.0-0.49: Poor match (should be excluded or scored very low)
-
-REMEMBER: Job Title + Expertise/Skills + Company Specialization must be evaluated TOGETHER. Never rely on job title alone.`
+OUTPUT
+- JSON { matches: [{ candidateId, score 0-1, explanation, excluded:false }], excluded:[{ candidateId, exclusionReason }] }
+- Explanation: 1–3 sentences, must cite the concrete overlap (e.g., “You need backend mentorship; B lists Go/Node backend and leads platform at X”). Avoid generic phrases.
+- Scoring: 0.9–1.0 strong overlap; 0.7–0.89 good; 0.5–0.69 partial; <0.5 weak/exclude.`
 
   const userPrompt = `USER A (Viewer) Profile:
 - Name: ${viewerProfile.firstName || ''} ${viewerProfile.lastName || ''}
