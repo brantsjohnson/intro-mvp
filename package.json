@@ -10,7 +10,8 @@
     "lint": "eslint",
     "seed:users": "tsx scripts/seed-users.ts",
     "wipe:all": "tsx scripts/seed-users.ts wipe",
-    "deploy:all": "tsx scripts/deploy-all.ts"
+    "deploy:all": "tsx scripts/deploy-all.ts",
+    "test:email": "tsx scripts/test-email.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -25,6 +26,7 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-toast": "^1.2.15",
+    "@react-email/render": "^1.4.0",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/auth-helpers-react": "^0.5.0",
     "@supabase/auth-ui-react": "^0.4.7",

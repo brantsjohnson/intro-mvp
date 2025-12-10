@@ -13,6 +13,15 @@ const nextConfig: NextConfig = {
     // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        pathname: '/storage/v1/object/public/**', // Matches event-assets and other public buckets
+      },
+    ],
+  },
 };
 
 export default nextConfig;
