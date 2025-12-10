@@ -1763,6 +1763,8 @@ async function scoreCandidatesWithAI(
     // Exclude if companies match (case-insensitive, ignoring special characters)
     return candidateCompanyNormalized === "" || candidateCompanyNormalized !== viewerCompanyNormalized
   })
+  // Cap candidates sent to AI to reduce prompt size and cost
+  const aiCandidates = filteredCandidates.slice(0, 25)
   
   const excludedSameCompanyCount = candidates.length - filteredCandidates.length
   if (excludedSameCompanyCount > 0) {
@@ -1814,6 +1816,7 @@ MATCHING RULES (PRIORITY ORDER)
 - Use shared industry/skills/interests as secondary signals; keep seniority roughly aligned unless mentorship.
 
 GUARDRAILS
+- Input candidate list is unordered; independently score each and return the best 3 (if available).
 - Same-function default: if no explicit cross-function need is stated, pick same-function/domain first; justify any cross-function choice with the explicit need that triggered it.
 - Same-company: exclude always.
 - No title hallucination: don’t assume capabilities not in skills/tags/company summary.
@@ -1843,20 +1846,20 @@ ${want.kind === "find_talent" && hiringFunction ? `- ⚠️ HIRING INTENT: User 
 - Looking for: ${viewerProfile.needTags.join(', ') || 'Not specified'}
 - Can offer: ${viewerProfile.offerTags.join(', ') || 'Not specified'}
 
-CANDIDATES TO EVALUATE (${filteredCandidates.length} total):
-${filteredCandidates.map((c, idx) => `
-${idx + 1}. Candidate ID: ${c.id}
-   - Name: ${c.firstName || ''} ${c.lastName || ''}
-   - Job Title: ${c.jobTitle || 'Not specified'}
-   - Company: ${c.company || 'Not specified'}
-   - Company Specialization: ${c.companySummary || 'Not specified'}
-   - Years of Experience: ${c.careerYears || 'Unknown'}
-   - Expertise/Skills: ${[...c.offerTags, ...c.linkedinSkills].join(', ') || 'Not specified'}
-   - Industries: ${c.industryTags.join(', ') || 'Not specified'}
-   - Interests/Hobbies: ${[...c.hobbyTags, ...c.hobbies].join(', ') || 'Not specified'}
-   - Looking for: ${c.wantTags.join(', ') || 'Not specified'}
-   - Can offer: ${c.offerTags.join(', ') || 'Not specified'}
-   - Connection Types: ${c.connectionTypes?.join(', ') || 'Not specified'}
+CANDIDATES TO EVALUATE (unordered, up to ${aiCandidates.length}):
+${aiCandidates.map((c) => `
+- Candidate ID: ${c.id}
+  Name: ${c.firstName || ''} ${c.lastName || ''}
+  Job Title: ${c.jobTitle || 'Not specified'}
+  Company: ${c.company || 'Not specified'}
+  Company Specialization: ${c.companySummary || 'Not specified'}
+  Years of Experience: ${c.careerYears || 'Unknown'}
+  Expertise/Skills: ${[...c.offerTags, ...c.linkedinSkills].join(', ') || 'Not specified'}
+  Industries: ${c.industryTags.join(', ') || 'Not specified'}
+  Interests/Hobbies: ${[...c.hobbyTags, ...c.hobbies].join(', ') || 'Not specified'}
+  Looking for: ${c.wantTags.join(', ') || 'Not specified'}
+  Can offer: ${c.offerTags.join(', ') || 'Not specified'}
+  Connection Types: ${c.connectionTypes?.join(', ') || 'Not specified'}
 `).join('\n')}
 
 Evaluate each candidate following the decision tree rules. Return JSON with matches (sorted by score descending) and excluded candidates.`
@@ -1864,7 +1867,7 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
   try {
     console.log("ai_matching_started", {
       viewerId: viewerProfile.id,
-      candidateCount: filteredCandidates.length,
+      candidateCount: aiCandidates.length,
       originalCandidateCount: candidates.length,
       excludedSameCompany: excludedSameCompanyCount,
       connectionType,
@@ -1875,7 +1878,7 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
       wantKind: want.kind,
       hiringFunction,
       preFilterLimit,
-      candidatesSentToAI: filteredCandidates.length,
+      candidatesSentToAI: aiCandidates.length,
       model: Deno.env.get("OPENAI_MODEL") || "gpt-4o"
     })
 
@@ -1893,7 +1896,7 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
     const result = JSON.parse(response.choices[0].message.content)
     console.log("ai_matching_response_received", {
       viewerId: viewerProfile.id,
-      candidatesSentToAI: filteredCandidates.length,
+      candidatesSentToAI: aiCandidates.length,
       matchesReturned: result?.matches?.length ?? 0,
       excludedReturned: result?.excluded?.length ?? 0
     })
