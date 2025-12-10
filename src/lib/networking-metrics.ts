@@ -20,7 +20,7 @@ export async function getNetworkingMetrics(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Get event data including logo from matching_config
+  // Get event data
   const { data: event } = await supabase
     .from('events')
     .select('event_name, matching_config')
@@ -30,8 +30,34 @@ export async function getNetworkingMetrics(
   if (!event) return null
 
   const matchingConfig = (event.matching_config as any) || {}
-  const eventLogoUrl = matchingConfig.logo_url || null
   const sponsor = matchingConfig.sponsor || null
+
+  // Fetch logo from event-assets bucket
+  let eventLogoUrl: string | null = null
+  try {
+    const { data: files, error: listError } = await supabase.storage
+      .from('event-assets')
+      .list(eventId, {
+        sortBy: { column: 'created_at', order: 'desc' },
+        limit: 10
+      })
+
+    if (!listError && files && files.length > 0) {
+      // Find the most recent logo file
+      const latestLogo = files.find(f => f.name.startsWith('logo-')) || files[0]
+      if (latestLogo) {
+        const logoPath = `${eventId}/${latestLogo.name}`
+        const { data: urlData } = supabase.storage
+          .from('event-assets')
+          .getPublicUrl(logoPath)
+        
+        eventLogoUrl = urlData.publicUrl
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching logo from bucket:', error)
+    // Continue without logo if bucket fetch fails
+  }
 
   // Get all connections for this user in this event
   const { data: connections } = await supabase
