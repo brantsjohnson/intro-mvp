@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { EmailService } from '@/lib/email-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,9 +61,37 @@ export async function POST(request: NextRequest) {
         .eq('connection_kind', 'system_match')
         .or(`a_id.eq.${newUserId},b_id.eq.${newUserId}`)
 
+      const matchCount = count || 0
+
+      // Send email notification if matches were created
+      if (matchCount > 0) {
+        try {
+          const { data: user } = await supabase.auth.admin.getUserById(newUserId)
+          const { data: event } = await supabase
+            .from('events')
+            .select('event_name')
+            .eq('event_id', eventId)
+            .single()
+
+          if (user?.user?.email && event?.event_name) {
+            const emailService = new EmailService()
+            await emailService.sendMatchNotification(
+              user.user.email,
+              event.event_name,
+              matchCount,
+              `https://introevent.site?event=${eventId}`
+            ).catch((error) => {
+              console.error('Failed to send match notification email:', error)
+            })
+          }
+        } catch (error) {
+          console.error('Error sending match notification:', error)
+        }
+      }
+
       return NextResponse.json({
         success: true,
-        match_count: count || 0,
+        match_count: matchCount,
         matchmaker_result: matchmakerResult
       })
     }
