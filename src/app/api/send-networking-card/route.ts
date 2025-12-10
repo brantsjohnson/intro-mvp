@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import puppeteer from 'puppeteer'
+import { computeExecutablePath, install, Browser, detectBrowserPlatform } from '@puppeteer/browsers'
 import sharp from 'sharp'
 import { randomUUID } from 'crypto'
 import { EmailService } from '@/lib/email-service'
@@ -99,10 +100,75 @@ export async function POST(request: NextRequest) {
     // Convert HTML to PNG using Puppeteer
     let browser
     try {
-      browser = await puppeteer.launch({
+      // Get Chrome executable path for serverless environments
+      let executablePath: string | undefined
+      
+      // Try to get Chrome path from @puppeteer/browsers
+      // This is needed for serverless environments where Chrome isn't pre-installed
+      try {
+        const cacheDir = process.env.PUPPETEER_CACHE_DIR || '/tmp/.puppeteer'
+        const platform = detectBrowserPlatform()
+        
+        if (platform) {
+          // Use the latest stable Chrome build
+          const buildId = '131.0.6778.85' // Latest stable Chrome build
+          
+          // First, try to compute the path (in case Chrome is already installed)
+          executablePath = computeExecutablePath({
+            browser: Browser.CHROME,
+            buildId,
+            platform,
+            cacheDir,
+          })
+          
+          // If the path doesn't exist, install Chrome
+          const fs = await import('fs/promises')
+          try {
+            await fs.access(executablePath)
+            console.log('Using existing Chrome from cache:', executablePath)
+          } catch {
+            // Chrome not found, install it
+            console.log('Chrome not found in cache, installing...')
+            await install({
+              browser: Browser.CHROME,
+              buildId,
+              platform,
+              cacheDir,
+            })
+            executablePath = computeExecutablePath({
+              browser: Browser.CHROME,
+              buildId,
+              platform,
+              cacheDir,
+            })
+            console.log('Chrome installed at:', executablePath)
+          }
+        }
+      } catch (browserError) {
+        console.warn('Failed to setup Chrome via @puppeteer/browsers, trying default Puppeteer:', browserError)
+        // Fall back to default Puppeteer behavior (will use bundled Chrome if available)
+      }
+      
+      const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      })
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-gpu',
+        ],
+      }
+      
+      // Only set executablePath if we successfully got it
+      if (executablePath) {
+        launchOptions.executablePath = executablePath
+      }
+      
+      browser = await puppeteer.launch(launchOptions)
     } catch (puppeteerError) {
       console.error('Failed to launch Puppeteer:', puppeteerError)
       throw new Error(`Puppeteer launch failed: ${puppeteerError instanceof Error ? puppeteerError.message : 'Unknown error'}. This often happens in serverless environments. Make sure Puppeteer dependencies are properly installed.`)
