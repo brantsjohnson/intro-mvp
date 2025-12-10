@@ -981,24 +981,17 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
       
       // Use AI to score the pre-filtered candidates
       const aiScored = await scoreCandidatesWithAI(viewerProfile, want, candidateProfiles, openai)
-      
-      // Combine AI-scored candidates with remaining candidates (with lower scores)
-      const aiScoredIds = new Set(aiScored.map(s => s.candidate.id))
-      const remainingScored = initialScored.filter(s => !aiScoredIds.has(s.candidate.id))
-      
-      // Sort both arrays before merging (if not already sorted)
+      // Use AI results only (authoritative). Sort for determinism.
       const aiScoredSorted = aiScored.sort(deterministicCompare)
-      const remainingScoredSorted = remainingScored.sort(deterministicCompare)
-      
-      // Merge sorted arrays: O(n + m) instead of O((n+m) log(n+m))
-      scored = mergeSortedCandidates(aiScoredSorted, remainingScoredSorted)
+      scored = aiScoredSorted
       usingAI = true
       
       console.log("ai_matching_used", {
         eventId,
         userId,
         aiScoredCount: aiScored.length,
-        remainingCount: remainingScored.length
+        remainingCount: 0,
+        aiAuthoritative: true
       })
     } catch (error) {
       console.error("ai_matching_failed_fallback", {
@@ -1009,6 +1002,11 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
       // Fallback to rule-based scoring
       scored = initialScored
       usingAI = false
+      console.log("ai_matching_fallback_rule_based", {
+        eventId,
+        userId,
+        reason: error?.message ?? String(error)
+      })
     }
   } else {
     // No OpenAI available or no candidates to evaluate
