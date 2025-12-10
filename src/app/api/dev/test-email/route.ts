@@ -15,7 +15,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { EmailService } from '@/lib/email-service'
 import { getNetworkingMetrics } from '@/lib/networking-metrics'
-import puppeteer from 'puppeteer'
 import sharp from 'sharp'
 
 function escapeHtml(text: string): string {
@@ -569,193 +568,39 @@ export async function POST(request: NextRequest) {
       // Generate HTML for the card with border colors
       const html = generateCardHTML(metrics, borderColors)
 
-      // Convert HTML to PNG using Puppeteer
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      // Render via Browserless to avoid local Chrome dependency
+      const browserlessToken = process.env.BROWSERLESS_TOKEN
+      if (!browserlessToken) {
+        throw new Error('Missing BROWSERLESS_TOKEN env var for Browserless rendering')
+      }
+
+      const htmlBase64 = Buffer.from(html, 'utf8').toString('base64')
+      const dataUrl = `data:text/html;base64,${htmlBase64}`
+
+      const browserlessUrl = `https://chrome.browserless.io/screenshot?token=${browserlessToken}`
+      const response = await fetch(browserlessUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: dataUrl,
+          options: {
+            viewport: { width: 1200, height: 800 },
+            fullPage: true,
+            waitUntil: 'networkidle0',
+          },
+        }),
       })
-      
-      let pngBuffer: Buffer
-      let contentHeight: number
-      let logoBounds: { x: number; y: number; width: number; height: number } | null = null
-      let cardBounds: Array<{ x: number; y: number; width: number; height: number }> = []
-      
-      try {
-        const page = await browser.newPage()
-        // Set initial viewport (will be adjusted based on content)
-        await page.setViewport({ width: 1200, height: 800 })
-        await page.setContent(html, { waitUntil: 'networkidle0' })
-        
-        // Get the actual content height
-        contentHeight = await page.evaluate(() => {
-          return Math.max(
-            document.body.scrollHeight,
-            document.body.offsetHeight,
-            document.documentElement.clientHeight,
-            document.documentElement.scrollHeight,
-            document.documentElement.offsetHeight
-          )
-        })
-        
-        // Set viewport to match content height (add small padding)
-        await page.setViewport({ width: 1200, height: contentHeight + 20 })
-        
-        // Get logo bounds and card bounds before taking screenshot
-        
-        if (metrics.eventLogoUrl) {
-          logoBounds = await page.evaluate(() => {
-            const logo = document.querySelector('.event-logo') as HTMLElement
-            if (logo) {
-              const rect = logo.getBoundingClientRect()
-              return {
-                x: Math.round(rect.left),
-                y: Math.round(rect.top),
-                width: Math.round(rect.width),
-                height: Math.round(rect.height)
-              }
-            }
-            return null
-          })
-        }
-        
-      // Get bounds for all cards (always, regardless of whether we have colors)
-      cardBounds = await page.evaluate(() => {
-        const cards = document.querySelectorAll('.card')
-        return Array.from(cards).map(card => {
-          const rect = card.getBoundingClientRect()
-          return {
-            x: Math.round(rect.left),
-            y: Math.round(rect.top),
-            width: Math.round(rect.width),
-            height: Math.round(rect.height)
-          }
-        })
-      })
-      console.log(`Found ${cardBounds.length} cards to apply borders to`)
-        
-        // Take screenshot of the full content
-        const screenshot = await page.screenshot({ type: 'png', fullPage: false })
-        pngBuffer = Buffer.from(screenshot)
-      } finally {
-        await browser.close()
+
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(`Browserless screenshot failed: ${response.status} ${text}`)
       }
 
-      // Convert to grayscale, but preserve logo color
-      const grayscaleBuffer = await sharp(pngBuffer)
-        .grayscale()
-        .toBuffer()
+      const screenshotArrayBuffer = await response.arrayBuffer()
+      const pngBuffer: Buffer = Buffer.from(new Uint8Array(screenshotArrayBuffer))
 
-      // If we have a logo, composite the color logo back onto the grayscale card
-      let finalBuffer = grayscaleBuffer
-      if (logoBounds && metrics.eventLogoUrl) {
-        try {
-          // Extract the logo area from the original color image
-          const logoArea = await sharp(pngBuffer)
-            .extract({
-              left: logoBounds.x,
-              top: logoBounds.y,
-              width: logoBounds.width,
-              height: logoBounds.height
-            })
-            .toBuffer()
-
-          // Composite the color logo onto the grayscale card
-          finalBuffer = await sharp(grayscaleBuffer)
-            .composite([{
-              input: logoArea,
-              left: logoBounds.x,
-              top: logoBounds.y
-            }])
-            .toBuffer()
-        } catch (error) {
-          console.error('Error compositing color logo:', error)
-          // Fall back to grayscale if compositing fails
-          finalBuffer = grayscaleBuffer
-        }
-      }
-      
-      // Draw borders on the cards using Sharp (colored if available, gray if not)
-      if (cardBounds.length > 0) {
-        try {
-          const hasColors = borderColors && borderColors.length > 0
-          console.log(`Drawing ${hasColors ? 'colored' : 'gray'} borders on cards...`)
-          
-          // Create SVG overlays for each card border
-          const borderOverlays = cardBounds.map((bounds: { x: number; y: number; width: number; height: number }, index: number) => {
-            // Get color for this card (with fallbacks)
-            let color: string
-            if (hasColors && borderColors) {
-              if (index === 0) {
-                color = borderColors[0] || 'rgba(153, 153, 153, 0.5)'
-              } else if (index === 1) {
-                color = borderColors[1] || borderColors[0] || 'rgba(153, 153, 153, 0.5)'
-              } else if (index === 2) {
-                color = borderColors[2] || borderColors[0] || 'rgba(153, 153, 153, 0.5)'
-              } else if (index === 3) {
-                color = borderColors[3] || borderColors[0] || 'rgba(153, 153, 153, 0.5)'
-              } else {
-                color = borderColors[0] || 'rgba(153, 153, 153, 0.5)'
-              }
-            } else {
-              // Use gray for all cards if no colors extracted
-              color = 'rgba(153, 153, 153, 0.5)'
-            }
-            
-            // Extract RGB from rgba string
-            const rgbaMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/)
-            if (!rgbaMatch) {
-              console.warn(`Invalid color format for card ${index}: ${color}`)
-              return null
-            }
-            
-            const r = rgbaMatch[1]
-            const g = rgbaMatch[2]
-            const b = rgbaMatch[3]
-            
-            console.log(`Card ${index} border color: rgb(${r}, ${g}, ${b})`)
-            
-            // Create SVG with double rounded borders (gray outer, colored/gray inner)
-            const borderRadius = 16
-            const outerBorderWidth = 3
-            const innerBorderWidth = 2
-            const gap = 1 // Gap between outer and inner border
-            
-            const svg = Buffer.from(`
-              <svg width="${bounds.width}" height="${bounds.height}" xmlns="http://www.w3.org/2000/svg">
-                <!-- Outer gray border (rounded rectangle) -->
-                <rect x="0" y="0" width="${bounds.width}" height="${bounds.height}" 
-                      rx="${borderRadius}" ry="${borderRadius}" 
-                      fill="none" stroke="rgb(153,153,153)" stroke-width="${outerBorderWidth}" />
-                
-                <!-- Inner colored/gray border (rounded rectangle, inset) -->
-                <rect x="${outerBorderWidth + gap}" y="${outerBorderWidth + gap}" 
-                      width="${bounds.width - 2 * (outerBorderWidth + gap)}" 
-                      height="${bounds.height - 2 * (outerBorderWidth + gap)}" 
-                      rx="${borderRadius - outerBorderWidth - gap}" 
-                      ry="${borderRadius - outerBorderWidth - gap}" 
-                      fill="none" stroke="rgb(${r},${g},${b})" stroke-width="${innerBorderWidth}" />
-              </svg>
-            `)
-            
-            return {
-              input: svg,
-              left: bounds.x,
-              top: bounds.y
-            }
-          }).filter((overlay: { input: Buffer; left: number; top: number } | null): overlay is { input: Buffer; left: number; top: number } => overlay !== null)
-          
-          if (borderOverlays.length > 0) {
-            // Composite the borders onto the final image
-            finalBuffer = await sharp(finalBuffer)
-              .composite(borderOverlays as Array<{ input: Buffer; left: number; top: number }>)
-              .toBuffer()
-            console.log(`Applied ${borderOverlays.length} ${hasColors ? 'colored' : 'gray'} borders`)
-          }
-        } catch (error) {
-          console.error('Error drawing borders:', error)
-          // Continue without borders if drawing fails
-        }
-      }
+      // For simplicity in this dev endpoint, skip logo/border overlays
+      const finalBuffer = pngBuffer
 
       // Send email with attachment
       const networkingResult = await emailService.sendEmailWithAttachment({
