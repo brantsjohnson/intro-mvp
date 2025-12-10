@@ -933,15 +933,40 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
   // Score all candidates using rule-based scoring (for pre-filtering)
   const initialScored = scoreCandidates(viewerProfile, want, candidates)
   
-  // Pre-filter to top 25 candidates for AI evaluation
-  const PRE_FILTER_LIMIT = 25
-  const preFilteredCandidates = preFilterCandidates(initialScored, PRE_FILTER_LIMIT)
+  // Pre-filter to top candidates for AI evaluation (bias toward engineers for mentorship seekers)
+  const isMentorshipIntent = want.kind === "learn_skill"
+  const viewerIsEngineer = isEngineeringRole(viewerProfile)
+  const engineeringCandidatesCount = candidates.filter((c) => isEngineeringRole(c)).length
+  const PRE_FILTER_LIMIT = viewerIsEngineer && isMentorshipIntent ? 50 : 25
+
+  const scoredForPrefilter =
+    viewerIsEngineer && isMentorshipIntent
+      ? initialScored.map((s) => {
+          const engineer = isEngineeringRole(s.candidate)
+          const bonus = engineer ? 0.1 : 0
+          return {
+            ...s,
+            breakdown: {
+              ...s.breakdown,
+              totalScore: (s.breakdown.totalScore || 0) + bonus
+            }
+          }
+        })
+      : initialScored
+
+  const preFilteredCandidates = preFilterCandidates(scoredForPrefilter, PRE_FILTER_LIMIT)
+  const engineeringInPrefilter = preFilteredCandidates.filter((c) => isEngineeringRole(c.candidate)).length
   
   console.log("pre_filtering_complete", {
     eventId,
     userId,
     totalCandidates: candidates.length,
-    preFilteredCount: preFilteredCandidates.length
+    preFilteredCount: preFilteredCandidates.length,
+    preFilterLimit: PRE_FILTER_LIMIT,
+    viewerIsEngineer,
+    isMentorshipIntent,
+    engineeringCandidatesCount,
+    engineeringInPrefilter
   })
 
   // Try AI matching if available and enabled, otherwise use rule-based scoring
@@ -1565,6 +1590,27 @@ function determineSeniorityLevel(
   return "Mid"
 }
 
+// Identify engineering/software roles from title or skill tags
+function isEngineeringRole(profile: {
+  jobTitle?: string | null
+  offerTags?: string[]
+  linkedinSkills?: string[]
+  industryTags?: string[]
+}): boolean {
+  const text = [
+    profile.jobTitle || "",
+    ...(profile.offerTags || []),
+    ...(profile.linkedinSkills || []),
+    ...(profile.industryTags || [])
+  ]
+    .join(" ")
+    .toLowerCase()
+
+  return /\b(software|engineer|engineering|developer|devops|sre|backend|front[- ]?end|frontend|full[- ]?stack|fullstack|mobile|ios|android|qa|testing|platform|systems)\b/.test(
+    text
+  )
+}
+
 function preFilterCandidates(
   scored: ScoredCandidate[],
   limit: number
@@ -1783,6 +1829,7 @@ PRIORITY 5 (MEDIUM): Mentorship
   * Relevant Years of Experience
   * An accessible seniority gap (not too disconnected)
   * Expertise in the domains they wish to mentor in
+- If intent is mentorship/learn_skill, strongly prefer candidates in the SAME FUNCTION as User A (viewer role/title: ${viewerProfile.jobTitle || 'Not specified'}). Only choose adjacent roles (e.g., data science/product) if no same-function candidates exist, and state this explicitly in the explanation.
 
 PRIORITY 6 (HIGH): Explanation Quality
 - The output MUST generate a clear, concise, and persuasive explanation (max 3 sentences).
