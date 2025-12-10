@@ -15,17 +15,17 @@ interface PresenceAvatarProps {
 }
 
 const sizeClasses = {
-  sm: "h-8 w-8",
-  md: "h-10 w-10", 
-  lg: "h-12 w-12",
-  xl: "h-16 w-16"
+  sm: "h-10 w-10",
+  md: "h-12 w-12", 
+  lg: "h-16 w-16",
+  xl: "h-20 w-20"
 }
 
 const presenceDotSizes = {
-  sm: "h-2 w-2",
-  md: "h-3 w-3",
-  lg: "h-3 w-3",
-  xl: "h-4 w-4"
+  sm: "h-1.5 w-1.5",
+  md: "h-2 w-2",
+  lg: "h-2.5 w-2.5",
+  xl: "h-3 w-3"
 }
 
 export function PresenceAvatar({ 
@@ -65,21 +65,27 @@ export function PresenceAvatar({
   }, [validSrc, fallback])
   
   return (
-    <div className={cn("relative", className)}>
-      <Avatar className={sizeClasses[size]}>
-        <AvatarImage src={validSrc} alt={alt} />
-        <AvatarFallback className="bg-muted text-muted-foreground text-sm font-medium">
-          {fallback}
-        </AvatarFallback>
-      </Avatar>
-      {isPresent && (
-        <div 
-          className={cn(
-            "absolute -bottom-0.5 -right-0.5 rounded-full bg-primary border-2 border-background",
-            presenceDotSizes[size]
-          )}
-        />
-      )}
+    <div className={cn("relative inline-block", className)}>
+      <div className={cn("relative inline-block", sizeClasses[size])}>
+        <Avatar className={sizeClasses[size]}>
+          <AvatarImage src={validSrc} alt={alt} />
+          <AvatarFallback className="bg-muted text-muted-foreground text-sm font-medium">
+            {fallback}
+          </AvatarFallback>
+        </Avatar>
+        {isPresent && (
+          <div 
+            className={cn(
+              "absolute rounded-lg bg-green-500 border-2 border-background z-10",
+              presenceDotSizes[size]
+            )}
+            style={{
+              bottom: '-2px',
+              right: '-2px'
+            }}
+          />
+        )}
+      </div>
     </div>
   )
 }

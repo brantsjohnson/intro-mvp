@@ -74,6 +74,7 @@ export default function Home() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading...</p>
+          <p className="text-xs text-muted-foreground mt-2">Do not refresh this page. Could take 30 seconds.</p>
         </div>
       </div>
     )

@@ -4,11 +4,12 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
-  const eventCode = requestUrl.searchParams.get('eventCode')
+  const eventCode = requestUrl.searchParams.get('eventCode') // Legacy support
+  const encryptedCode = code // New encrypted code parameter
   const error = requestUrl.searchParams.get('error')
   const origin = requestUrl.origin
 
-  console.log('Auth callback received:', { code: !!code, eventCode, error })
+  console.log('Auth callback received:', { code: !!code, eventCode, encryptedCode: !!encryptedCode, error })
 
   if (error) {
     console.error('OAuth error in callback:', error)
@@ -88,7 +89,12 @@ export async function GET(request: NextRequest) {
   }
 
   // URL to redirect to after sign in process completes
-  if (eventCode) {
+  if (encryptedCode) {
+    // Encrypted code - redirect to onboarding (profile check happens there)
+    console.log('Redirecting to onboarding with encrypted code')
+    return NextResponse.redirect(`${origin}/onboarding?code=${encryptedCode}`)
+  } else if (eventCode) {
+    // Legacy event code - redirect to event join page
     console.log('Redirecting to event join with code:', eventCode)
     return NextResponse.redirect(`${origin}/event/join?code=${eventCode}`)
   } else {

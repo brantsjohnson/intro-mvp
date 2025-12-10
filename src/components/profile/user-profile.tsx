@@ -8,12 +8,12 @@ import { PresenceAvatar } from "@/components/ui/presence-avatar"
 import { ClickableProfilePicture } from "@/components/ui/clickable-profile-picture"
 import { QRCard } from "@/components/ui/qr-card"
 import { QRScanner } from "@/components/ui/qr-scanner"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createClientComponentClient } from "@/lib/supabase"
+import { haptics } from "@/lib/haptics"
 import { Profile } from "@/lib/types"
 import { getAvatarUrl } from "@/lib/utils"
-import { toast } from "sonner"
-import { ArrowLeft, MessageSquare } from "lucide-react"
+import { ArrowLeft, MessageSquare, XIcon } from "lucide-react"
 
 interface UserProfileProps {
   userId: string
@@ -213,7 +213,7 @@ const parseMatchBreakdown = (input: unknown): MatchBreakdown | null => {
 
 const renderTagList = (items: string[] | null | undefined, variant: 'default' | 'plum' = 'default') => {
   if (!items || items.length === 0) return null
-  const baseClasses = "rounded-full px-3 py-1 text-sm"
+  const baseClasses = "rounded-xl px-3 py-1 text-sm"
   const variantClasses = variant === 'plum' 
     ? "bg-accent text-accent-foreground"
     : "bg-muted/60 text-muted-foreground"
@@ -330,6 +330,7 @@ export function UserProfile({ userId }: UserProfileProps) {
   const searchParams = useSearchParams()
   const supabase = createClientComponentClient() as any
   const hasGeneratedRef = useRef(false)
+  const lastConnectionCheckRef = useRef<string | null>(null)
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -366,7 +367,6 @@ export function UserProfile({ userId }: UserProfileProps) {
           .single()
 
         if (profileError) {
-          toast.error("Profile not found")
           router.push("/home")
           return
         }
@@ -548,8 +548,7 @@ export function UserProfile({ userId }: UserProfileProps) {
                 setMatchExplanation(systemMatch.match_explanation_text)
               }
               
-              // Only set hasConnection to true if they've actually met
-              // (not just a system match)
+              // Check if they've actually met (not just a system match)
               const hasMet = existingConnections?.some(c => 
                 c.user_add_method === 'met' ||
                 c.user_add_method === 'manual_add' ||
@@ -557,7 +556,20 @@ export function UserProfile({ userId }: UserProfileProps) {
                 c.user_add_method === 'manual_directory'
               )
               
-              setHasConnection(Boolean(hasMet))
+              // Check if they've messaged each other
+              const { data: conversationsData } = await supabase
+                .from("conversations")
+                .select("participant_user_ids")
+                .eq("event_id", eventId)
+                .contains("participant_user_ids", [user.id])
+              
+              const hasMessaged = conversationsData?.some((conv: any) => {
+                const participantIds = conv.participant_user_ids || []
+                return participantIds.includes(user.id) && participantIds.includes(userId)
+              }) || false
+              
+              // Set hasConnection to true if they've met OR messaged
+              setHasConnection(Boolean(hasMet) || hasMessaged)
             } catch (_) {
               // ignore errors; default is no connection
             }
@@ -565,7 +577,6 @@ export function UserProfile({ userId }: UserProfileProps) {
         }
       } catch (error) {
         console.error("Error loading profile:", error)
-        toast.error("Failed to load profile")
       } finally {
         setIsLoading(false)
       }
@@ -574,11 +585,75 @@ export function UserProfile({ userId }: UserProfileProps) {
     loadProfile()
   }, [userId, router, supabase, searchParams])
 
+  // Listen for new QR code connections and automatically open profiles
+  useEffect(() => {
+    const eventId = searchParams.get('eventId')
+    if (!eventId) return
+
+    let connectionChannel: any = null
+
+    const setupRealtimeSubscription = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Subscribe to new connections for this user
+      connectionChannel = supabase
+        .channel(`qr-connections-profile-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'connections',
+            filter: `event_id=eq.${eventId}`,
+          },
+          async (payload: any) => {
+            const newConnection = payload.new
+            const [aId, bId] = newConnection.a_id < newConnection.b_id 
+              ? [newConnection.a_id, newConnection.b_id]
+              : [newConnection.b_id, newConnection.a_id]
+            
+            // Check if this connection involves the current user
+            const isInvolved = aId === user.id || bId === user.id
+            const isQRConnection = newConnection.user_add_method === 'qr'
+            
+            if (isInvolved && isQRConnection && newConnection.connection_kind === 'user_added') {
+              // Determine the other user's ID
+              const otherUserId = aId === user.id ? bId : aId
+              
+              // Prevent duplicate navigation
+              const connectionKey = `${newConnection.connection_id}-${otherUserId}`
+              if (lastConnectionCheckRef.current === connectionKey) {
+                return
+              }
+              lastConnectionCheckRef.current = connectionKey
+              
+              // Only navigate if we're not already viewing this user's profile
+              if (otherUserId !== userId) {
+                // Small delay to ensure connection is fully processed
+                setTimeout(() => {
+                  router.push(`/profile/${otherUserId}?source=qr&eventId=${eventId}`)
+                }, 500)
+              }
+            }
+          }
+        )
+        .subscribe()
+    }
+
+    setupRealtimeSubscription()
+
+    return () => {
+      if (connectionChannel) {
+        connectionChannel.unsubscribe()
+      }
+    }
+  }, [userId, searchParams, router, supabase])
+
   const handleMessage = async () => {
     // Get current event ID from URL parameters
     const eventId = searchParams.get('eventId')
     if (!eventId) {
-      toast.error("Event ID is required to send messages")
       return
     }
     
@@ -673,12 +748,12 @@ export function UserProfile({ userId }: UserProfileProps) {
   }
 
   const handleQRScan = () => {
+    haptics.scan()
     setIsQRScannerOpen(true)
   }
 
   const handleConnectionCreated = () => {
     // Refresh the profile or show success message
-    toast.success("Connection created successfully!")
     // Refresh connection status
     const eventId = searchParams.get('eventId')
     if (eventId) {
@@ -869,6 +944,16 @@ export function UserProfile({ userId }: UserProfileProps) {
                     )}
                   </div>
                 )}
+                {/* Message Button */}
+                {!isOwnProfile && (
+                  <GradientButton
+                    onClick={handleMessage}
+                    variant="filled"
+                    className="w-full bg-primary text-primary-foreground mt-4"
+                  >
+                    Message {profile.first_name}
+                  </GradientButton>
+                )}
               </CardContent>
             </Card>
           )}
@@ -932,21 +1017,17 @@ export function UserProfile({ userId }: UserProfileProps) {
 
       {/* Suggested connection feedback modal */}
       <Dialog open={showFeedbackModal} onOpenChange={setShowFeedbackModal}>
-        <DialogContent>
+        <DialogContent showCloseButton={false}>
+          <DialogClose
+            className="absolute -top-3 -right-3 z-50 rounded-2xl bg-background p-2 opacity-90 transition-all hover:opacity-100 hover:scale-110 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden border border-border shadow-md"
+          >
+            <XIcon className="h-4 w-4 text-foreground" />
+            <span className="sr-only">Close</span>
+          </DialogClose>
           <DialogHeader>
             <DialogTitle className="text-center font-title">HAVE YOU TWO MET?</DialogTitle>
           </DialogHeader>
           <div className="flex justify-center space-x-2 mt-2">
-            <GradientButton
-              variant="outline"
-              onClick={async () => {
-                await recordNoClick()
-                router.push('/home')
-              }}
-              size="sm"
-            >
-              NO
-            </GradientButton>
             <GradientButton
               onClick={async () => {
                 await createConnectionAndTally()
@@ -955,6 +1036,17 @@ export function UserProfile({ userId }: UserProfileProps) {
               size="sm"
             >
               YES
+            </GradientButton>
+            <GradientButton
+              variant="outline"
+              onClick={async () => {
+                await recordNoClick()
+                router.push('/home')
+              }}
+              size="sm"
+              className="!border !border-border !shadow-none hover:!shadow-[0px_2px_3px_rgba(0,0,0,0.15)]"
+            >
+              NO
             </GradientButton>
           </div>
         </DialogContent>

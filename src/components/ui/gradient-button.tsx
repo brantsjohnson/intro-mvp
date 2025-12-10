@@ -20,7 +20,7 @@ const gradientButtonVariants = cva(
         default: "h-12 px-6 py-3",
         sm: "h-10 rounded-concave px-4",
         lg: "h-14 rounded-concave px-8 text-base",
-        icon: "h-10 w-10 rounded-concave",
+        icon: "h-10 w-10 rounded-2xl",
       },
     },
     defaultVariants: {

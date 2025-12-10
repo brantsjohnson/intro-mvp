@@ -62,24 +62,24 @@ export function MatchCard({
           <div className="flex-1 min-w-0">
             {/* Name and Arrow Row */}
             <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <h3 className="font-medium text-foreground truncate">
+              <div className="flex flex-col flex-1 min-w-0 sm:flex-row sm:items-center sm:gap-2">
+                <h3 className="font-bold text-sm md:text-base text-foreground truncate">
                   {name}
                 </h3>
                 {jobTitle && (
-                  <span className="text-sm text-muted-foreground">·</span>
+                  <span className="text-xs md:text-sm text-muted-foreground hidden sm:inline">·</span>
                 )}
-                <span className="text-sm text-muted-foreground truncate">
+                <span className="text-xs md:text-sm text-muted-foreground truncate">
                   {jobTitle}
                   {company && ` at ${company}`}
                 </span>
               </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+              <ChevronRight className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground flex-shrink-0" />
             </div>
             
             {/* Simple summary format */}
             <div className="mb-2 pr-7">
-              <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
+              <p className="text-xs md:text-sm text-muted-foreground leading-relaxed">
                 {summary}
               </p>
             </div>

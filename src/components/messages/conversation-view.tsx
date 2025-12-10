@@ -11,7 +11,6 @@ import { MessageService, ConversationMessage, ThreadWithDetails } from "@/lib/me
 import { createClientComponentClient } from "@/lib/supabase"
 import { TablesInsert } from "@/lib/database.types"
 import { getAvatarUrl } from "@/lib/utils"
-import { toast } from "sonner"
 import { ArrowLeft, Send, User } from "lucide-react"
 import { differenceInMinutes, format } from "date-fns"
 
@@ -139,7 +138,6 @@ export function ConversationView() {
           .maybeSingle()
 
         if (!userInEvent) {
-          toast.error("This user is not in the current event")
           router.push(`/messages?eventId=${eventId}`)
           return
         }
@@ -189,7 +187,6 @@ export function ConversationView() {
       setHasCheckedForThread(true)
     } catch (error) {
       console.error("Error loading conversation:", error)
-      toast.error("Failed to load conversation")
       setHasCheckedForThread(true)
     } finally {
       setIsLoading(false)
@@ -215,7 +212,6 @@ export function ConversationView() {
 
   useEffect(() => {
     if (!eventId) {
-      toast.error("Event ID is required")
       router.push("/home")
       return
     }
@@ -337,13 +333,11 @@ export function ConversationView() {
     
     // Check if messages are deleted
     if (messagesDeleted) {
-      toast.error("This event's messages are no longer available.")
       return
     }
     
     // Check if event has ended
     if (eventEnded) {
-      toast.error("This event has ended. Messages are no longer available.")
       return
     }
     
@@ -455,7 +449,6 @@ export function ConversationView() {
       }
     } catch (error) {
       console.error("Error sending message:", error)
-      toast.error("Failed to send message")
       setNewMessage(messageText) // Restore message on error
       // Remove optimistic message on error
       setMessages((prev) => prev.filter((msg) => msg.id !== optimisticMessage.id))
@@ -512,7 +505,6 @@ export function ConversationView() {
 
       if (error && error.code !== "PGRST116") {
         console.error("Error checking connection:", error)
-        toast.error("Unable to check connection status")
         return
       }
 
@@ -522,7 +514,6 @@ export function ConversationView() {
       }
 
       if (data && data.connection_kind === "user_request_pending") {
-        toast.info("Connection request already pending")
         return
       }
 
@@ -556,15 +547,12 @@ export function ConversationView() {
       if (error) {
         const duplicate = error.message?.toLowerCase().includes("duplicate")
         if (duplicate) {
-          toast.info("You already have a connection or request with this person")
         } else {
           console.error("Failed to send connection request:", error)
-          toast.error("Failed to send connection request")
         }
         return
       }
 
-      toast.success("Connection request sent")
       setIsConnectionDialogOpen(false)
     } finally {
       setIsCreatingConnection(false)
@@ -597,7 +585,7 @@ export function ConversationView() {
                 <div key={i} className={`flex ${i % 2 === 0 ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[70%] ${i % 2 === 0 ? "order-2" : "order-1"}`}>
                     <div className={`h-12 rounded-2xl animate-pulse px-4 py-2 ${
-                      i % 2 === 0 ? "bg-orange-400" : "bg-white border border-border"
+                      i % 2 === 0 ? "bg-primary" : "bg-white border border-border"
                     }`}></div>
                     <div className="h-3 w-16 bg-muted rounded mt-1 animate-pulse"></div>
                   </div>
@@ -649,7 +637,7 @@ export function ConversationView() {
                 <div key={i} className={`flex ${i % 2 === 0 ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[70%] ${i % 2 === 0 ? "order-2" : "order-1"}`}>
                     <div className={`h-12 rounded-2xl animate-pulse px-4 py-2 ${
-                      i % 2 === 0 ? "bg-orange-400" : "bg-white border border-border"
+                      i % 2 === 0 ? "bg-primary" : "bg-white border border-border"
                     }`}></div>
                     <div className="h-3 w-16 bg-muted rounded mt-1 animate-pulse"></div>
                   </div>
@@ -704,7 +692,7 @@ export function ConversationView() {
       <header className="border-b border-border bg-background sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-            <GradientButton onClick={() => router.back()} size="icon">
+            <GradientButton onClick={() => router.back()} size="icon" className="!rounded-2xl">
               <ArrowLeft className="h-4 w-4" />
             </GradientButton>
 
@@ -777,14 +765,6 @@ export function ConversationView() {
                       >
                         <div
                           className={`w-fit rounded-3xl px-4 py-2 shadow-sm transition-all hover:scale-[0.99] hover:shadow-[0px_3px_4px_rgba(0,0,0,0.2)] active:scale-95 ${bubbleColors}`}
-                          style={{
-                            borderTopLeftRadius: message.is_from_current_user || !isGroupedWithPrevious ? "1.5rem" : "0.75rem",
-                            borderTopRightRadius: message.is_from_current_user && isGroupedWithPrevious ? "0.75rem" : "1.5rem",
-                            borderBottomLeftRadius: message.is_from_current_user ? "1.5rem" : isGroupedWithPrevious ? "0.75rem" : "1.5rem",
-                            borderBottomRightRadius: message.is_from_current_user
-                              ? isGroupedWithPrevious ? "0.75rem" : "1.5rem"
-                              : "1.5rem"
-                          }}
                         >
                           <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
                             {message.body}
@@ -820,7 +800,7 @@ export function ConversationView() {
           <div className="sticky bottom-0 left-0 right-0 bg-gradient-to-t from-background/95 via-background/80 to-transparent pt-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
             <div className="space-y-4">
               {messages.length === 0 && !messagesDeleted && !eventEnded && (
-                <div className="mx-auto w-fit rounded-full bg-card/60 px-5 py-2 text-xs text-muted-foreground border border-border/60 shadow-sm">
+                <div className="mx-auto w-fit rounded-2xl bg-card/60 px-5 py-2 text-xs text-muted-foreground border border-border/60 shadow-sm">
                   <p>
                     Messages stay available for one day after the event ends. Coordinate and then meet in person.
                   </p>

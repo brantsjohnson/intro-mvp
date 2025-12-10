@@ -1,4 +1,5 @@
 import QRCode from 'qrcode'
+import { encryptEventCode } from './event-code-encryption'
 
 export interface EventQRCodeData {
   eventCode: string
@@ -7,8 +8,9 @@ export interface EventQRCodeData {
 
 export class EventQRCodeService {
   /**
-   * Generate a URL-based QR code for an event
-   * This creates a QR code that opens the app directly with the event code
+   * Generate a URL-based QR code for an event using encrypted code
+   * This creates a QR code that opens the app directly with the encrypted event code
+   * Users will skip the join page and be auto-added to the event
    */
   async generateEventQRCode(eventCode: string, baseUrl?: string): Promise<string | null> {
     try {
@@ -23,7 +25,10 @@ export class EventQRCodeService {
           url = process.env.NEXT_PUBLIC_APP_URL || 'https://www.introevent.site'
         }
       }
-      const eventUrl = `${url}/event/join?code=${eventCode.toUpperCase()}`
+      
+      // Encrypt the event code for the URL
+      const encryptedCode = encryptEventCode(eventCode.toUpperCase())
+      const eventUrl = `${url}/join/${encryptedCode}`
       
       // Generate QR code with the URL
       const qrCodeDataURL = await QRCode.toDataURL(eventUrl, {
@@ -40,6 +45,16 @@ export class EventQRCodeService {
       console.error('Error generating event QR code:', error)
       return null
     }
+  }
+
+  /**
+   * Generate an encrypted join URL for an event
+   * Returns the full URL that can be shared
+   */
+  generateEncryptedJoinUrl(eventCode: string, baseUrl?: string): string {
+    const encryptedCode = encryptEventCode(eventCode.toUpperCase())
+    const url = baseUrl || (typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_APP_URL || 'https://www.introevent.site')
+    return `${url}/join/${encryptedCode}`
   }
 
   /**

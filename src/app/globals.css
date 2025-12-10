@@ -430,4 +430,91 @@
   .animate-fade-out {
     animation: fadeOut 0.3s ease-out;
   }
+
+  /* Mobile responsive typography */
+  @media (max-width: 640px) {
+    /* Base font sizes for mobile */
+    html {
+      font-size: 14px;
+    }
+
+    /* Adjust headings */
+    h1 {
+      font-size: 1.5rem;
+      line-height: 1.3;
+    }
+
+    h2 {
+      font-size: 1.25rem;
+      line-height: 1.4;
+    }
+
+    h3 {
+      font-size: 1.125rem;
+      line-height: 1.4;
+    }
+
+    /* Text truncation for long names */
+    .mobile-truncate {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Compact card text */
+    .card-text-mobile {
+      font-size: 0.875rem;
+      line-height: 1.4;
+    }
+
+    /* Ensure inputs don't zoom on focus */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
+
+  /* Prevent layout shift when keyboard appears */
+  @supports (height: 100dvh) {
+    .min-h-screen {
+      min-height: 100dvh;
+    }
+  }
+
+  /* Safe area insets for mobile notches */
+  .safe-area-top {
+    padding-top: max(env(safe-area-inset-top), 0rem);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.75rem);
+  }
+}
+
+/* Toast notifications styling */
+.toaster {
+  pointer-events: none; /* Don't block interactions with content */
+}
+
+.toaster [data-sonner-toast] {
+  pointer-events: auto; /* But allow interaction with the toast itself */
+  background: var(--background) !important; /* Beige background */
+  color: var(--foreground) !important;
+  border: 1px solid var(--border) !important;
+}
+
+/* Ensure toasts don't cover content on scroll */
+[data-sonner-toaster] {
+  position: fixed;
+  top: 0;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+[data-sonner-toast] {
+  pointer-events: auto;
 }

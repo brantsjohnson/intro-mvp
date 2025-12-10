@@ -390,7 +390,7 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
           >
             {/* Container with circular mask */}
             <div
-              className="relative overflow-hidden rounded-full border-2 border-primary"
+              className="relative overflow-hidden rounded-2xl border-2 border-primary"
               style={{ width: containerSize, height: containerSize }}
             >
               {/* Image */}
@@ -439,7 +439,7 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
             
             {/* Crop circle indicator overlay */}
             <div
-              className="absolute pointer-events-none rounded-full border-2 border-white shadow-lg"
+              className="absolute pointer-events-none rounded-2xl border-2 border-white shadow-lg"
               style={{ 
                 width: cropSize, 
                 height: cropSize, 

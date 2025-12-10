@@ -8,8 +8,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { createClientComponentClient } from "@/lib/supabase"
+import { haptics } from "@/lib/haptics"
 import { User } from "@/lib/types"
-import { toast } from "sonner"
 import { ArrowRight, ChevronLeft, Loader2, Camera, X, Upload } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ImageCropModal } from "@/components/ui/image-crop-modal"
@@ -44,11 +44,20 @@ const experienceOptions = [
   "21+ years"
 ]
 
+// Helper function to convert text to Title Case (only for onboarding)
+function toTitleCase(text: string): string {
+  return text.replace(/\w\S*/g, (txt) => {
+    return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+  })
+}
+
 export function NewOnboardingFlow() {
   const searchParams = useSearchParams()
-  const eventCode = searchParams.get('code')
+  const eventCode = searchParams.get('code') // Can be encrypted code or legacy eventCode
+  const encryptedCode = eventCode // For encrypted codes
   const eventId = searchParams.get('eventId')
   const fromEventJoin = searchParams.get('from') === 'event-join'
+  const fromAutoJoin = searchParams.get('from') === 'auto-join'
   
   const [currentStep, setCurrentStep] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
@@ -98,6 +107,7 @@ export function NewOnboardingFlow() {
   const [adaptiveQnAComplete, setAdaptiveQnAComplete] = useState(false)
   
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+  const handleNextRef = useRef<(() => void) | null>(null)
   
   const router = useRouter()
   const supabase = createClientComponentClient()
@@ -190,9 +200,13 @@ export function NewOnboardingFlow() {
           if (isComplete) {
             // Profile is complete
             // If eventId is present, show event-specific steps
+            // If encrypted code is present but no eventId, redirect to home with code for auto-join
             // Otherwise, redirect to home (user can join events from there)
             if (eventId) {
               setCurrentStep(0) // Start with event-specific questions
+            } else if (encryptedCode && !eventId) {
+              // Has encrypted code but no eventId yet - redirect to home to auto-join
+              router.push(`/home?code=${encryptedCode}`)
             } else {
               // No event, redirect to home where they can join an event
               router.push("/home")
@@ -269,7 +283,6 @@ export function NewOnboardingFlow() {
 
   const handleJoinEvent = async (eventCode: string) => {
     if (!user) {
-      toast.error("You must be logged in to join an event")
       return
     }
 
@@ -282,7 +295,6 @@ export function NewOnboardingFlow() {
         .single()
 
       if (eventError || !eventData) {
-        toast.error("Event not found. Please check the code and try again.")
         return
       }
 
@@ -296,18 +308,18 @@ export function NewOnboardingFlow() {
 
       if (joinError) {
         if (joinError.message.includes("duplicate")) {
-          toast.error("You're already a member of this event")
         } else {
-          toast.error("Failed to join event. Please try again.")
         }
         return
       }
+
+      // Success haptic feedback
+      haptics.success()
 
       // Update URL and move to next step
       router.push(`/onboarding?from=event-join&eventId=${eventData.event_id}`)
     } catch (error) {
       console.error("Error joining event:", error)
-      toast.error("An error occurred while joining the event")
     } finally {
       setIsLoading(false)
     }
@@ -350,12 +362,10 @@ export function NewOnboardingFlow() {
     if (!file) return
 
     if (!file.type.startsWith('image/')) {
-      toast.error("Please select an image file")
       return
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image size must be less than 5MB")
       return
     }
 
@@ -366,7 +376,6 @@ export function NewOnboardingFlow() {
       setIsCropModalOpen(true)
     }
     reader.onerror = () => {
-      toast.error("Failed to read image file")
     }
     reader.readAsDataURL(file)
   }
@@ -387,7 +396,6 @@ export function NewOnboardingFlow() {
       })
       .catch(error => {
         console.error('Error processing camera photo:', error)
-        toast.error("Failed to process camera photo")
       })
   }
 
@@ -404,7 +412,6 @@ export function NewOnboardingFlow() {
       setIsCropModalOpen(false)
     } catch (error) {
       console.error('Error processing cropped image:', error)
-      toast.error("Failed to process image")
     }
   }
 
@@ -661,7 +668,6 @@ export function NewOnboardingFlow() {
 
       if (error) {
         console.error('Error uploading photo:', error)
-        toast.error("Failed to upload photo. Using existing photo.")
         return photoUrl
       }
 
@@ -673,7 +679,6 @@ export function NewOnboardingFlow() {
       return urlData.publicUrl
     } catch (error) {
       console.error('Error uploading photo to storage:', error)
-      toast.error("Failed to upload photo")
       return photoUrl
     }
   }
@@ -720,7 +725,6 @@ export function NewOnboardingFlow() {
     }
 
     if (!validateProfessionalForm()) {
-      toast.error("Please complete all required fields")
       return
     }
 
@@ -788,7 +792,6 @@ export function NewOnboardingFlow() {
 
       // Validation: must have either company_name OR company URL
       if (!companyNameToSave && !company) {
-        toast.error("Please enter your company name or company website URL")
         return
       }
 
@@ -823,24 +826,26 @@ export function NewOnboardingFlow() {
           details: profileError.details,
           hint: profileError.hint
         })
-        toast.error(`Failed to save profile: ${profileError.message || 'Please try again.'}`)
         return
       }
       
       console.log("Profile saved successfully:", savedData)
 
-      toast.success("Profile completed!")
       setProfileCompleted(true)
       
-      // Always redirect to home page after profile completion
-      // User can join events from the home page
+      // Redirect based on whether we have an encrypted code
+      // If encrypted code exists, redirect to home with it for auto-join
       setIsRedirecting(true)
       setTimeout(() => {
-        router.push("/home")
+        if (encryptedCode && !eventId) {
+          // Has encrypted code but no eventId yet - redirect to home to auto-join
+          router.push(`/home?code=${encryptedCode}`)
+        } else {
+          router.push("/home")
+        }
       }, 1000)
     } catch (error) {
       console.error("Error completing profile:", error)
-      toast.error("An error occurred")
     } finally {
       setIsLoading(false)
     }
@@ -853,12 +858,10 @@ export function NewOnboardingFlow() {
     }
 
     if (!whyAttending.trim()) {
-      toast.error("Please tell us why you're attending this event")
       return
     }
 
     if (connectionTypesSelected.length === 0) {
-      toast.error("Please select at least one connection type")
       return
     }
 
@@ -904,7 +907,6 @@ export function NewOnboardingFlow() {
           hint: error.hint,
           code: error.code
         })
-        toast.error(`Failed to save your responses: ${error.message || 'Please try again.'}`)
         return
       }
 
@@ -922,7 +924,6 @@ export function NewOnboardingFlow() {
       })
       
       // Skip adaptive Q&A - redirect directly to home
-      toast.success("Welcome to the event! Redirecting...")
       setIsRedirecting(true)
       setTimeout(() => {
         router.push('/home')
@@ -934,7 +935,6 @@ export function NewOnboardingFlow() {
         message: error?.message,
         stack: error?.stack
       })
-      toast.error(`An error occurred: ${error?.message || 'Unknown error'}`)
     } finally {
       setIsLoading(false)
     }
@@ -971,7 +971,6 @@ export function NewOnboardingFlow() {
           return false
         }
         
-        toast.error('Failed to load next question')
         return false
       }
 
@@ -997,7 +996,6 @@ export function NewOnboardingFlow() {
         return false
       }
       
-      toast.error('An error occurred loading the question')
       return false
     } finally {
       setIsLoadingQuestion(false)
@@ -1067,9 +1065,7 @@ export function NewOnboardingFlow() {
 
       if (matchCount > 0) {
         // Show confetti and success message
-        toast.success(`🎉 Great! We found ${matchCount} ${matchCount === 1 ? 'match' : 'matches'} for you!`)
       } else {
-        toast.success('Profile complete!')
       }
 
       // Redirect to home
@@ -1081,7 +1077,6 @@ export function NewOnboardingFlow() {
     } catch (error: any) {
       console.error('Error completing adaptive Q&A:', error)
       // Even if there's an error, redirect to home since onboarding data is saved
-      toast.success('Profile saved! Redirecting...')
       setIsRedirecting(true)
       setTimeout(() => {
         router.push('/home')
@@ -1114,7 +1109,7 @@ export function NewOnboardingFlow() {
               {photoUrl && (
                 <button
                   onClick={handleRemovePhoto}
-                  className="absolute -top-2 -right-2 rounded-full bg-destructive text-white p-1.5 hover:bg-destructive/90 transition-colors"
+                  className="absolute -top-2 -right-2 rounded-xl bg-destructive text-white p-1.5 hover:bg-destructive/90 transition-colors"
                   type="button"
                 >
                   <X className="w-4 h-4" />
@@ -1175,7 +1170,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="e.g. John"
-                className={`mt-1 rounded-concave bg-input ${validationErrors.firstName ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-2xl bg-input ${validationErrors.firstName ? 'border-destructive' : ''}`}
                 required
               />
               {validationErrors.firstName && (
@@ -1200,7 +1195,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="e.g. Doe"
-                className={`mt-1 rounded-concave bg-input ${validationErrors.lastName ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-2xl bg-input ${validationErrors.lastName ? 'border-destructive' : ''}`}
                 required
               />
               {validationErrors.lastName && (
@@ -1237,7 +1232,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="e.g. Software Engineer"
-                className={`mt-1 rounded-concave bg-input ${validationErrors.jobTitle ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-2xl bg-input ${validationErrors.jobTitle ? 'border-destructive' : ''}`}
                 required
               />
               {validationErrors.jobTitle && (
@@ -1312,7 +1307,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="https://company.com"
-                className={`mt-1 rounded-concave bg-input ${companyUrlError ? 'border-destructive' : ''}`}
+                className={`mt-1 rounded-2xl bg-input ${companyUrlError ? 'border-destructive' : ''}`}
               />
               {companyUrlError && (
                 <p className="text-xs text-destructive mt-1">{companyUrlError}</p>
@@ -1337,7 +1332,7 @@ export function NewOnboardingFlow() {
                       }
                     }}
                     placeholder="Company name"
-                    className={`mt-1 rounded-concave bg-input ${validationErrors.company ? 'border-destructive' : ''}`}
+                    className={`mt-1 rounded-2xl bg-input ${validationErrors.company ? 'border-destructive' : ''}`}
                   />
                 </div>
               )}
@@ -1362,7 +1357,7 @@ export function NewOnboardingFlow() {
                         key={expertise}
                         type="button"
                         onClick={() => addSuggestedExpertise(expertise)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-body transition-colors ${
+                        className={`px-3 py-1.5 rounded-xl text-xs font-body transition-colors ${
                           areasOfExpertise.includes(expertise)
                             ? 'bg-primary text-primary-foreground border border-primary'
                             : 'bg-[#EDEBE6] text-foreground hover:bg-[#EDEBE6]/80 border border-border'
@@ -1381,7 +1376,7 @@ export function NewOnboardingFlow() {
                   {customExpertise.map((expertise) => (
                     <div
                       key={expertise}
-                      className="px-3 py-1.5 rounded-full text-xs font-body bg-primary text-white flex items-center gap-2"
+                      className="px-3 py-1.5 rounded-xl text-xs font-body bg-primary text-white flex items-center gap-2"
                     >
                       {expertise}
                       <button
@@ -1405,7 +1400,7 @@ export function NewOnboardingFlow() {
                   onChange={(e) => setExpertiseInput(e.target.value)}
                   onKeyDown={handleExpertiseKeyDown}
                   placeholder="Type and press Enter to add expertise"
-                  className={`mt-1 rounded-concave pr-10 bg-input ${validationErrors.areasOfExpertise ? 'border-destructive' : ''}`}
+                  className={`mt-1 rounded-2xl pr-10 bg-input ${validationErrors.areasOfExpertise ? 'border-destructive' : ''}`}
                 />
                 {expertiseInput.trim() && (
                   <button
@@ -1435,27 +1430,45 @@ export function NewOnboardingFlow() {
     })
     .filter((item): item is { typeId: string; question: string } => Boolean(item))
 
-  const followUpSteps: OnboardingStep[] = followUpQuestions.map(({ typeId, question }) => ({
-    id: `follow-up-${typeId}`,
-    title: question,
-    description: "",
-    component: (
-      <div className="space-y-4">
-        <Textarea
-          value={followUpResponses[typeId] || ""}
-          onChange={(e) =>
-            setFollowUpResponses(prev => ({
-              ...prev,
-              [typeId]: e.target.value
-            }))
-          }
-          placeholder="Type here..."
-          className="rounded-concave min-h-[120px]"
-          rows={5}
-        />
-      </div>
-    )
-  }))
+  const followUpSteps: OnboardingStep[] = followUpQuestions.map(({ typeId, question }) => {
+    const isHobbiesQuestion = typeId === "general"
+    return {
+      id: `follow-up-${typeId}`,
+      title: question,
+      description: "",
+      component: (
+        <div className="space-y-4">
+          <Textarea
+            value={followUpResponses[typeId] || ""}
+            onChange={(e) => {
+              setFollowUpResponses(prev => ({
+                ...prev,
+                [typeId]: e.target.value
+              }))
+              // Auto-expand textarea
+              e.target.style.height = 'auto'
+              e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
+            }}
+            onKeyDown={(e) => {
+              // If Enter is pressed without Command/Ctrl+Shift, prevent default newline and continue
+              if (e.key === 'Enter' && !(e.metaKey || e.ctrlKey) && !e.shiftKey) {
+                e.preventDefault()
+                // Only continue if there's content
+                if (followUpResponses[typeId]?.trim() && handleNextRef.current) {
+                  handleNextRef.current()
+                }
+              }
+              // Command+Shift+Enter or Ctrl+Shift+Enter allows new line (default behavior)
+            }}
+            placeholder="Type here..."
+            className="rounded-2xl resize-none overflow-hidden"
+            rows={2}
+            style={{ minHeight: '60px', maxHeight: '200px' }}
+          />
+        </div>
+      )
+    }
+  })
 
   const eventSteps: OnboardingStep[] = [
     {
@@ -1466,10 +1479,16 @@ export function NewOnboardingFlow() {
         <div className="space-y-4">
           <Textarea
             value={whyAttending}
-            onChange={(e) => setWhyAttending(e.target.value)}
+            onChange={(e) => {
+              setWhyAttending(e.target.value)
+              // Auto-expand textarea
+              e.target.style.height = 'auto'
+              e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
+            }}
             placeholder="Help us understand your goals for this event"
-            className="min-h-[160px]"
-            rows={6}
+            className="resize-none overflow-hidden"
+            rows={2}
+            style={{ minHeight: '60px', maxHeight: '200px' }}
           />
         </div>
       )
@@ -1487,6 +1506,7 @@ export function NewOnboardingFlow() {
                 checked={connectionTypesSelected.includes(type.id)}
                 onCheckedChange={(checked) => handleConnectionTypeChange(type.id, checked as boolean)}
                 className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                style={{ borderColor: '#656361' }}
               />
               <label
                 htmlFor={`connection-${type.id}`}
@@ -1508,10 +1528,16 @@ export function NewOnboardingFlow() {
         <div className="space-y-4">
           <Textarea
             value={businessNeed}
-            onChange={(e) => setBusinessNeed(e.target.value)}
+            onChange={(e) => {
+              setBusinessNeed(e.target.value)
+              // Auto-expand textarea
+              e.target.style.height = 'auto'
+              e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
+            }}
             placeholder="Type your answer here..."
-            className="min-h-[160px]"
-            rows={6}
+            className="resize-none overflow-hidden"
+            rows={2}
+            style={{ minHeight: '60px', maxHeight: '200px' }}
           />
         </div>
       )
@@ -1578,25 +1604,24 @@ export function NewOnboardingFlow() {
     
     const stepId = currentStepData.id
     if (stepId === "profile" && !validateForm()) {
-      toast.error("Please complete the required fields")
       return
     } else if (stepId === "professional" && !validateProfessionalForm()) {
-      toast.error("Please complete all required fields")
       return
     } else if (stepId === "connection-types") {
       if (connectionTypesSelected.length === 0) {
-        toast.error("Please select at least one connection type")
         return
       }
     } else if (stepId.startsWith("follow-up-")) {
       const typeId = stepId.replace("follow-up-", "")
       if (!followUpResponses[typeId]?.trim()) {
-        toast.error("Please share a bit more so we can match you with the right people")
         return
       }
     }
     setCurrentStep(currentStep + 1)
   }
+
+  // Update ref on every render so it always has the latest handleNext
+  handleNextRef.current = handleNext
 
   // Handle back step
   const handleBack = () => {
@@ -1611,6 +1636,7 @@ export function NewOnboardingFlow() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground font-body">Loading...</p>
+          <p className="text-xs text-muted-foreground font-body mt-2">Do not refresh this page. Could take 30 seconds.</p>
         </div>
       </div>
     )
@@ -1622,6 +1648,7 @@ export function NewOnboardingFlow() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground font-body">Loading...</p>
+          <p className="text-xs text-muted-foreground font-body mt-2">Do not refresh this page. Could take 30 seconds.</p>
         </div>
       </div>
     )
@@ -1634,8 +1661,8 @@ export function NewOnboardingFlow() {
         <div className="fixed inset-0 bg-background z-50 flex items-center justify-center">
           <div className="bg-[#EDEBE6] border border-border rounded-lg p-8 text-center shadow-elevation">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <h3 className="text-lg font-title text-foreground mb-2">
-              {isRedirecting ? "Redirecting to your dashboard..." : "Saving your information..."}
+            <h3 className="text-lg font-title text-foreground mb-2" style={{ textTransform: 'none' }}>
+              {isRedirecting ? toTitleCase("Redirecting to your dashboard...") : toTitleCase("Saving your information...")}
             </h3>
             <p className="text-muted-foreground">
               {isRedirecting 
@@ -1643,13 +1670,25 @@ export function NewOnboardingFlow() {
                 : "This may take a few moments."
               }
             </p>
+            <p className="text-xs text-muted-foreground mt-2">Do not refresh this page. Could take 30 seconds.</p>
           </div>
         </div>
       )}
 
+      {/* Informational Top Bar */}
+      <div className="fixed top-0 left-0 right-0 bg-[#EDEBE6] border-b border-border shadow-sm z-30 safe-area-top">
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <p className="text-xs md:text-sm text-center text-muted-foreground leading-relaxed">
+            This information is used to match you with the most relevant people. It may be visible to users.
+            <br />
+            This information is not used for marketing.
+          </p>
+        </div>
+      </div>
+
       {/* Fixed Top Progress Bar */}
       {currentStep > 0 && (
-        <div className="fixed top-0 left-0 right-0 z-20">
+        <div className="fixed left-0 right-0 z-20" style={{ top: '52px' }}>
           <div className="w-full h-[2px] bg-[#EDEBE6]">
             <div 
               className="gradient-progress h-[2px] transition-all duration-300 ease-out" 
@@ -1659,9 +1698,14 @@ export function NewOnboardingFlow() {
         </div>
       )}
 
-      {/* Main Content Area - Centered with max 512px */}
-      <div className={`flex-1 flex items-center justify-center px-6 ${currentStep === 0 ? '' : 'md:items-center items-start pt-8 md:pt-0'} pb-48`}>
-        <div className={`w-full max-w-lg transition-all duration-300 animate-fade-up rounded-concave bg-[#EDEBE6] double-border p-6`}>
+      {/* Main Content Area - Fixed height to prevent scrolling */}
+      <div className="flex-1 flex items-center justify-center px-4 md:px-6 overflow-hidden" style={{ paddingTop: '52px' }}>
+        <div className="w-full max-w-lg transition-all duration-300 animate-fade-up rounded-concave bg-[#EDEBE6] double-border p-4 md:p-6 mb-24 max-h-[calc(100vh-12rem)] overflow-y-auto"
+          style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#72A557 transparent'
+          }}
+        >
           {/* Adaptive Q&A Content */}
           {showAdaptiveQnA ? (
             <div className="space-y-6">
@@ -1677,20 +1721,20 @@ export function NewOnboardingFlow() {
                 </div>
               ) : currentAdaptiveQuestion ? (
                 // Show current question
-                <div className="space-y-6">
+                <div className="space-y-4 md:space-y-6">
                   <div>
-                    <h3 className="text-lg font-title text-foreground mb-6">
-                      {currentAdaptiveQuestion.text}
+                    <h3 className="text-base md:text-lg font-title text-foreground mb-4 md:mb-6 leading-tight" style={{ textTransform: 'none' }}>
+                      {toTitleCase(currentAdaptiveQuestion.text)}
                     </h3>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-2 md:space-y-3">
                     {currentAdaptiveQuestion.options.map((option) => (
                       <button
                         key={option.key}
                         onClick={() => handleAdaptiveAnswer(option.key)}
-                        className="w-full p-4 text-left rounded-concave border border-border hover:border-primary hover:bg-primary/5 transition-colors bg-[#EDEBE6]"
+                        className="w-full p-3 md:p-4 text-left rounded-concave border border-border hover:border-primary hover:bg-primary/5 transition-colors bg-[#EDEBE6]"
                       >
-                        <span className="text-foreground font-body">{option.label}</span>
+                        <span className="text-sm md:text-base text-foreground font-body">{option.label}</span>
                       </button>
                     ))}
                   </div>
@@ -1704,18 +1748,18 @@ export function NewOnboardingFlow() {
             </div>
           ) : currentStepData ? (
             // Regular onboarding steps
-            <div className="space-y-6">
+            <div className="space-y-4 md:space-y-6">
               <div>
-                <h2 className="text-xl font-title text-foreground mb-2">
-                  {currentStepData.title}
+                <h2 className="text-lg md:text-xl font-title text-foreground mb-2 leading-tight" style={{ textTransform: 'none' }}>
+                  {toTitleCase(currentStepData.title)}
                 </h2>
                 {currentStepData.description && (
-                  <p className="text-muted-foreground font-body">
+                  <p className="text-sm md:text-base text-muted-foreground font-body">
                     {currentStepData.description}
                   </p>
                 )}
               </div>
-              <div className="space-y-6">
+              <div className="space-y-4 md:space-y-6">
                 {currentStepData.component}
               </div>
             </div>
@@ -1747,17 +1791,17 @@ export function NewOnboardingFlow() {
       )}
 
       {/* Fixed Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#EDEBE6] border-t border-border shadow-2xl px-6 z-[100] py-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-[#EDEBE6] border-t border-border shadow-2xl px-4 md:px-6 z-[100] py-3 md:py-4 safe-area-bottom">
         <div className="max-w-lg mx-auto">
-          <div className="flex gap-4 items-center">
+          <div className="flex gap-3 md:gap-4 items-center">
             {/* Back Button */}
             <GradientButton 
               variant="outline" 
               onClick={handleBack} 
               disabled={currentStep <= 0} 
-              className="flex items-center justify-center w-16 h-16 rounded-2xl border-2 border-primary disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+              className="flex items-center justify-center w-12 h-12 md:w-16 md:h-16 rounded-2xl border-2 border-primary disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
             >
-              <ChevronLeft className="w-6 h-6" />
+              <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
             </GradientButton>
             
             {/* Continue Button */}
@@ -1770,19 +1814,19 @@ export function NewOnboardingFlow() {
                 ? isLoading 
                 : !isStepValid() || isLoading || isLoadingQuestion
               } 
-              className="flex-1 h-16 rounded-2xl text-lg font-body bg-primary text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
+              className="flex-1 h-12 md:h-16 rounded-2xl text-base md:text-lg font-body bg-primary text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
             >
               {isLoading || isLoadingQuestion ? (
                 <span className="flex items-center gap-2 justify-center">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Loading...
+                  <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
+                  <span className="text-sm md:text-base">Loading...</span>
                 </span>
               ) : isLastStep ? (
                 isLoading ? "Completing..." : "Complete"
               ) : (
                 <span className="flex items-center justify-center">
                   Continue
-                  <ArrowRight className="h-4 w-4 ml-2" />
+                  <ArrowRight className="h-3 w-3 md:h-4 md:w-4 ml-2" />
                 </span>
               )}
             </GradientButton>

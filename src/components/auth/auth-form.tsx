@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { createClientComponentClient } from "@/lib/supabase"
-import { toast } from "sonner"
 
 export function AuthForm() {
   const [isSignUp, setIsSignUp] = useState(false)
@@ -20,7 +19,9 @@ export function AuthForm() {
   const [isLoading, setIsLoading] = useState(false)
   
   const searchParams = useSearchParams()
-  const eventCode = searchParams.get('eventCode')
+  const eventCode = searchParams.get('eventCode') // Legacy support
+  const encryptedCode = searchParams.get('code') // New encrypted code
+  const codeToUse = encryptedCode || eventCode
   const supabase = createClientComponentClient()
 
   const startOAuth = async (provider: "google" | "linkedin_oidc") => {
@@ -28,8 +29,8 @@ export function AuthForm() {
     try {
       // Use environment variable for production URL, fallback to current origin
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
-      const redirectUrl = eventCode 
-        ? `${baseUrl}/auth/callback?eventCode=${eventCode}`
+      const redirectUrl = codeToUse 
+        ? `${baseUrl}/auth/callback?code=${codeToUse}`
         : `${baseUrl}/auth/callback`
       
       console.log(`Starting ${provider} OAuth with redirect URL:`, redirectUrl)
@@ -44,13 +45,11 @@ export function AuthForm() {
       
       if (error) {
         console.error(`${provider} OAuth error:`, error)
-        toast.error(error.message)
       } else {
         console.log(`${provider} OAuth initiated successfully`)
       }
     } catch (err) {
       console.error('OAuth exception:', err)
-      toast.error("An error occurred during authentication")
     } finally {
       setIsLoading(false)
     }
@@ -60,7 +59,6 @@ export function AuthForm() {
     e.preventDefault()
     
     if (isSignUp && !consent) {
-      toast.error("Please accept the terms and privacy policy")
       return
     }
 
@@ -79,10 +77,8 @@ export function AuthForm() {
         })
         
         if (error) {
-          toast.error(error.message)
         } else if (data.user) {
           // Profile will be created automatically by database trigger
-          toast.success("Account created successfully! Check your email for confirmation.")
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -91,11 +87,13 @@ export function AuthForm() {
         })
         
         if (error) {
-          toast.error(error.message)
         } else {
-          toast.success("Signed in successfully")
-          // Redirect to event join if eventCode is provided, otherwise go to home
-          if (eventCode) {
+          // Redirect based on code type
+          if (encryptedCode) {
+            // Encrypted code - go to onboarding (profile check happens there)
+            window.location.href = `/onboarding?code=${encryptedCode}`
+          } else if (eventCode) {
+            // Legacy event code - go to event join page
             window.location.href = `/event/join?code=${eventCode}`
           } else {
             window.location.href = "/"
@@ -103,7 +101,6 @@ export function AuthForm() {
         }
       }
     } catch {
-      toast.error("An error occurred during authentication")
     } finally {
       setIsLoading(false)
     }
@@ -176,7 +173,7 @@ export function AuthForm() {
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 required={isSignUp}
-                className="bg-input text-foreground rounded-concave border-border placeholder:text-muted-foreground"
+                className="bg-input text-foreground rounded-2xl border-border placeholder:text-muted-foreground"
                 placeholder="First Name"
               />
               <Input
@@ -184,7 +181,7 @@ export function AuthForm() {
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 required={isSignUp}
-                className="bg-input text-foreground rounded-concave border-border placeholder:text-muted-foreground"
+                className="bg-input text-foreground rounded-2xl border-border placeholder:text-muted-foreground"
                 placeholder="Last Name"
               />
             </div>
@@ -195,7 +192,7 @@ export function AuthForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="bg-input text-foreground rounded-concave border-border"
+            className="bg-input text-foreground rounded-2xl border-border"
             placeholder="Email"
           />
 
@@ -204,7 +201,7 @@ export function AuthForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="bg-input text-foreground rounded-concave border-border"
+            className="bg-input text-foreground rounded-2xl border-border"
             placeholder="Password"
           />
 
@@ -226,6 +223,7 @@ export function AuthForm() {
                 checked={consent}
                 onCheckedChange={(checked) => setConsent(checked as boolean)}
                 className="mt-0.5"
+                style={{ borderColor: '#656361' }}
               />
               <Label htmlFor="consent" className="text-sm text-muted-foreground leading-relaxed">
                 By signing up, I accept the{" "}

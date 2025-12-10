@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, MouseEvent, useCallback, useMemo, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { EventJoinScanner } from "@/components/ui/event-join-scanner"
@@ -10,23 +10,26 @@ import { PresenceAvatar } from "@/components/ui/presence-avatar"
 import { MatchCard } from "@/components/ui/match-card"
 import { QRCard } from "@/components/ui/qr-card"
 import { QRScanner } from "@/components/ui/qr-scanner"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createClientComponentClient } from "@/lib/supabase"
 import { MessageService } from "@/lib/message-service-simple"
 import { User, Profile, Event } from "@/lib/types"
 import { getAvatarUrl } from "@/lib/utils"
-import { toast } from "sonner"
+import { decryptEventCode } from "@/lib/event-code-encryption"
+import { haptics } from "@/lib/haptics"
 import { 
   Users, 
   MessageSquare, 
   MapPin,
   Calendar,
+  XIcon,
   Plus,
   QrCode,
   UserPlus,
   ArrowRight,
   RefreshCw
 } from "lucide-react"
+import { UserGuide, type GuideStep } from "@/components/ui/user-guide"
 
 interface StructuredMatchExplanation {
   connection_type: string
@@ -79,7 +82,60 @@ interface DirectoryPerson {
   profile: Profile
   status: DirectoryPersonStatus
   connectionReason?: string | null
+  isPresent?: boolean
 }
+
+// Guide steps configuration
+const guideSteps: GuideStep[] = [
+  {
+    id: "suggested-connections",
+    targetSelector: '[data-guide="suggested-connections"]',
+    title: "People You Should Know",
+    subtext: "The top three matches will appear here. They are matched based on the information you provided.",
+    position: "auto",
+    highlightShape: "rounded"
+  },
+  {
+    id: "qr-section",
+    targetSelector: '[data-guide="qr-section"]',
+    title: "Skip the small talk",
+    subtext: "Scan someone's QR code to see their profile and what you have in common. This does not add them on LinkedIn.",
+    position: "auto",
+    highlightShape: "rounded"
+  },
+  {
+    id: "directory",
+    targetSelector: '[data-guide="directory"]',
+    title: "Who you've met",
+    subtext: "Find all those you connected with during the event to help you follow up afterward.",
+    position: "auto",
+    highlightShape: "pill"
+  },
+  {
+    id: "all-attendees-btn",
+    targetSelector: '[data-guide="all-attendees-btn"]',
+    title: "Who is here",
+    subtext: "You can see all additional attendees beyond those you've connected with.",
+    position: "auto",
+    highlightShape: "pill"
+  },
+  {
+    id: "profile-avatar",
+    targetSelector: '[data-guide="profile-avatar"]',
+    title: "Your settings",
+    subtext: "Add or switch to another event or edit your information here.",
+    position: "auto",
+    highlightShape: "circle"
+  },
+  {
+    id: "messages-icon",
+    targetSelector: '[data-guide="messages-icon"]',
+    title: "Message Attendees",
+    subtext: "Message attendees to coordinate meeting. You'll be notified via email when you have a new message.",
+    position: "auto",
+    highlightShape: "circle"
+  }
+]
 
 export function HomePage() {
   const [user, setUser] = useState<User | null>(null)
@@ -98,11 +154,14 @@ export function HomePage() {
   const [withdrawTarget, setWithdrawTarget] = useState<ManualConnectionItem | null>(null)
   const [isWithdrawing, setIsWithdrawing] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const lastConnectionCheckRef = useRef<string | null>(null)
   
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClientComponentClient() as any
   const messageService = useMemo(() => new MessageService(), [])
   const unreadPollingRef = useRef<NodeJS.Timeout | null>(null)
+  const [hasProcessedAutoJoin, setHasProcessedAutoJoin] = useState(false)
 
   const filteredDirectory = useMemo(() => {
     if (directoryFilter === "connected") {
@@ -143,6 +202,100 @@ export function HomePage() {
       loadUserData()
     }
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle auto-join with encrypted code
+  useEffect(() => {
+    const handleAutoJoin = async () => {
+      if (!user || hasProcessedAutoJoin || isLoading) return
+
+      const encryptedCode = searchParams.get('code')
+      if (!encryptedCode) return
+
+      setHasProcessedAutoJoin(true)
+
+      try {
+        // Decrypt the event code
+        const eventCode = decryptEventCode(encryptedCode)
+        
+        if (!eventCode) {
+          console.error('Invalid encrypted event code')
+          // Remove invalid code from URL
+          router.replace('/home')
+          return
+        }
+
+        // Check if user is already in this event
+        const { data: event } = await supabase
+          .from("events")
+          .select("event_id")
+          .eq("event_code", eventCode.toUpperCase())
+          .maybeSingle()
+
+        if (!event) {
+          router.replace('/home')
+          return
+        }
+
+        const { data: existingMember } = await supabase
+          .from("attendance")
+          .select("event_id")
+          .eq("event_id", event.event_id)
+          .eq("user_id", user.id)
+          .maybeSingle()
+
+        if (existingMember) {
+          // Already in event - redirect to onboarding with eventId (remove code from URL)
+          router.replace(`/onboarding?eventId=${event.event_id}&from=auto-join`)
+          return
+        }
+
+        // Auto-join the event (inline logic to avoid scope issues)
+        setIsJoiningEvent(true)
+        try {
+          // Join the event
+          const { error: joinError } = await supabase
+            .from("attendance")
+            .insert({
+              event_id: event.event_id,
+              user_id: user.id,
+              checked_in_at: new Date().toISOString()
+            })
+
+          if (joinError) {
+            router.replace('/home')
+            return
+          }
+
+          // Trigger match refresh for the new user (in background)
+          try {
+            await fetch('/api/refresh-matches', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ 
+                eventId: event.event_id, 
+                newUserId: user.id 
+              }),
+            })
+          } catch (error) {
+            console.error('Failed to refresh matches for new user:', error)
+            // Don't show error to user, this is a background process
+          }
+
+          // Redirect to onboarding (code will be removed from URL)
+          router.replace(`/onboarding?from=event-join&eventId=${event.event_id}`)
+        } finally {
+          setIsJoiningEvent(false)
+        }
+      } catch (error) {
+        console.error('Error in auto-join:', error)
+        router.replace('/home')
+      }
+    }
+
+    handleAutoJoin()
+  }, [user, searchParams, hasProcessedAutoJoin, isLoading, router, supabase])
 
   const loadUnreadCount = useCallback(async () => {
     if (!currentEvent || !user) {
@@ -239,6 +392,60 @@ export function HomePage() {
     return () => window.removeEventListener('focus', handleFocus)
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Listen for new QR code connections and automatically open profiles
+  useEffect(() => {
+    if (!user || !currentEvent) return
+
+    // Subscribe to new connections for this user
+    const connectionChannel = supabase
+      .channel(`qr-connections-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'connections',
+          filter: `event_id=eq.${currentEvent.id}`,
+        },
+        async (payload: any) => {
+          const newConnection = payload.new
+          const [aId, bId] = newConnection.a_id < newConnection.b_id 
+            ? [newConnection.a_id, newConnection.b_id]
+            : [newConnection.b_id, newConnection.a_id]
+          
+          // Check if this connection involves the current user
+          const isInvolved = aId === user.id || bId === user.id
+          const isQRConnection = newConnection.user_add_method === 'qr'
+          
+          if (isInvolved && isQRConnection && newConnection.connection_kind === 'user_added') {
+            // Determine the other user's ID
+            const otherUserId = aId === user.id ? bId : aId
+            
+            // Prevent duplicate navigation (check if we already navigated to this user)
+            const connectionKey = `${newConnection.connection_id}-${otherUserId}`
+            if (lastConnectionCheckRef.current === connectionKey) {
+              return
+            }
+            lastConnectionCheckRef.current = connectionKey
+            
+            // Only auto-navigate if we're on the home page (not already viewing a profile)
+            const currentPath = window.location.pathname
+            if (currentPath === '/home' || currentPath.startsWith('/home?')) {
+              // Small delay to ensure connection is fully processed
+              setTimeout(() => {
+                router.push(`/profile/${otherUserId}?source=qr&eventId=${currentEvent.id}`)
+              }, 500)
+            }
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      connectionChannel.unsubscribe()
+    }
+  }, [user, currentEvent, router, supabase])
+
 
   const loadUserData = async () => {
     if (!user) return
@@ -252,7 +459,6 @@ export function HomePage() {
         .single()
 
       if (userError) {
-        toast.error("Failed to load profile")
         return
       }
 
@@ -287,15 +493,63 @@ export function HomePage() {
       }
       setProfile(mappedProfile)
 
-      // Load current event from attendance join events (most recent)
-      const { data: attendanceRows, error: attendanceError } = await supabase
-        .from("attendance")
-        .select("checked_in_at, event_id, onboarding_completed, why_attending_text, connection_types_selected, connection_followups_json, business_need_text, events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
+      // Check for saved event preference first
+      const savedEventId = typeof window !== 'undefined' 
+        ? localStorage.getItem(`current_event_id_${user.id}`)
+        : null
 
-      console.log("Attendance query result:", { attendanceRows, attendanceError, userId: user.id })
+      // Load current event - prefer saved preference, otherwise most recent
+      let attendanceRows: any[] | null = null
+      let attendanceError: any = null
+
+      if (savedEventId) {
+        // Try to load the saved event preference
+        const { data, error } = await supabase
+          .from("attendance")
+          .select("checked_in_at, event_id, onboarding_completed, why_attending_text, connection_types_selected, connection_followups_json, business_need_text, events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)")
+          .eq("user_id", user.id)
+          .eq("event_id", savedEventId)
+          .limit(1)
+        
+        attendanceRows = data
+        attendanceError = error
+
+        // If saved event not found, fall back to most recent
+        if (!attendanceRows || attendanceRows.length === 0) {
+          console.log("Saved event not found, falling back to most recent event")
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem(`current_event_id_${user.id}`)
+          }
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from("attendance")
+            .select("checked_in_at, event_id, onboarding_completed, why_attending_text, connection_types_selected, connection_followups_json, business_need_text, events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+          
+          attendanceRows = fallbackData
+          attendanceError = fallbackError
+        }
+      } else {
+        // Load most recent event
+        const { data, error } = await supabase
+          .from("attendance")
+          .select("checked_in_at, event_id, onboarding_completed, why_attending_text, connection_types_selected, connection_followups_json, business_need_text, events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location)")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+        
+        attendanceRows = data
+        attendanceError = error
+      }
+
+      console.log("Attendance query result:", { 
+        attendanceRows, 
+        attendanceError, 
+        userId: user.id,
+        savedEventId,
+        usingSavedPreference: !!savedEventId
+      })
 
       if (attendanceError) {
         console.error("Error loading attendance:", attendanceError)
@@ -366,7 +620,6 @@ export function HomePage() {
       }
 
     } catch {
-      toast.error("Failed to load user data")
     } finally {
       setIsLoading(false)
     }
@@ -386,12 +639,10 @@ export function HomePage() {
 
       if (edgesError) {
         console.error("Failed to load matches:", edgesError)
-        toast.error(`Failed to load matches (${edgesError.code ?? "error"})`)
         return
       }
 
       if (!edges) {
-        toast.error("Unable to load matches: empty response")
         return
       }
 
@@ -434,17 +685,27 @@ export function HomePage() {
 
       if (othersError) {
         console.error("Failed to load other users for connections:", othersError)
-        toast.error(`Failed to load match details (${othersError.code ?? "error"})`)
         return
       }
 
       if (!others) {
-        toast.error("Unable to load match details: empty response")
         return
+      }
+
+      // Load attendance/presence data for matched users
+      const { data: attendanceData, error: attendanceError } = await supabase
+        .from("attendance")
+        .select("user_id, checked_in_at")
+        .eq("event_id", eventId)
+        .in("user_id", uniqueOtherIds)
+
+      if (attendanceError) {
+        console.warn("Failed to load attendance data for matches:", attendanceError)
       }
 
       const otherRows = (others ?? []) as any[]
       const userMap = new Map(otherRows.map((u: any) => [u.user_id, u]))
+      const attendanceMap = new Map((attendanceData || []).map((a: any) => [a.user_id, a.checked_in_at]))
 
       const formatted: MatchWithProfile[] = deduplicatedEdges
         .map(e => {
@@ -506,7 +767,7 @@ export function HomePage() {
             shared_activities: sharedActivitiesStr,
             dive_deeper: matchData.dive_deeper || "",
             profile,
-            is_present: false,
+            is_present: Boolean(attendanceMap.get(otherId)),
             structured_explanation: structuredExplanation,
             connection_type: structuredExplanation?.connection_type,
             algorithm_version: algorithmVersion,
@@ -532,7 +793,6 @@ export function HomePage() {
       setMatches(formatted.slice(0, 3))
     } catch (error) {
       console.error("Failed to load matches:", error)
-      toast.error("Unexpected error while loading matches")
     }
   }
 
@@ -705,14 +965,44 @@ export function HomePage() {
         confirmed.map((connection) => [connection.profile.id, connection.connection_reason ?? null])
       )
 
-      const connectedIds = new Set(confirmed.map((c) => c.profile.id))
+      // Get IDs of people we've actually met or messaged (not just system matches)
+      const actuallyConnectedIds = new Set(
+        confirmed
+          .filter(c => 
+            c.source === 'met' || 
+            c.source === 'manual_add' || 
+            c.source === 'qr' || 
+            c.source === 'manual_directory'
+          )
+          .map((c) => c.profile.id)
+      )
+      
       const pendingOutgoingIds = new Set(manual.filter(m => m.status === 'pending-outgoing').map(m => m.profile.id))
       const pendingIncomingIds = new Set(manual.filter(m => m.status === 'pending-incoming').map(m => m.profile.id))
+
+      // Check for users we've messaged (conversations exist)
+      const { data: conversationsData } = await supabase
+        .from("conversations")
+        .select("participant_user_ids")
+        .eq("event_id", eventId)
+        .contains("participant_user_ids", [user.id])
+
+      const messagedUserIds = new Set<string>()
+      if (conversationsData) {
+        conversationsData.forEach((conv: any) => {
+          const participantIds = conv.participant_user_ids || []
+          const otherUserId = participantIds.find((id: string) => id !== user.id)
+          if (otherUserId) {
+            messagedUserIds.add(otherUserId)
+          }
+        })
+      }
 
       const { data, error } = await supabase
         .from("attendance")
         .select(`
           user_id,
+          checked_in_at,
           users:user_id (
             user_id,
             first_name,
@@ -761,18 +1051,11 @@ export function HomePage() {
           if (attendeeProfile.id === user.id) {
             status = "self"
           } else {
-            // Check if they've actually met (not just a system match)
-            const hasMet = confirmed.some(c => 
-              c.profile.id === attendeeProfile.id && 
-              (c.source === 'met' || c.source === 'manual_add' || c.source === 'qr' || c.source === 'manual_directory')
-            )
+            // Only show as "connected" if they've actually met OR messaged
+            const hasActuallyMet = actuallyConnectedIds.has(attendeeProfile.id)
+            const hasMessaged = messagedUserIds.has(attendeeProfile.id)
             
-            // For top 3 matches, only show "connected" if they've met
-            const isTopMatch = matches.some(m => m.profile.id === attendeeProfile.id)
-            
-            if (isTopMatch && !hasMet) {
-              status = "available" // Don't show as connected until they've met
-            } else if (connectedIds.has(attendeeProfile.id)) {
+            if (hasActuallyMet || hasMessaged) {
               status = "connected"
             } else if (pendingIncomingIds.has(attendeeProfile.id)) {
               status = "pending-incoming"
@@ -785,6 +1068,7 @@ export function HomePage() {
             profile: attendeeProfile,
             status,
             connectionReason: status === "connected" ? (connectionReasonMap.get(attendeeProfile.id) ?? null) : null,
+            isPresent: !!row.checked_in_at,
           } as DirectoryPerson
         })
         .filter(Boolean) as DirectoryPerson[]
@@ -816,14 +1100,11 @@ export function HomePage() {
         .eq("user_id", user.id)
 
       if (error) {
-        toast.error("Failed to update presence")
         return
       }
 
       setIsPresent(newPresence)
-      toast.success(newPresence ? "You're now marked as present!" : "You're no longer marked as present")
     } catch {
-      toast.error("An error occurred")
     } finally {
       setIsLoading(false)
     }
@@ -843,6 +1124,7 @@ export function HomePage() {
   }
 
   const handleQRScan = () => {
+    haptics.scan()
     setIsQRScannerOpen(true)
   }
 
@@ -871,16 +1153,13 @@ export function HomePage() {
 
       if (error) {
         console.error("Failed to confirm manual connection:", error)
-        toast.error("Failed to confirm connection")
         return
       }
 
-      toast.success("Connection confirmed")
       await refreshConnections()
       router.push(`/profile/${item.profile.id}?source=request&eventId=${currentEvent.id}`)
     } catch (error) {
       console.error("Error confirming manual connection:", error)
-      toast.error("Failed to confirm connection")
     }
   }
 
@@ -897,15 +1176,12 @@ export function HomePage() {
 
       if (error) {
         console.error("Failed to deny manual connection:", error)
-        toast.error("Failed to update request")
         return
       }
 
-      toast.success("Request removed")
       await refreshConnections()
     } catch (error) {
       console.error("Error denying manual connection:", error)
-      toast.error("Failed to update request")
     }
   }
 
@@ -937,25 +1213,21 @@ export function HomePage() {
       if (error) {
         const duplicate = error.message?.toLowerCase().includes("duplicate")
         if (duplicate) {
-          toast.info("You already have a connection or request with this person")
         } else {
           console.error("Failed to add connection from directory:", error)
-          toast.error("Failed to send connection request")
         }
       } else {
-        toast.success("Connection request sent")
       }
 
       await refreshConnections()
     } catch (error) {
       console.error("Error adding connection from directory:", error)
-      toast.error("Failed to send connection request")
     }
   }
 
   const getManualStatusLabel = (item: ManualConnectionItem) => {
     if (item.status === "pending-incoming") {
-      return "Pending your response"
+      return undefined
     }
     if (item.status === "pending-outgoing") {
       return undefined
@@ -967,12 +1239,13 @@ export function HomePage() {
   }
 
   const getDirectoryStatusLabel = (entry: DirectoryPerson) => {
+    // Omit "Connected" status label
     if (entry.status === "connected") {
-      return "Connected"
+      return undefined
     }
 
     if (entry.status === "pending-incoming") {
-      return "Pending your response"
+      return undefined
     }
 
     if (entry.status === "pending-outgoing") {
@@ -1001,16 +1274,13 @@ export function HomePage() {
 
       if (error) {
         console.error("Failed to withdraw manual connection:", error)
-        toast.error("Failed to withdraw request")
         return
       }
 
-      toast.success("Connection request withdrawn")
       setWithdrawTarget(null)
       await refreshConnections()
     } catch (error) {
       console.error("Error withdrawing manual connection:", error)
-      toast.error("Failed to withdraw request")
     } finally {
       setIsWithdrawing(false)
     }
@@ -1050,7 +1320,6 @@ export function HomePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         setIsJoiningEvent(false)
-        toast.error("Please sign in first")
         return
       }
 
@@ -1064,13 +1333,11 @@ export function HomePage() {
       if (eventError) {
         console.error("Event query error:", eventError)
         setIsJoiningEvent(false)
-        toast.error("Failed to check event. Please try again.")
         return
       }
 
       if (!event) {
         setIsJoiningEvent(false)
-        toast.error("Event not found or inactive")
         return
       }
 
@@ -1085,13 +1352,11 @@ export function HomePage() {
       if (memberCheckError) {
         console.error("Error checking membership:", memberCheckError)
         setIsJoiningEvent(false)
-        toast.error("Failed to check membership. Please try again.")
         return
       }
 
       if (existingMember) {
         setIsJoiningEvent(false)
-        toast.error("You're already a member of this event")
         return
       }
 
@@ -1106,9 +1371,11 @@ export function HomePage() {
 
       if (joinError) {
         setIsJoiningEvent(false)
-        toast.error("Failed to join event")
         return
       }
+
+      // Success haptic feedback
+      haptics.success()
 
       // Trigger match refresh for the new user (in background)
       try {
@@ -1127,12 +1394,10 @@ export function HomePage() {
         // Don't show error to user, this is a background process
       }
 
-      toast.success("Successfully joined event!")
       // After joining from Home, ask networking goals; but if user completes onboarding first, they can come back from Home too
       router.push(`/onboarding?from=event-join&eventId=${event.event_id}`)
     } catch (error) {
       console.error("Error joining event:", error)
-      toast.error("An error occurred")
     } finally {
       setIsJoiningEvent(false)
     }
@@ -1150,7 +1415,6 @@ export function HomePage() {
     }
 
     setIsRefreshing(true)
-    const loadingToast = toast.loading("Refreshing matches...")
 
     try {
       const response = await fetch('/api/match-incremental', {
@@ -1177,10 +1441,8 @@ export function HomePage() {
       // Reload matches
       await loadMatches(currentEvent.id)
       
-      toast.success("Matches refreshed!", { id: loadingToast })
     } catch (error: any) {
       console.error('Error refreshing matches:', error)
-      toast.error(error?.message || "Failed to refresh matches. Please try again.", { id: loadingToast })
     } finally {
       setIsRefreshing(false)
     }
@@ -1192,6 +1454,7 @@ export function HomePage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading...</p>
+          <p className="text-xs text-muted-foreground mt-2">Do not refresh this page. Could take 30 seconds.</p>
         </div>
       </div>
     )
@@ -1218,8 +1481,9 @@ export function HomePage() {
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
             {/* Left: User avatar with presence indicator */}
             <button
+              data-guide="profile-avatar"
               onClick={() => router.push("/settings")}
-              className="focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-full transition-all hover:shadow-[0px_3px_4px_rgba(0,0,0,0.2)]"
+              className="focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-2xl transition-all hover:shadow-[0px_3px_4px_rgba(0,0,0,0.2)]"
             >
               <PresenceAvatar
                 src={profile.avatar_url || undefined}
@@ -1243,17 +1507,18 @@ export function HomePage() {
             
             {/* Right: Message icon with gradient and unread badge */}
             <button
+              data-guide="messages-icon"
               type="button"
               onClick={() => router.push(`/messages?eventId=${currentEvent?.id || ''}`)}
-              className="relative w-10 h-10 rounded-full flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20 bg-primary"
+              className="relative w-12 h-12 rounded-2xl flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20 bg-primary transition-all hover:opacity-90 hover:shadow-[0px_3px_4px_rgba(0,0,0,0.25)]"
               style={{
                 border: 'none'
               }}
               aria-label="Open messages"
             >
-              <MessageSquare className="h-5 w-5 text-white pointer-events-none" />
+              <MessageSquare className="h-6 w-6 text-white pointer-events-none" />
               {unreadMessageCount > 0 && (
-                <span className="pointer-events-none absolute -top-1 -right-1 bg-accent text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                <span className="pointer-events-none absolute -top-1 -right-1 bg-accent text-white text-xs rounded-xl px-2 py-1 min-w-[20px] text-center">
                   {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
                 </span>
               )}
@@ -1263,7 +1528,7 @@ export function HomePage() {
       </header>
 
       <main className="container mx-auto px-4 py-4">
-        <div className="max-w-2xl mx-auto space-y-4">
+        <div className="max-w-2xl mx-auto space-y-6">
 
           {/* JOIN EVENT Section - Show when no event is selected */}
           {!currentEvent && (
@@ -1295,41 +1560,59 @@ export function HomePage() {
                   {currentEvent.starts_at && (
                     <p>
                       {(() => {
-                        const startDate = currentEvent.starts_at ? new Date(currentEvent.starts_at) : null
-                        if (!startDate || Number.isNaN(startDate.getTime())) {
+                        // Parse datetime string directly without timezone conversion
+                        // Times are stored as "YYYY-MM-DDTHH:mm" and should be displayed as-is
+                        const parseDateTime = (dateTimeStr: string | null) => {
+                          if (!dateTimeStr) return null
+                          
+                          // Handle both "YYYY-MM-DDTHH:mm" and "YYYY-MM-DDTHH:mm:ss" formats
+                          const match = dateTimeStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/)
+                          if (!match) return null
+                          
+                          const [, year, month, day, hour, minute] = match
+                          return {
+                            year: parseInt(year, 10),
+                            month: parseInt(month, 10),
+                            day: parseInt(day, 10),
+                            hour: parseInt(hour, 10),
+                            minute: parseInt(minute, 10)
+                          }
+                        }
+                        
+                        const startParts = parseDateTime(currentEvent.starts_at)
+                        if (!startParts) {
                           return "Schedule coming soon"
                         }
 
-                        const rawEndDate = currentEvent.ends_at ? new Date(currentEvent.ends_at) : null
-                        const endDate = rawEndDate && !Number.isNaN(rawEndDate.getTime()) ? rawEndDate : null
+                        const endParts = currentEvent.ends_at ? parseDateTime(currentEvent.ends_at) : null
                         
-                        const startDateStr = startDate.toLocaleDateString('en-US', {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric'
-                        })
-                        const startTimeStr = startDate.toLocaleTimeString('en-US', {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          hour12: true,
-                          timeZoneName: 'short'
-                        })
-                        
-                        if (endDate) {
-                          const endDateStr = endDate.toLocaleDateString('en-US', {
+                        // Format date
+                        const formatDate = (parts: { year: number; month: number; day: number }) => {
+                          const date = new Date(parts.year, parts.month - 1, parts.day)
+                          return date.toLocaleDateString('en-US', {
                             day: 'numeric',
                             month: 'long',
                             year: 'numeric'
                           })
-                          const endTimeStr = endDate.toLocaleTimeString('en-US', {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true,
-                            timeZoneName: 'short'
-                          })
+                        }
+                        
+                        // Format time (12-hour format)
+                        const formatTime = (parts: { hour: number; minute: number }) => {
+                          const hour12 = parts.hour % 12 || 12
+                          const ampm = parts.hour >= 12 ? 'PM' : 'AM'
+                          const minuteStr = String(parts.minute).padStart(2, '0')
+                          return `${hour12}:${minuteStr} ${ampm}`
+                        }
+                        
+                        const startDateStr = formatDate(startParts)
+                        const startTimeStr = formatTime(startParts)
+                        
+                        if (endParts) {
+                          const endDateStr = formatDate(endParts)
+                          const endTimeStr = formatTime(endParts)
                           
-                          // If same day, show: "Nov 2, 2025 @ 9:30 AM - 6:00 PM"
-                          // If different day, show: "Nov 2, 2025 @ 9:30 AM - Nov 12, 2025 @ 6:00 PM"
+                          // If same day, show: "December 9, 2025 @ 9:00 PM - 11:00 PM"
+                          // If different day, show: "December 9, 2025 @ 9:00 PM - December 10, 2025 @ 11:00 PM"
                           if (startDateStr === endDateStr) {
                             return `${startDateStr} @ ${startTimeStr} - ${endTimeStr}`
                           } else {
@@ -1351,7 +1634,7 @@ export function HomePage() {
                   <button
                     onClick={togglePresence}
                     disabled={isLoading}
-                    className="px-8 py-3 rounded-concave text-white font-medium text-lg mx-auto block bg-primary"
+                    className="px-8 py-3 rounded-concave text-white font-medium text-lg mx-auto block bg-primary transition-all hover:opacity-90 hover:shadow-[0px_3px_4px_rgba(0,0,0,0.25)]"
                     style={{
                       border: 'none'
                     }}
@@ -1372,7 +1655,7 @@ export function HomePage() {
 
           {/* People You Should Know - Only show when event exists */}
           {currentEvent && (
-            <div className="space-y-3">
+            <div className="space-y-3 pt-2" data-guide="suggested-connections">
               {/* Title Section */}
               <div className="px-1">
                 <div className="flex items-center justify-between">
@@ -1453,14 +1736,21 @@ export function HomePage() {
 
           {/* Add Other Attendees Section - Only show when event exists */}
           {currentEvent && (
-              <Card className="bg-card border-border shadow-elevation">
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center space-x-2">
-                    <QrCode className="h-5 w-5" />
-                    <span>Add other attendees</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0 pb-4 space-y-4">
+            <div className="space-y-3 pt-2">
+              {/* Title Section */}
+              <div className="px-1 space-y-2">
+                <h2 className="flex items-center space-x-2 text-lg font-semibold text-foreground">
+                  <QrCode className="h-5 w-5" />
+                  <span>Add other attendees</span>
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Skip the small talk by scanning another attendees QR code to see what you have in common.
+                </p>
+              </div>
+              
+              {/* Content */}
+              <Card className="bg-card border-border shadow-elevation" data-guide="qr-section">
+                <CardContent className="p-4 space-y-4">
                   <QRCard onScanClick={handleQRScan} eventId={currentEvent.id} />
 
                   {manualConnections.length > 0 ? (
@@ -1483,7 +1773,7 @@ export function HomePage() {
                               size="md"
                             />
                             <div className="flex-1 min-w-0">
-                              <h3 className="font-medium text-foreground">
+                              <h3 className="font-bold text-foreground">
                                 {item.profile.first_name} {item.profile.last_name}
                               </h3>
                               {item.profile.job_title && (
@@ -1537,38 +1827,45 @@ export function HomePage() {
                   ) : null}
                 </CardContent>
               </Card>
-            )}
+            </div>
+          )}
 
-            {/* Directory of attendees */}
-            {currentEvent && (
+          {/* Directory of attendees */}
+          {currentEvent && (
+            <div className="space-y-3 pt-2">
+              {/* Title Section */}
+              <div className="px-1">
+                <div className="flex items-center justify-between">
+                  <h2 className="flex items-center space-x-2 text-lg font-semibold text-foreground">
+                    <Users className="h-5 w-5" />
+                    <span>Directory</span>
+                  </h2>
+                  {directory.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        data-guide="all-attendees-btn"
+                        size="sm"
+                        variant={directoryFilter === "all" ? "default" : "outline"}
+                        onClick={() => setDirectoryFilter("all")}
+                      >
+                        All attendees
+                      </Button>
+                      <Button
+                        data-guide="directory"
+                        size="sm"
+                        variant={directoryFilter === "connected" ? "default" : "outline"}
+                        onClick={() => setDirectoryFilter("connected")}
+                      >
+                        Connected
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Content */}
               <Card className="bg-card border-border shadow-elevation">
-                <CardHeader className="pb-3">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <CardTitle className="flex items-center space-x-2">
-                      <Users className="h-5 w-5" />
-                      <span>Directory</span>
-                    </CardTitle>
-                    {directory.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant={directoryFilter === "all" ? "default" : "outline"}
-                          onClick={() => setDirectoryFilter("all")}
-                        >
-                          All attendees
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={directoryFilter === "connected" ? "default" : "outline"}
-                          onClick={() => setDirectoryFilter("connected")}
-                        >
-                          Connected
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3 pt-0 pb-4">
+                <CardContent className="p-4 space-y-3">
                   {directory.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                       As attendees complete their profiles, you'll see them here.
@@ -1606,11 +1903,11 @@ export function HomePage() {
                               <PresenceAvatar
                                 src={entry.profile.avatar_url || undefined}
                                 fallback={`${entry.profile.first_name[0]}${entry.profile.last_name[0]}`}
-                                isPresent={false}
+                                isPresent={entry.isPresent || false}
                                 size="md"
                               />
                               <div className="flex-1 min-w-0">
-                                <h3 className="font-medium text-foreground">
+                                <h3 className="font-bold text-foreground">
                                   {entry.profile.first_name} {entry.profile.last_name}
                                 </h3>
                                 {entry.profile.job_title && (
@@ -1632,14 +1929,21 @@ export function HomePage() {
                   )}
                 </CardContent>
               </Card>
-            )}
+            </div>
+          )}
 
         </div>
       </main>
 
       {/* Joining Event Loading Modal */}
       <Dialog open={isJoiningEvent} onOpenChange={() => {}}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" showCloseButton={false}>
+          <DialogClose
+            className="absolute -top-3 -right-3 z-50 rounded-2xl bg-background p-2 opacity-90 transition-all hover:opacity-100 hover:scale-110 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden border border-border shadow-md"
+          >
+            <XIcon className="h-4 w-4 text-foreground" />
+            <span className="sr-only">Close</span>
+          </DialogClose>
           <div className="flex flex-col items-center justify-center py-8 space-y-6">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             <div className="text-center space-y-2">
@@ -1647,6 +1951,9 @@ export function HomePage() {
               <DialogDescription className="text-base pt-2">
                 To help you connect with the most helpful people here, we'll ask you only a few questions.
               </DialogDescription>
+              <p className="text-xs text-muted-foreground mt-4">
+                This may take 30 seconds to load. Do not refresh.
+              </p>
             </div>
           </div>
         </DialogContent>
@@ -1691,6 +1998,14 @@ export function HomePage() {
         onClose={() => setIsQRScannerOpen(false)}
         onConnectionCreated={handleConnectionCreated}
       />
+
+      {/* First-time user guide */}
+      {currentEvent && (
+        <UserGuide
+          steps={guideSteps}
+          storageKey="intro-homepage-guide-completed"
+        />
+      )}
     </div>
   )
 }

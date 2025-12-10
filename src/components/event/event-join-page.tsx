@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
-import { toast } from "sonner"
+import { haptics } from "@/lib/haptics"
 import { ArrowLeft } from "lucide-react"
 
 interface Event {
@@ -63,7 +63,6 @@ export function EventJoinPage() {
       // handleJoinEvent will handle the redirect, so we don't need to do anything here
     } catch (error) {
       console.error("Error in auto-join:", error)
-      toast.error("Failed to join event automatically")
     } finally {
       setIsAutoJoining(false)
     }
@@ -74,7 +73,6 @@ export function EventJoinPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error("Please sign in first")
         return
       }
 
@@ -87,12 +85,10 @@ export function EventJoinPage() {
 
       if (eventError) {
         console.error("Event query error:", eventError)
-        toast.error("Failed to check event. Please try again.")
         return
       }
 
       if (!event) {
-        toast.error("Event not found or inactive")
         return
       }
 
@@ -108,12 +104,10 @@ export function EventJoinPage() {
 
       if (memberCheckError) {
         console.error("Error checking membership:", memberCheckError)
-        toast.error("Failed to check membership. Please try again.")
         return
       }
 
       if (existingMember) {
-        toast.success("You're already a member of this event! Redirecting to event...")
         // Redirect to home page since they're already in the event
         router.push('/home')
         return
@@ -129,9 +123,11 @@ export function EventJoinPage() {
         })
 
       if (joinError) {
-        toast.error("Failed to join event")
         return
       }
+
+      // Success haptic feedback
+      haptics.success()
 
       // Trigger match refresh for the new user (in background)
       try {
@@ -150,12 +146,10 @@ export function EventJoinPage() {
         // Don't show error to user, this is a background process
       }
 
-      toast.success("Successfully joined event!")
       // Redirect to onboarding step 3 (networking goals) for this specific event
       router.push(`/onboarding?from=event-join&eventId=${typedEvent.event_id}`)
     } catch (error) {
       console.error("Error joining event:", error)
-      toast.error("An error occurred")
     } finally {
       setIsLoading(false)
     }
@@ -169,6 +163,7 @@ export function EventJoinPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading...</p>
+          <p className="text-xs text-muted-foreground mt-2">Do not refresh this page. Could take 30 seconds.</p>
         </div>
       </div>
     )
