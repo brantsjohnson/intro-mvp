@@ -45,7 +45,7 @@ export function MatchCard({
   return (
     <Card 
       className={cn(
-        "bg-card border-border shadow-elevation cursor-pointer hover:shadow-lg transition-shadow",
+        "bg-card border-border shadow-elevation cursor-pointer hover:shadow-[0px_4px_6px_rgba(0,0,0,0.2)] transition-shadow",
         className
       )}
       onClick={onClick}
@@ -53,7 +53,7 @@ export function MatchCard({
       <CardContent className="p-4">
         <div className="flex items-start space-x-3">
           <PresenceAvatar
-            src={avatarUrl}
+            src={avatarUrl || undefined}
             fallback={name.split(' ').map(n => n[0]).join('')}
             isPresent={isPresent}
             size="md"

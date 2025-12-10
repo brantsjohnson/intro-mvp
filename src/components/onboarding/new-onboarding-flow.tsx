@@ -1107,7 +1107,7 @@ export function NewOnboardingFlow() {
             <div className="relative">
               <Avatar className="w-24 h-24 border-2 border-border">
                 <AvatarImage src={photoUrl || undefined} alt={`${firstName} ${lastName}`} />
-                <AvatarFallback className="bg-muted text-muted-foreground text-xl font-medium">
+                <AvatarFallback className="bg-[#EDEBE6] text-muted-foreground text-xl font-body">
                   {firstName?.[0]?.toUpperCase() || ''}{lastName?.[0]?.toUpperCase() || ''}
                 </AvatarFallback>
               </Avatar>
@@ -1265,7 +1265,7 @@ export function NewOnboardingFlow() {
                         })
                       }
                     }}
-                    className={`px-4 py-2 rounded-concave text-sm font-medium transition-colors ${
+                    className={`px-4 py-2 rounded-concave text-sm font-body transition-colors ${
                       yearsExperience === option
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-[#EDEBE6] text-foreground hover:bg-[#EDEBE6]/80 border border-border'
@@ -1355,14 +1355,14 @@ export function NewOnboardingFlow() {
               {/* Suggested expertise bubbles - show all, highlight selected ones */}
               {suggestedExpertise.length > 0 && (
                 <div className="mt-2 mb-3">
-                  <p className="text-xs text-muted-foreground mb-2">Select or add those that apply:</p>
+                  <p className="text-xs text-muted-foreground mb-2 font-body">Select or add those that apply:</p>
                   <div className="flex flex-wrap gap-2">
                     {suggestedExpertise.map((expertise) => (
                       <button
                         key={expertise}
                         type="button"
                         onClick={() => addSuggestedExpertise(expertise)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        className={`px-3 py-1.5 rounded-full text-xs font-body transition-colors ${
                           areasOfExpertise.includes(expertise)
                             ? 'bg-primary text-primary-foreground border border-primary'
                             : 'bg-[#EDEBE6] text-foreground hover:bg-[#EDEBE6]/80 border border-border'
@@ -1381,7 +1381,7 @@ export function NewOnboardingFlow() {
                   {customExpertise.map((expertise) => (
                     <div
                       key={expertise}
-                      className="px-3 py-1.5 rounded-full text-xs font-medium bg-primary text-white flex items-center gap-2"
+                      className="px-3 py-1.5 rounded-full text-xs font-body bg-primary text-white flex items-center gap-2"
                     >
                       {expertise}
                       <button
@@ -1490,7 +1490,7 @@ export function NewOnboardingFlow() {
               />
               <label
                 htmlFor={`connection-${type.id}`}
-                className="text-sm font-medium cursor-pointer flex-1"
+                className="text-sm font-body cursor-pointer flex-1"
               >
                 {type.label}
               </label>
@@ -1607,10 +1607,10 @@ export function NewOnboardingFlow() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground font-body">Loading...</p>
         </div>
       </div>
     )
@@ -1618,20 +1618,20 @@ export function NewOnboardingFlow() {
 
   if (!currentStepData) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground font-body">Loading...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen text-foreground flex flex-col relative">
+    <div className="min-h-screen bg-background text-foreground flex flex-col relative">
       {/* Loading/Redirecting overlay */}
       {(isLoading || isRedirecting) && (
-        <div className="fixed inset-0 bg-background/80 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-background z-50 flex items-center justify-center">
           <div className="bg-[#EDEBE6] border border-border rounded-lg p-8 text-center shadow-elevation">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
             <h3 className="text-lg font-title text-foreground mb-2">
@@ -1650,7 +1650,7 @@ export function NewOnboardingFlow() {
       {/* Fixed Top Progress Bar */}
       {currentStep > 0 && (
         <div className="fixed top-0 left-0 right-0 z-20">
-          <div className="w-full h-[2px] bg-muted">
+          <div className="w-full h-[2px] bg-[#EDEBE6]">
             <div 
               className="gradient-progress h-[2px] transition-all duration-300 ease-out" 
               style={{ width: `${getProgressPercentage()}%` }}
@@ -1668,11 +1668,11 @@ export function NewOnboardingFlow() {
               {isLoadingQuestion ? (
                 // Skeleton loading shimmer
                 <div className="space-y-4 animate-pulse">
-                  <div className="h-6 bg-muted rounded w-3/4"></div>
+                  <div className="h-6 bg-[#EDEBE6] rounded w-3/4"></div>
                   <div className="space-y-3">
-                    <div className="h-12 bg-muted rounded"></div>
-                    <div className="h-12 bg-muted rounded"></div>
-                    <div className="h-12 bg-muted rounded"></div>
+                    <div className="h-12 bg-[#EDEBE6] rounded"></div>
+                    <div className="h-12 bg-[#EDEBE6] rounded"></div>
+                    <div className="h-12 bg-[#EDEBE6] rounded"></div>
                   </div>
                 </div>
               ) : currentAdaptiveQuestion ? (
@@ -1688,9 +1688,9 @@ export function NewOnboardingFlow() {
                       <button
                         key={option.key}
                         onClick={() => handleAdaptiveAnswer(option.key)}
-                        className="w-full p-4 text-left rounded-concave border border-border hover:border-primary hover:bg-primary/5 transition-colors"
+                        className="w-full p-4 text-left rounded-concave border border-border hover:border-primary hover:bg-primary/5 transition-colors bg-[#EDEBE6]"
                       >
-                        <span className="text-foreground font-medium">{option.label}</span>
+                        <span className="text-foreground font-body">{option.label}</span>
                       </button>
                     ))}
                   </div>
@@ -1698,7 +1698,7 @@ export function NewOnboardingFlow() {
               ) : adaptiveQnAComplete ? (
                 // Completion state
                 <div className="text-center">
-                  <p className="text-foreground">Processing your responses...</p>
+                  <p className="text-foreground font-body">Processing your responses...</p>
                 </div>
               ) : null}
             </div>
@@ -1710,7 +1710,7 @@ export function NewOnboardingFlow() {
                   {currentStepData.title}
                 </h2>
                 {currentStepData.description && (
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground font-body">
                     {currentStepData.description}
                   </p>
                 )}
@@ -1770,7 +1770,7 @@ export function NewOnboardingFlow() {
                 ? isLoading 
                 : !isStepValid() || isLoading || isLoadingQuestion
               } 
-              className="flex-1 h-16 rounded-2xl text-lg font-medium bg-primary text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
+              className="flex-1 h-16 rounded-2xl text-lg font-body bg-primary text-white hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
             >
               {isLoading || isLoadingQuestion ? (
                 <span className="flex items-center gap-2 justify-center">

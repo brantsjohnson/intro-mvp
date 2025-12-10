@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { createClientComponentClient } from "@/lib/supabase"
+import { getAvatarUrl } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -18,6 +19,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 interface UserProfileSummary {
   firstName: string
@@ -51,6 +60,8 @@ export function SettingsPage() {
   })
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   const selectedAttendance = useMemo(() => {
     return attendanceRecords.find((record) => record.eventId === selectedEventId) ?? null
@@ -117,12 +128,23 @@ export function SettingsPage() {
         console.error("Failed to load profile row:", userError)
         toast.error("We couldn’t load your profile details. Please try again.")
       } else if (userRow) {
+        const avatarUrl = getAvatarUrl(userRow.photo_url)
+        console.log('[SettingsPage] Avatar URL conversion:', {
+          original: userRow.photo_url,
+          originalType: typeof userRow.photo_url,
+          converted: avatarUrl,
+          convertedType: typeof avatarUrl,
+          userId: userRow.user_id,
+          isFullUrl: userRow.photo_url?.startsWith('http'),
+          isStoragePath: userRow.photo_url && !userRow.photo_url.startsWith('http')
+        })
+        
         setProfile({
           firstName: userRow.first_name || "",
           lastName: userRow.last_name || "",
           company: userRow.company_name,
           jobTitle: userRow.career_title,
-          avatarUrl: userRow.photo_url,
+          avatarUrl: avatarUrl,
         })
 
         setProfileDraft({
@@ -377,10 +399,22 @@ export function SettingsPage() {
     router.push("/event/join")
   }
 
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await supabase.auth.signOut()
+      router.push("/auth")
+    } catch (error) {
+      console.error("Error signing out:", error)
+      toast.error("Failed to sign out. Please try again.")
+      setIsLoggingOut(false)
+    }
+  }
+
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#411E14] px-4">
-        <div className="flex flex-col items-center gap-3 text-white/70">
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin" />
           <p>Loading your settings…</p>
         </div>
@@ -390,7 +424,7 @@ export function SettingsPage() {
 
   if (!profile) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#411E14] px-4">
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <Card className="w-full max-w-md border-none bg-black/60 text-center text-white shadow-lg">
           <CardHeader>
             <CardTitle>Profile not found</CardTitle>
@@ -406,23 +440,27 @@ export function SettingsPage() {
 
   return (
     <div className="min-h-screen pb-16">
-      <header className="sticky top-0 z-10 border-b border-border bg-card/60">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
-          <button
-            aria-label="Go back"
-            onClick={() => router.back()}
-            className="flex h-10 w-10 items-center justify-center rounded-full shadow-elevation transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary bg-primary"
-          >
-            <ArrowLeft className="h-5 w-5 text-white" />
-          </button>
-          <h1 className="text-lg font-semibold text-foreground sm:text-xl">Profile Settings</h1>
-          <div className="h-10 w-10" />
+      <header className="sticky top-0 z-10 border-b border-border bg-background">
+        <div className="container mx-auto px-4 py-4">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+            <button
+              aria-label="Go back"
+              onClick={() => router.back()}
+              className="flex h-10 w-10 items-center justify-center rounded-full shadow-elevation transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary bg-primary"
+            >
+              <ArrowLeft className="h-5 w-5 text-white" />
+            </button>
+            <div className="flex-1 text-center">
+              <h1 className="text-lg font-semibold text-foreground sm:text-xl">Profile Settings</h1>
+            </div>
+            <div className="h-10 w-10" />
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto mt-4 flex max-w-4xl flex-col gap-6 px-4">
+      <main className="mx-auto mt-4 flex max-w-2xl flex-col gap-4 px-4 pb-20">
         <Card className="bg-card border-border shadow-elevation">
-          <CardContent className="flex flex-col gap-6 p-6 lg:flex-row lg:items-center">
+          <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center">
             <PresenceAvatar
               src={profile.avatarUrl || undefined}
               fallback={`${profile.firstName?.[0] ?? ""}${profile.lastName?.[0] ?? ""}`}
@@ -478,8 +516,8 @@ export function SettingsPage() {
         </Card>
 
         <Card className="bg-card border-border shadow-elevation">
-          <CardHeader className="pb-4">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <CardHeader className="pb-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle className="text-base font-semibold text-foreground">About</CardTitle>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -497,7 +535,7 @@ export function SettingsPage() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
+          <CardContent className="pt-0 pb-4 grid gap-4 md:grid-cols-2">
             <label className="flex flex-col gap-2 text-sm text-foreground">
               <span className="text-xs uppercase tracking-wide text-muted-foreground">Company</span>
               <Input
@@ -537,7 +575,7 @@ export function SettingsPage() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4 pt-0">
+          <CardContent className="pt-0 pb-4 space-y-4">
             {attendanceRecords.length === 0 ? (
               <p className="rounded-md border border-dashed border-border bg-card/60 p-4 text-sm text-muted-foreground">
                 You haven’t joined any events yet. Add an event to share what you’re looking for so
@@ -613,7 +651,53 @@ export function SettingsPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Logout Button */}
+        <div className="flex justify-center pt-4 pb-8">
+          <Button
+            variant="outline"
+            onClick={() => setShowLogoutDialog(true)}
+            className="border-destructive/40 text-destructive hover:bg-destructive/10"
+          >
+            Log out
+          </Button>
+        </div>
       </main>
+
+      {/* Logout Confirmation Dialog */}
+      <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Log out?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to log out? You'll need to sign in again to access your account.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowLogoutDialog(false)}
+              disabled={isLoggingOut}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isLoggingOut ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Logging out...
+                </>
+              ) : (
+                "Log out"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

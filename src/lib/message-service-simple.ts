@@ -1,5 +1,6 @@
 import { createClientComponentClient } from './supabase'
 import { Tables } from './database.types'
+import { getAvatarUrl } from './utils'
 
 type ConversationRow = Tables<'conversations'>
 
@@ -338,7 +339,7 @@ export class MessageService {
       id: u.user_id,
       first_name: u.first_name || '',
       last_name: u.last_name || '',
-      avatar_url: u.photo_url || null,
+      avatar_url: getAvatarUrl(u.photo_url),
       job_title: u.career_title || null
     }))
   }
@@ -398,7 +399,7 @@ export class MessageService {
       id: data.user_id,
       first_name: data.first_name || '',
       last_name: data.last_name || '',
-      avatar_url: data.photo_url || null,
+      avatar_url: getAvatarUrl(data.photo_url),
       job_title: data.career_title || null
     }
 

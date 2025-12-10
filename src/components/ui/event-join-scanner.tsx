@@ -240,7 +240,6 @@ export function EventJoinScanner({
     <div className={cn("space-y-6", className)}>
       {/* Title and Subtitle */}
       <div className="text-center space-y-2">
-        <h2 className="text-2xl font-semibold text-foreground">Join an Event</h2>
         <p className="text-sm text-foreground">Enter 6 digit code or scan QR code to join.</p>
       </div>
 
@@ -281,7 +280,7 @@ export function EventJoinScanner({
               "Joining..."
             ) : (
               <>
-                Join Event
+                Add Event Code
                 <ArrowRight className="h-5 w-5 ml-2" />
               </>
             )}
@@ -294,8 +293,10 @@ export function EventJoinScanner({
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t-2 border-border"></div>
         </div>
-        <div className="relative flex justify-center">
+        <div className="relative flex justify-center items-center">
+          <div className="flex-1 border-t-2 border-border"></div>
           <span className="px-4 text-foreground text-2xl font-semibold">OR</span>
+          <div className="flex-1 border-t-2 border-border"></div>
         </div>
       </div>
 

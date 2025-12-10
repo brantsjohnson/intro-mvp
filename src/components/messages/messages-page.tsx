@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { createClientComponentClient } from "@/lib/supabase"
 import { MessageService, ThreadWithDetails } from "@/lib/message-service-simple"
+import { getAvatarUrl } from "@/lib/utils"
 import { toast } from "sonner"
 import { ArrowLeft, MailPlus, MessageCircle, Search, Users } from "lucide-react"
 import { format, isThisYear, isToday } from "date-fns"
@@ -172,7 +173,7 @@ export function MessagesPage() {
             first_name: profile.first_name || "",
             last_name: profile.last_name || "",
             job_title: profile.career_title || null,
-            avatar_url: profile.photo_url || null,
+            avatar_url: getAvatarUrl(profile.photo_url),
             company: profile.company_name || null
           }
         })
@@ -328,7 +329,7 @@ export function MessagesPage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="border-b border-border bg-card/60 sticky top-0 z-10">
+      <header className="border-b border-border bg-background sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
             <GradientButton onClick={() => router.back()} size="icon">
@@ -378,7 +379,7 @@ export function MessagesPage() {
                         return (
                           <Card
                             key={attendee.id}
-                            className="cursor-pointer border-border bg-card hover:bg-card/80 transition-colors"
+                            className="cursor-pointer border-border bg-card hover:bg-card/80 transition-all shadow-sm hover:shadow-[0px_3px_4px_rgba(0,0,0,0.15)]"
                             onClick={() => handleStartConversation(attendee)}
                           >
                             <CardContent className="p-3">
@@ -458,8 +459,8 @@ export function MessagesPage() {
                 return (
                   <Card
                     key={thread.id}
-                    className={`bg-card border-border cursor-pointer transition-colors ${
-                      hasNewMessages ? "hover:bg-card/90" : "hover:bg-card/80"
+                    className={`bg-card border-border cursor-pointer transition-all shadow-sm ${
+                      hasNewMessages ? "hover:bg-card/90 hover:shadow-[0px_3px_4px_rgba(0,0,0,0.15)]" : "hover:bg-card/80 hover:shadow-[0px_3px_4px_rgba(0,0,0,0.15)]"
                     }`}
                     onClick={() => handleThreadClick(thread)}
                   >

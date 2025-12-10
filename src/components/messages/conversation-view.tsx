@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { MessageService, ConversationMessage, ThreadWithDetails } from "@/lib/message-service-simple"
 import { createClientComponentClient } from "@/lib/supabase"
 import { TablesInsert } from "@/lib/database.types"
+import { getAvatarUrl } from "@/lib/utils"
 import { toast } from "sonner"
 import { ArrowLeft, Send, User } from "lucide-react"
 import { differenceInMinutes, format } from "date-fns"
@@ -172,7 +173,7 @@ export function ConversationView() {
               id: userProfile.user_id,
               first_name: userProfile.first_name || "",
               last_name: userProfile.last_name || "",
-              avatar_url: userProfile.photo_url || null,
+              avatar_url: getAvatarUrl(userProfile.photo_url),
               job_title: userProfile.career_title || null
             },
             last_message: undefined,
@@ -573,9 +574,9 @@ export function ConversationView() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col overflow-hidden">
-        <header className="border-b border-border bg-card/60 flex-shrink-0 z-10">
+        <header className="border-b border-border bg-background flex-shrink-0 z-10">
           <div className="container mx-auto px-4 py-4">
-            <div className="max-w-3xl mx-auto flex items-center justify-between">
+            <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
               <div className="w-9 h-9 bg-muted rounded-full animate-pulse"></div>
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-muted rounded-full animate-pulse"></div>
@@ -625,9 +626,9 @@ export function ConversationView() {
   if (!thread && !hasCheckedForThread) {
     return (
       <div className="min-h-screen flex flex-col overflow-hidden">
-        <header className="border-b border-border bg-card/60 flex-shrink-0 z-10">
+        <header className="border-b border-border bg-background flex-shrink-0 z-10">
           <div className="container mx-auto px-4 py-4">
-            <div className="max-w-3xl mx-auto flex items-center justify-between">
+            <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
               <div className="w-9 h-9 bg-muted rounded-full animate-pulse"></div>
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-muted rounded-full animate-pulse"></div>
@@ -700,7 +701,7 @@ export function ConversationView() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex flex-col">
-      <header className="border-b border-border bg-card/60 sticky top-0 z-10">
+      <header className="border-b border-border bg-background sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
             <GradientButton onClick={() => router.back()} size="icon">
@@ -711,7 +712,7 @@ export function ConversationView() {
               variant="ghost"
               onClick={handleParticipantClick}
               disabled={isCheckingConnection}
-              className="flex-1 flex items-center justify-center space-x-3 px-3 py-2"
+              className="flex-1 flex items-center justify-center space-x-3 px-3 py-2 hover:shadow-[0px_2px_3px_rgba(0,0,0,0.1)]"
             >
               <PresenceAvatar
                 src={thread.other_participant.avatar_url ?? undefined}
@@ -775,7 +776,7 @@ export function ConversationView() {
                         className={`max-w-[75%] ${bubbleAlignment} text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary/40 rounded-3xl`}
                       >
                         <div
-                          className={`w-fit rounded-3xl px-4 py-2 shadow-sm transition-transform hover:scale-[0.99] active:scale-95 ${bubbleColors}`}
+                          className={`w-fit rounded-3xl px-4 py-2 shadow-sm transition-all hover:scale-[0.99] hover:shadow-[0px_3px_4px_rgba(0,0,0,0.2)] active:scale-95 ${bubbleColors}`}
                           style={{
                             borderTopLeftRadius: message.is_from_current_user || !isGroupedWithPrevious ? "1.5rem" : "0.75rem",
                             borderTopRightRadius: message.is_from_current_user && isGroupedWithPrevious ? "0.75rem" : "1.5rem",

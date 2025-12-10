@@ -22,7 +22,7 @@ export function ProfileHeader({
   return (
     <div className={cn("flex items-start space-x-4", className)}>
       <PresenceAvatar
-        src={avatarUrl}
+        src={avatarUrl || undefined}
         fallback={name.split(' ').map(n => n[0]).join('')}
         isPresent={isPresent}
         size="lg"

@@ -189,9 +189,9 @@ export function EventJoinPage() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <header className="border-b border-border bg-card/60 sticky top-0 z-10">
+      <header className="border-b border-border bg-background sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
             <GradientButton
               onClick={() => router.push('/onboarding')}
               variant="outline"
@@ -200,9 +200,11 @@ export function EventJoinPage() {
               <ArrowLeft className="h-4 w-4" />
             </GradientButton>
             
-            <h1 className="text-lg font-semibold text-foreground">
-              JOIN EVENT
-            </h1>
+            <div className="flex-1 text-center">
+              <h1 className="text-lg font-semibold text-foreground">
+                JOIN EVENT
+              </h1>
+            </div>
 
             <div className="w-10" /> {/* Spacer */}
           </div>
@@ -213,7 +215,7 @@ export function EventJoinPage() {
         <div className="max-w-md mx-auto">
           <Card className="bg-card border-border shadow-elevation">
             <CardHeader className="text-center">
-              <CardTitle className="text-xl">JOIN AN EVENT</CardTitle>
+              <CardTitle className="text-xl">Join An Event</CardTitle>
             </CardHeader>
             <CardContent>
               <EventJoinScanner

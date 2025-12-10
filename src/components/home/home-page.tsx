@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { createClientComponentClient } from "@/lib/supabase"
 import { MessageService } from "@/lib/message-service-simple"
 import { User, Profile, Event } from "@/lib/types"
+import { getAvatarUrl } from "@/lib/utils"
 import { toast } from "sonner"
 import { 
   Users, 
@@ -238,6 +239,7 @@ export function HomePage() {
     return () => window.removeEventListener('focus', handleFocus)
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
+
   const loadUserData = async () => {
     if (!user) return
     
@@ -254,12 +256,23 @@ export function HomePage() {
         return
       }
 
+      const avatarUrl = getAvatarUrl(userRow.photo_url)
+      console.log('[loadUserData] Avatar URL conversion:', {
+        original: userRow.photo_url,
+        originalType: typeof userRow.photo_url,
+        converted: avatarUrl,
+        convertedType: typeof avatarUrl,
+        userId: userRow.user_id,
+        isFullUrl: userRow.photo_url?.startsWith('http'),
+        isStoragePath: userRow.photo_url && !userRow.photo_url.startsWith('http')
+      })
+      
       const mappedProfile: Profile = {
         id: userRow.user_id,
         first_name: userRow.first_name || "",
         last_name: userRow.last_name || "",
         email: userRow.email || "",
-        avatar_url: userRow.photo_url || null,
+        avatar_url: avatarUrl,
         job_title: userRow.career_title || null,
         company: userRow.company_name || null,
         what_do_you_do: null,
@@ -467,7 +480,7 @@ export function HomePage() {
             first_name: u.first_name || "",
             last_name: u.last_name || "",
             email: "",
-            avatar_url: u.photo_url || null,
+            avatar_url: getAvatarUrl(u.photo_url),
             job_title: u.career_title || null,
             company: u.company_name || null,
             what_do_you_do: null,
@@ -595,7 +608,7 @@ export function HomePage() {
           first_name: u.first_name || "",
           last_name: u.last_name || "",
           email: "",
-          avatar_url: u.photo_url || null,
+          avatar_url: getAvatarUrl(u.photo_url),
           job_title: u.career_title || null,
           company: u.company_name || null,
           what_do_you_do: null,
@@ -730,7 +743,7 @@ export function HomePage() {
             first_name: attendee.first_name || "",
             last_name: attendee.last_name || "",
             email: "",
-            avatar_url: attendee.photo_url || null,
+            avatar_url: getAvatarUrl(attendee.photo_url),
             job_title: attendee.career_title || null,
             company: attendee.company_name || null,
             what_do_you_do: null,
@@ -747,12 +760,25 @@ export function HomePage() {
           let status: DirectoryPersonStatus = "available"
           if (attendeeProfile.id === user.id) {
             status = "self"
-          } else if (connectedIds.has(attendeeProfile.id)) {
-            status = "connected"
-          } else if (pendingIncomingIds.has(attendeeProfile.id)) {
-            status = "pending-incoming"
-          } else if (pendingOutgoingIds.has(attendeeProfile.id)) {
-            status = "pending-outgoing"
+          } else {
+            // Check if they've actually met (not just a system match)
+            const hasMet = confirmed.some(c => 
+              c.profile.id === attendeeProfile.id && 
+              (c.source === 'met' || c.source === 'manual_add' || c.source === 'qr' || c.source === 'manual_directory')
+            )
+            
+            // For top 3 matches, only show "connected" if they've met
+            const isTopMatch = matches.some(m => m.profile.id === attendeeProfile.id)
+            
+            if (isTopMatch && !hasMet) {
+              status = "available" // Don't show as connected until they've met
+            } else if (connectedIds.has(attendeeProfile.id)) {
+              status = "connected"
+            } else if (pendingIncomingIds.has(attendeeProfile.id)) {
+              status = "pending-incoming"
+            } else if (pendingOutgoingIds.has(attendeeProfile.id)) {
+              status = "pending-outgoing"
+            }
           }
 
           return {
@@ -997,14 +1023,9 @@ export function HomePage() {
 
     if (entry.status === "connected") {
       return currentEvent ? (
-        <Button
-          size="icon"
-          variant="ghost"
-          onClick={() => router.push(`/profile/${entry.profile.id}?source=connection&eventId=${currentEvent.id}`)}
-          aria-label={`View ${entry.profile.first_name} ${entry.profile.last_name}`}
-        >
+        <div className="flex-shrink-0">
           <ArrowRight className="h-4 w-4 text-muted-foreground" />
-        </Button>
+        </div>
       ) : null
     }
 
@@ -1192,24 +1213,24 @@ export function HomePage() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <header className="border-b border-border bg-card/60 sticky top-0 z-10">
+      <header className="border-b border-border bg-background sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
             {/* Left: User avatar with presence indicator */}
             <button
               onClick={() => router.push("/settings")}
-              className="focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-full"
+              className="focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-full transition-all hover:shadow-[0px_3px_4px_rgba(0,0,0,0.2)]"
             >
               <PresenceAvatar
                 src={profile.avatar_url || undefined}
-                fallback={`${profile.first_name[0]}${profile.last_name[0]}`}
+                fallback={`${profile.first_name[0] || ''}${profile.last_name[0] || ''}`}
                 isPresent={isPresent}
                 size="md"
               />
             </button>
             
-            {/* Right of avatar: Intro wordmark */}
-            <div className="ml-4">
+            {/* Center: Intro wordmark */}
+            <div className="flex-1 text-center">
               <h1 
                 className="text-2xl font-bold text-accent"
                 style={{ 
@@ -1221,24 +1242,22 @@ export function HomePage() {
             </div>
             
             {/* Right: Message icon with gradient and unread badge */}
-            <div className="ml-auto">
-              <button
-                type="button"
-                onClick={() => router.push(`/messages?eventId=${currentEvent?.id || ''}`)}
-                className="relative w-10 h-10 rounded-full flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20 bg-primary"
-                style={{
-                  border: 'none'
-                }}
-                aria-label="Open messages"
-              >
-                <MessageSquare className="h-5 w-5 text-white pointer-events-none" />
-                {unreadMessageCount > 0 && (
-                  <span className="pointer-events-none absolute -top-1 -right-1 bg-accent text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
-                    {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
-                  </span>
-                )}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => router.push(`/messages?eventId=${currentEvent?.id || ''}`)}
+              className="relative w-10 h-10 rounded-full flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20 bg-primary"
+              style={{
+                border: 'none'
+              }}
+              aria-label="Open messages"
+            >
+              <MessageSquare className="h-5 w-5 text-white pointer-events-none" />
+              {unreadMessageCount > 0 && (
+                <span className="pointer-events-none absolute -top-1 -right-1 bg-accent text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                  {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
       </header>
@@ -1441,7 +1460,7 @@ export function HomePage() {
                     <span>Add other attendees</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="pt-0 space-y-4">
+                <CardContent className="pt-0 pb-4 space-y-4">
                   <QRCard onScanClick={handleQRScan} eventId={currentEvent.id} />
 
                   {manualConnections.length > 0 ? (
@@ -1455,7 +1474,7 @@ export function HomePage() {
                         return (
                           <div
                             key={item.id}
-                            className="flex items-center space-x-3 p-3 rounded-lg border border-border bg-card/60"
+                            className="flex items-center space-x-3 px-3 py-4 rounded-lg border border-border bg-card/60"
                           >
                             <PresenceAvatar
                               src={item.profile.avatar_url || undefined}
@@ -1549,7 +1568,7 @@ export function HomePage() {
                     )}
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3 pt-0">
+                <CardContent className="space-y-3 pt-0 pb-4">
                   {directory.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                       As attendees complete their profiles, you'll see them here.
@@ -1565,11 +1584,24 @@ export function HomePage() {
                       ) : (
                         filteredDirectory.map((entry) => {
                           const statusLabel = getDirectoryStatusLabel(entry)
+                          // Don't show "Connected" label when filter is set to "connected" (redundant)
+                          const shouldShowStatusLabel = statusLabel && !(directoryFilter === "connected" && entry.status === "connected")
+                          
+                          // Make container clickable for connected users
+                          const isClickable = entry.status === "connected" && currentEvent
+                          const handleContainerClick = () => {
+                            if (isClickable) {
+                              router.push(`/profile/${entry.profile.id}?source=connection&eventId=${currentEvent.id}`)
+                            }
+                          }
 
                           return (
                             <div
                               key={entry.profile.id}
-                              className="flex items-center space-x-3 p-3 rounded-lg border border-border bg-card/60"
+                              onClick={handleContainerClick}
+                              className={`flex items-center space-x-3 px-3 py-4 rounded-lg border border-border bg-card/60 ${
+                                isClickable ? "cursor-pointer hover:bg-card/80 transition-colors" : ""
+                              }`}
                             >
                               <PresenceAvatar
                                 src={entry.profile.avatar_url || undefined}
@@ -1587,7 +1619,7 @@ export function HomePage() {
                                     {entry.profile.company && ` at ${entry.profile.company}`}
                                   </p>
                                 )}
-                                {statusLabel && (
+                                {shouldShowStatusLabel && (
                                   <p className="text-xs text-muted-foreground mt-1">{statusLabel}</p>
                                 )}
                               </div>

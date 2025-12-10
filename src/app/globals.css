@@ -163,12 +163,18 @@
     mix-blend-mode: multiply;
     z-index: -1;
   }
+  
+  /* All headers must have solid backgrounds (0% transparency) */
+  header {
+    background-color: var(--background) !important;
+    opacity: 1 !important;
+  }
 }
 
 @layer utilities {
   /* Container styles - cream with double-border */
   .container-cream {
-    border-radius: 48px;
+    border-radius: 56px;
     background: rgba(237, 235, 230, 0.5);
     border: 1.5px solid #BEBCB8;
     box-shadow: 
@@ -197,7 +203,7 @@
   
   /* Title container */
   .title-container {
-    border-radius: 40px;
+    border-radius: 56px;
     padding: 18px 32px;
     background: rgba(237, 235, 230, 0.5);
     border: 1.5px solid #BEBCB8;
@@ -229,7 +235,7 @@
   
   /* Concave-rounded rectangles */
   .rounded-concave {
-    border-radius: 48px;
+    border-radius: 56px;
   }
   
   .rounded-concave-lg {

@@ -47,7 +47,7 @@ export function ClickableProfilePicture({
   return (
     <>
       <div 
-        className={cn("relative cursor-pointer transition-opacity hover:opacity-90", className)}
+        className={cn("relative cursor-pointer transition-all hover:opacity-90 hover:shadow-[0px_3px_4px_rgba(0,0,0,0.2)] rounded-xl", className)}
         onClick={() => setIsOpen(true)}
         role="button"
         tabIndex={0}
@@ -94,6 +94,8 @@ export function ClickableProfilePicture({
                 src={src}
                 alt={alt || "Profile picture"}
                 className="max-w-full max-h-[85vh] object-contain rounded-xl"
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
               />
             ) : (
               <div className="flex items-center justify-center bg-muted text-muted-foreground text-4xl font-medium rounded-xl min-h-[200px] min-w-[200px]">

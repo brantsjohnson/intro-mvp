@@ -11,6 +11,7 @@ import { QRScanner } from "@/components/ui/qr-scanner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createClientComponentClient } from "@/lib/supabase"
 import { Profile } from "@/lib/types"
+import { getAvatarUrl } from "@/lib/utils"
 import { toast } from "sonner"
 import { ArrowLeft, MessageSquare } from "lucide-react"
 
@@ -210,14 +211,18 @@ const parseMatchBreakdown = (input: unknown): MatchBreakdown | null => {
   }
 }
 
-const renderTagList = (items: string[] | null | undefined) => {
+const renderTagList = (items: string[] | null | undefined, variant: 'default' | 'plum' = 'default') => {
   if (!items || items.length === 0) return null
+  const baseClasses = "rounded-full px-3 py-1 text-sm"
+  const variantClasses = variant === 'plum' 
+    ? "bg-accent text-accent-foreground"
+    : "bg-muted/60 text-muted-foreground"
   return (
     <div className="flex flex-wrap gap-2">
       {items.map((item, index) => (
         <span
           key={`${item}-${index}`}
-          className="rounded-full bg-muted/60 px-3 py-1 text-sm text-muted-foreground"
+          className={`${baseClasses} ${variantClasses}`}
         >
           {item}
         </span>
@@ -373,12 +378,23 @@ export function UserProfile({ userId }: UserProfileProps) {
           ? (personality?.key_traits as string[])
           : null
 
+        const avatarUrl = getAvatarUrl(profileData.photo_url)
+        console.log('[UserProfile] Avatar URL conversion:', {
+          original: profileData.photo_url,
+          originalType: typeof profileData.photo_url,
+          converted: avatarUrl,
+          convertedType: typeof avatarUrl,
+          userId: profileData.user_id,
+          isFullUrl: profileData.photo_url?.startsWith('http'),
+          isStoragePath: profileData.photo_url && !profileData.photo_url.startsWith('http')
+        })
+        
         const mappedProfile: ProfileDetails = {
           id: profileData.user_id,
           first_name: profileData.first_name || "",
           last_name: profileData.last_name || "",
           email: profileData.email || "",
-          avatar_url: profileData.photo_url || null,
+          avatar_url: avatarUrl,
           job_title: profileData.career_title || null,
           company: profileData.company_name || null,
           what_do_you_do: profileData.expertise_summary || null,
@@ -541,10 +557,6 @@ export function UserProfile({ userId }: UserProfileProps) {
                 c.user_add_method === 'manual_directory'
               )
               
-              console.log('Connection check:', { 
-                connections: existingConnections, 
-                hasMet 
-              })
               setHasConnection(Boolean(hasMet))
             } catch (_) {
               // ignore errors; default is no connection
@@ -603,8 +615,6 @@ export function UserProfile({ userId }: UserProfileProps) {
     // Only prompt for top 3 matches (suggested) that haven't been met yet
     const shouldPrompt = source === 'suggested' && !hasConnection && eventId
 
-    console.log('handleBack:', { source, eventId, hasConnection, shouldPrompt })
-
     if (shouldPrompt) {
       setShowFeedbackModal(true)
       return
@@ -618,8 +628,7 @@ export function UserProfile({ userId }: UserProfileProps) {
       const eventId = searchParams.get('eventId')
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || !eventId) return
-      // Don't navigate back - keep them on the profile
-      // The modal will close but they stay on the page
+      // No action needed - just close modal and navigate to home
       setShowFeedbackModal(false)
     } catch (_) {
       // swallow errors
@@ -653,13 +662,13 @@ export function UserProfile({ userId }: UserProfileProps) {
       }
 
       setHasConnection(true)
-      toast.success('Connection recorded')
       
-      // Navigate to home after marking as met
+      // Navigate to home after marking as met (no toast)
       router.push('/home')
     } catch (error) {
       console.error('Error creating connection:', error)
-      toast.error('Failed to record connection')
+      // Navigate to home even on error (no toast)
+      router.push('/home')
     }
   }
 
@@ -727,9 +736,9 @@ export function UserProfile({ userId }: UserProfileProps) {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <header className="border-b border-border bg-card/60 sticky top-0 z-10">
+      <header className="border-b border-border bg-background sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
             <GradientButton
               onClick={handleBack}
               variant="filled"
@@ -738,7 +747,7 @@ export function UserProfile({ userId }: UserProfileProps) {
               <ArrowLeft className="h-4 w-4" />
             </GradientButton>
             
-            <div className="text-center">
+            <div className="flex-1 text-center">
               <h1 className="text-lg font-semibold text-foreground">
                 {profile.first_name} {profile.last_name}
               </h1>
@@ -808,7 +817,7 @@ export function UserProfile({ userId }: UserProfileProps) {
               <CardHeader className="pb-1">
                 <CardTitle className="text-primary">Why you two should meet</CardTitle>
               </CardHeader>
-              <CardContent className="pt-0 space-y-3">
+              <CardContent className="pt-0 pb-6 space-y-3">
                 {matchSummaryText && (
                   <p className="text-foreground leading-relaxed font-medium">
                     {matchSummaryText}
@@ -869,8 +878,8 @@ export function UserProfile({ userId }: UserProfileProps) {
               <CardHeader className="pb-1">
                 <CardTitle className="text-primary">Interests</CardTitle>
               </CardHeader>
-              <CardContent className="pt-0">
-                {renderTagList(profile.hobbies)}
+              <CardContent className="pt-0 pb-6">
+                {renderTagList(profile.hobbies, 'plum')}
               </CardContent>
             </Card>
           )}
@@ -880,7 +889,7 @@ export function UserProfile({ userId }: UserProfileProps) {
               <CardHeader className="pb-1">
                 <CardTitle className="text-primary">What you asked for</CardTitle>
               </CardHeader>
-              <CardContent className="pt-0">
+              <CardContent className="pt-0 pb-6">
                 <ul className="list-disc list-inside space-y-2 text-foreground">
                   {viewerNeeds.map((need, index) => (
                     <li key={`need-${index}`}>{need}</li>
@@ -896,11 +905,10 @@ export function UserProfile({ userId }: UserProfileProps) {
               <CardHeader className="pb-1">
                 <CardTitle className="text-primary">What {profile.first_name} is looking for</CardTitle>
               </CardHeader>
-              <CardContent className="pt-0 space-y-3">
+              <CardContent className="pt-0 pb-6 space-y-3">
                 {profile.want_summary?.trim() && (
                   <p className="text-foreground leading-relaxed">{profile.want_summary}</p>
                 )}
-                {renderTagList(wantTags)}
                 {viewerNeeds.length > 0 && (
                   <ul className="list-disc list-inside space-y-2 text-foreground">
                     {viewerNeeds.map((need, index) => (
@@ -912,28 +920,6 @@ export function UserProfile({ userId }: UserProfileProps) {
             </Card>
           )}
 
-          {(profile.linkedin_titles && profile.linkedin_titles.length > 0) ||
-            (profile.linkedin_companies && profile.linkedin_companies.length > 0) ? (
-              <Card className="bg-card border-border shadow-elevation">
-                <CardHeader className="pb-1">
-                  <CardTitle className="text-primary">Professional history</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0 space-y-3">
-                  {profile.linkedin_titles && profile.linkedin_titles.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Past roles</p>
-                      {renderTagList(profile.linkedin_titles.slice(0, 6))}
-                    </div>
-                  )}
-                  {profile.linkedin_companies && profile.linkedin_companies.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Companies they've worked with</p>
-                      {renderTagList(profile.linkedin_companies.slice(0, 6))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ) : null}
         </div>
       </main>
 
@@ -955,7 +941,7 @@ export function UserProfile({ userId }: UserProfileProps) {
               variant="outline"
               onClick={async () => {
                 await recordNoClick()
-                // Don't navigate - keep them on the profile
+                router.push('/home')
               }}
               size="sm"
             >

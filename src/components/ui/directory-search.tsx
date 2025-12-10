@@ -69,10 +69,10 @@ export function DirectorySearch({ attendees, onSelectAttendee, className }: Dire
                   <div
                     key={attendee.id}
                     onClick={() => handleSelectAttendee(attendee)}
-                    className="flex items-center space-x-3 p-3 hover:bg-muted/50 cursor-pointer border-b border-border last:border-b-0"
+                    className="flex items-center space-x-3 p-3 hover:bg-muted/50 cursor-pointer border-b border-border last:border-b-0 transition-all hover:shadow-[0px_2px_3px_rgba(0,0,0,0.1)]"
                   >
                     <PresenceAvatar
-                      src={attendee.avatarUrl}
+                      src={attendee.avatarUrl || undefined}
                       fallback={attendee.name.split(' ').map(n => n[0]).join('')}
                       isPresent={attendee.isPresent}
                       size="sm"
