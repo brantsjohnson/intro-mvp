@@ -121,33 +121,81 @@ export class EmailService {
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
         </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">You have a new message!</h1>
-          </div>
-          <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb; border-top: none;">
-            <p style="font-size: 16px; margin: 0 0 20px 0;">
-              <strong>${this.escapeHtml(senderName)}</strong> sent you a message on Intro.
-            </p>
-            ${messagePreview ? `
-              <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #667eea; margin: 20px 0;">
-                <p style="margin: 0; font-style: italic; color: #666;">"${this.escapeHtml(messagePreview)}"</p>
-              </div>
-            ` : ''}
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${link}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: 600; font-size: 16px;">
-                View Message
-              </a>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #F6F7F4; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #15201C;">
+          <h1 style="color: #F6F7F4; margin: 0 0 30px 0; font-size: 24px; text-align: center;">You have a new message!</h1>
+          <p style="font-size: 16px; margin: 0 0 20px 0; color: #F6F7F4;">
+            <strong>${this.escapeHtml(senderName)}</strong> sent you a message on Intro.
+          </p>
+          ${messagePreview ? `
+            <div style="background: transparent; padding: 15px; border-radius: 6px; border-left: 4px solid #9C4C05; margin: 20px 0;">
+              <p style="margin: 0; font-style: italic; color: #A9B1AA;">"${this.escapeHtml(messagePreview)}"</p>
             </div>
-            <p style="font-size: 14px; color: #666; margin: 30px 0 0 0; text-align: center;">
-              <a href="${link}" style="color: #667eea; text-decoration: none;">${link}</a>
-            </p>
+          ` : ''}
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${link}" style="display: inline-block; background: linear-gradient(135deg, #1A2C24 0%, #0C1A14 100%); color: #F6F7F4; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: 600; font-size: 16px;">
+              View Message
+            </a>
           </div>
+          <p style="font-size: 14px; color: #A9B1AA; margin: 30px 0 0 0; text-align: center;">
+            <a href="${link}" style="color: #9C4C05; text-decoration: none;">${link}</a>
+          </p>
         </body>
       </html>
     `
 
     const text = `You have a new message from ${senderName} on Intro.${messagePreview ? `\n\n"${messagePreview}"` : ''}\n\nView your message: ${link}`
+
+    return this.sendEmail({
+      to: recipientEmail,
+      subject,
+      html,
+      text
+    })
+  }
+
+  /**
+   * Send a match notification email
+   */
+  async sendMatchNotification(
+    recipientEmail: string,
+    eventName: string,
+    matchCount: number,
+    link: string = 'https://introevent.site'
+  ): Promise<SendEmailResult> {
+    const subject = `You have ${matchCount} new ${matchCount === 1 ? 'match' : 'matches'} on Intro!`
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #F6F7F4; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #15201C;">
+          <h1 style="color: #F6F7F4; margin: 0 0 30px 0; font-size: 24px; text-align: center;">You have new matches!</h1>
+          <p style="font-size: 16px; margin: 0 0 20px 0; color: #F6F7F4;">
+            We found <strong>${matchCount} ${matchCount === 1 ? 'person' : 'people'}</strong> you should connect with at <strong>${this.escapeHtml(eventName)}</strong>.
+          </p>
+          <div style="background: transparent; padding: 15px; border-radius: 6px; border-left: 4px solid #9C4C05; margin: 20px 0;">
+            <p style="margin: 0; color: #A9B1AA;">
+              ${matchCount === 1 
+                ? 'Your match is ready to view. Start a conversation and make a meaningful connection!' 
+                : 'Your matches are ready to view. Start conversations and make meaningful connections!'}
+            </p>
+          </div>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${link}" style="display: inline-block; background: linear-gradient(135deg, #1A2C24 0%, #0C1A14 100%); color: #F6F7F4; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: 600; font-size: 16px;">
+              View Matches
+            </a>
+          </div>
+          <p style="font-size: 14px; color: #A9B1AA; margin: 30px 0 0 0; text-align: center;">
+            <a href="${link}" style="color: #9C4C05; text-decoration: none;">${link}</a>
+          </p>
+        </body>
+      </html>
+    `
+
+    const text = `You have ${matchCount} new ${matchCount === 1 ? 'match' : 'matches'} on Intro for ${eventName}.\n\nView your matches: ${link}`
 
     return this.sendEmail({
       to: recipientEmail,
