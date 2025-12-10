@@ -51,9 +51,10 @@ async function fetchToken(supabase: SupabaseClient, token: string): Promise<Toke
   return data as TokenRecord
 }
 
-export async function GET(_request: NextRequest, context: { params: { token: string } }) {
+export async function GET(_request: NextRequest, context: { params: Promise<{ token: string }> }) {
   try {
-    const tokenValue = context.params?.token
+    const params = await context.params
+    const tokenValue = params?.token
     if (!tokenValue) {
       return NextResponse.json({ error: 'Missing token' }, { status: 400 })
     }
@@ -107,9 +108,10 @@ export async function GET(_request: NextRequest, context: { params: { token: str
   }
 }
 
-export async function POST(request: NextRequest, context: { params: { token: string } }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ token: string }> }) {
   try {
-    const tokenValue = context.params?.token
+    const params = await context.params
+    const tokenValue = params?.token
     if (!tokenValue) {
       return NextResponse.json({ error: 'Missing token' }, { status: 400 })
     }
