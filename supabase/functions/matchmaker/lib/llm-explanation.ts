@@ -11,6 +11,8 @@ export async function generateStructuredExplanation(
 
 You receive two attendees (A = current user, B = recommended match) plus numeric match scores by dimension.
 
+CRITICAL: Always use gender-neutral language in all explanations, descriptions, and icebreaker questions. Never assume someone's gender based on their name, title, or any other information. Use "they/them/their" pronouns, or refer to people by their name, title, or role. Never use "he/him/his" or "she/her" pronouns unless explicitly specified (which it never will be in this context).
+
 Your job is not to decide who to match. The backend already chose this pair.
 
 BEFORE SCORING: Infer each person's normalized function and seniority from their job title (e.g., "Account Executive" → sales/IC, "VP of Engineering" → engineering/vp, "Founder" → exec/founder).

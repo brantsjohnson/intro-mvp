@@ -201,7 +201,7 @@ Why attending: ${attendance.why_attending_text || ''}`
         const offerResponse = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
-            { role: "system", content: "Summarize what this person can OFFER to others at a networking event (what they bring, what they can help with, what they're offering). Keep it concise (2-3 sentences max). Focus on their expertise, skills, and what they can provide to others." },
+            { role: "system", content: "Summarize what this person can OFFER to others at a networking event (what they bring, what they can help with, what they're offering). Keep it concise (2-3 sentences max). Focus on their expertise, skills, and what they can provide to others.\n\nCRITICAL: Always use gender-neutral language. Never assume someone's gender. Use \"they/them/their\" pronouns, or refer to people by their name, title, or role. Never use \"he/him/his\" or \"she/her\" pronouns." },
             { role: "user", content: offerContext }
           ],
           temperature: 0.7,
@@ -219,7 +219,7 @@ Job: ${user?.career_title || ''}`
         const wantResponse = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
-            { role: "system", content: "Summarize what this person is LOOKING FOR or SEEKING at a networking event (mentorship, opportunities, connections, etc.). Keep it concise (2-3 sentences max)." },
+            { role: "system", content: "Summarize what this person is LOOKING FOR or SEEKING at a networking event (mentorship, opportunities, connections, etc.). Keep it concise (2-3 sentences max).\n\nCRITICAL: Always use gender-neutral language. Never assume someone's gender. Use \"they/them/their\" pronouns, or refer to people by their name, title, or role. Never use \"he/him/his\" or \"she/her\" pronouns." },
             { role: "user", content: wantContext }
           ],
           temperature: 0.7,
@@ -318,6 +318,8 @@ Connection Types: ${connectionTypes.join(', ')}
 Business Need: ${attendance.business_need_text || ''}`
           
           const personalityPrompt = `You are a personality assessment expert. Analyze the following Q&A responses and infer personality types.
+
+CRITICAL: Always use gender-neutral language in all descriptions and summaries. Never assume someone's gender. Use "they/them/their" pronouns, or refer to people by their name, title, or role. Never use "he/him/his" or "she/her" pronouns.
 
 USER CONTEXT:
 ${userContext}

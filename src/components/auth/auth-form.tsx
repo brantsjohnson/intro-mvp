@@ -220,14 +220,14 @@ export function AuthForm() {
           )}
 
           {isSignUp && (
-            <div className="flex items-start space-x-2">
+            <div className="flex items-start space-x-3 p-4 rounded-lg border border-border bg-card/50">
               <Checkbox
                 id="consent"
                 checked={consent}
                 onCheckedChange={(checked) => setConsent(checked as boolean)}
-                className="mt-0.5"
+                className="mt-0.5 h-5 w-5 border-2"
               />
-              <Label htmlFor="consent" className="text-sm text-muted-foreground leading-relaxed">
+              <Label htmlFor="consent" className="text-sm text-foreground leading-relaxed cursor-pointer flex-1">
                 By signing up, I accept the{" "}
                 <a href="/terms" className="text-accent hover:underline">
                   Terms of Service

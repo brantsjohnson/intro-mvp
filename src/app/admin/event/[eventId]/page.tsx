@@ -393,7 +393,16 @@ export default function AdminEventEditPage() {
       const result = await response.json()
 
       if (response.ok) {
-        toast.success(`Sent ${result.sent} networking cards${result.failed > 0 ? ` (${result.failed} failed)` : ''}`)
+        if (result.failed > 0) {
+          // Show detailed error information for failures
+          const failedResults = result.results?.filter((r: any) => !r.success) || []
+          const errorMessages = failedResults.map((r: any) => r.error || 'Unknown error').join(', ')
+          toast.error(`Sent ${result.sent} networking cards, ${result.failed} failed. Errors: ${errorMessages}`, {
+            duration: 10000,
+          })
+        } else {
+          toast.success(`Sent ${result.sent} networking cards`)
+        }
       } else {
         toast.error(result.error || 'Failed to send networking cards')
       }

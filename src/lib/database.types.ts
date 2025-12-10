@@ -52,6 +52,7 @@ export type Database = {
           admin_event_codes: string[] | null
           phone_number: string | null
           sms_notifications_enabled: boolean | null
+          email_notifications_enabled: boolean | null
         }
         Insert: Partial<Database["public"]["Tables"]["users"]["Row"]> & {
           user_id: string

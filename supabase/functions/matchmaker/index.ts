@@ -1682,6 +1682,8 @@ async function scoreCandidatesWithAI(
   // Build comprehensive prompt with decision tree logic
   const systemPrompt = `You are the Intro Matchmaker AI, an expert system designed to create the most relevant and satisfying professional connections at events. Your primary goal is to find the best possible match (User B) for User A's explicit goal, ensuring practical value by prioritizing contextual fit (Company Specialization + Expertise) over superficial titles. Avoiding mismatches is as important as finding good matches.
 
+CRITICAL: Always use gender-neutral language in all explanations and descriptions. Never assume someone's gender based on their name, title, or any other information. Use "they/them/their" pronouns, or refer to people by their name, title, or role. Never use "he/him/his" or "she/her" unless explicitly specified (which it never will be in this context).
+
 ================================================================================
 MATCHING RULES (BY PRIORITY)
 ================================================================================
@@ -2077,6 +2079,8 @@ Generate a short, natural explanation (max 160 characters) that:
 - Avoids generic phrases like "high overlap" or "worth a quick introduction"
 - Focuses on concrete value they can provide each other
 - Uses "you" to refer to the viewer and the candidate's name/title when relevant
+
+CRITICAL: Always use gender-neutral language. Never assume someone's gender. Use "they/them/their" pronouns, or refer to people by their name, title, or role. Never use "he/him/his" or "she/her" pronouns.
 
 Be specific and concise. Keep it under 160 characters.`
 

@@ -45,6 +45,9 @@ export async function POST(request: NextRequest) {
     const host = request.headers.get('host') || 'localhost:3000'
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || `${protocol}://${host}`
     
+    console.log(`Sending networking cards to ${attendees.length} attendees for event ${eventId}`)
+    console.log(`Using baseUrl: ${baseUrl}`)
+    
     const results = []
     for (const attendee of attendees) {
       try {
@@ -60,10 +63,13 @@ export async function POST(request: NextRequest) {
         })
 
         const result = await response.json()
+        if (!response.ok) {
+          console.error(`Failed to send card to user ${attendee.user_id}:`, result.error || result.details || 'Unknown error')
+        }
         results.push({
           userId: attendee.user_id,
           success: response.ok,
-          error: result.error,
+          error: result.error || result.details || (response.ok ? undefined : 'Unknown error'),
         })
       } catch (error) {
         console.error(`Error sending card to user ${attendee.user_id}:`, error)
