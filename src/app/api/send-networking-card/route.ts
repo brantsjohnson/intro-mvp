@@ -33,9 +33,33 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
     
-    const { data: user } = await supabase.auth.admin.getUserById(userId)
-    if (!user?.user?.email) {
-      return NextResponse.json({ error: 'User email not found' }, { status: 400 })
+    // Try to get email from auth.users first
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId)
+    let userEmail = authUser?.user?.email
+    
+    // Fallback to public.users table if email not found in auth.users
+    if (!userEmail) {
+      console.log(`Email not found in auth.users for userId ${userId}, checking public.users...`)
+      const { data: publicUser, error: publicUserError } = await supabase
+        .from('users')
+        .select('email')
+        .eq('user_id', userId)
+        .single()
+      
+      if (publicUserError) {
+        console.error('Error fetching user from public.users:', publicUserError)
+      } else if (publicUser?.email) {
+        userEmail = publicUser.email
+        console.log(`Found email in public.users: ${userEmail}`)
+      }
+    }
+    
+    if (!userEmail) {
+      console.error(`No email found for userId ${userId} in either auth.users or public.users`)
+      return NextResponse.json({ 
+        error: 'User email not found',
+        details: `Could not find email for user ${userId} in auth.users or public.users`
+      }, { status: 400 })
     }
 
     // Build site URL for links
@@ -49,7 +73,7 @@ export async function POST(request: NextRequest) {
       const result = await createSurveyToken(supabase, {
         eventId,
         userId,
-        email: user.user.email,
+        email: userEmail,
         baseUrl,
       })
       surveyLink = result.surveyLink
@@ -95,41 +119,60 @@ export async function POST(request: NextRequest) {
     // Generate HTML for the card with border colors
     const html = generateCardHTML(metrics, borderColors)
 
-    // Render HTML to PNG using Browserless (hosted Chrome) to avoid local Chrome deps
-    const browserlessToken = process.env.BROWSERLESS_TOKEN
-    if (!browserlessToken) {
-      throw new Error('Missing BROWSERLESS_TOKEN env var for Browserless rendering')
-    }
-
-    // Convert HTML to a data URL for Browserless to load
-    const htmlBase64 = Buffer.from(html, 'utf8').toString('base64')
-    const dataUrl = `data:text/html;base64,${htmlBase64}`
-
-    const browserlessUrl = `https://chrome.browserless.io/screenshot?token=${browserlessToken}`
-    const response = await fetch(browserlessUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url: dataUrl,
-        options: {
-          viewport: { width: 1200, height: 800 },
-          fullPage: true,
-          waitUntil: 'networkidle0',
-        },
-      }),
+    // Render HTML to PNG using Puppeteer
+    console.log('Generating networking card image with Puppeteer...')
+    const puppeteer = await import('puppeteer')
+    const browser = await puppeteer.default.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
     })
-
-    if (!response.ok) {
-      const text = await response.text()
-      throw new Error(`Browserless screenshot failed: ${response.status} ${text}`)
+    
+    let pngBuffer: Buffer
+    let contentHeight: number
+    let cardBounds: Array<{ x: number; y: number; width: number; height: number }> = []
+    
+    try {
+      const page = await browser.newPage()
+      // Set initial viewport
+      await page.setViewport({ width: 1200, height: 800 })
+      await page.setContent(html, { waitUntil: 'networkidle0' })
+      
+      // Get the actual content height
+      contentHeight = await page.evaluate(() => {
+        return Math.max(
+          document.body.scrollHeight,
+          document.body.offsetHeight,
+          document.documentElement.clientHeight,
+          document.documentElement.scrollHeight,
+          document.documentElement.offsetHeight
+        )
+      })
+      
+      // Set viewport to match content height (add small padding)
+      await page.setViewport({ width: 1200, height: contentHeight + 20 })
+      
+      // Get bounds for all cards so we can draw borders
+      const bounds = await page.evaluate(() => {
+        const cards = document.querySelectorAll('.card')
+        return Array.from(cards).map(card => {
+          const rect = card.getBoundingClientRect()
+          return {
+            x: Math.round(rect.left),
+            y: Math.round(rect.top),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height)
+          }
+        })
+      })
+      cardBounds = bounds
+      console.log(`Found ${cardBounds.length} cards to apply borders to`)
+      
+      // Take screenshot of the full content
+      const screenshot = await page.screenshot({ type: 'png', fullPage: false })
+      pngBuffer = Buffer.from(screenshot)
+    } finally {
+      await browser.close()
     }
-
-    const screenshotArrayBuffer = await response.arrayBuffer()
-    // Convert ArrayBuffer to Node Buffer
-    const pngBuffer: Buffer = Buffer.from(new Uint8Array(screenshotArrayBuffer))
-
-    // No DOM measurements available from Browserless screenshot; keep empty to skip overlays
-    const cardBounds: Array<{ x: number; y: number; width: number; height: number }> = []
 
     // Keep image in full color to match website UI
     let finalBuffer = pngBuffer
@@ -214,7 +257,7 @@ export async function POST(request: NextRequest) {
     // Send email with attachment
     const emailService = new EmailService()
     const result = await emailService.sendEmailWithAttachment({
-      to: user.user.email,
+      to: userEmail,
       subject: `Your ${metrics.eventName} Networking Summary`,
       html: `
         <!DOCTYPE html>
