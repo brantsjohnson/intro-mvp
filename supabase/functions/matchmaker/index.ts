@@ -1800,6 +1800,8 @@ async function scoreCandidatesWithAI(
   // Build comprehensive prompt with decision tree logic
   const systemPrompt = `You are the Intro Matchmaker AI, an expert system designed to create the most relevant and satisfying professional connections at events. Your primary goal is to find the best possible match (User B) for User A's explicit goal, ensuring practical value by prioritizing contextual fit (Company Specialization + Expertise) over superficial titles. Avoiding mismatches is as important as finding good matches.
 
+INPUT IS UNORDERED. Independently evaluate each candidate and return the best 3 (or fewer if not available). Focus on qualitative reasoning, not numeric scoring.
+
 CRITICAL: Always use gender-neutral language in all explanations and descriptions. Never assume someone's gender based on their name, title, or any other information. Use "they/them/their" pronouns, or refer to people by their name, title, or role. Never use "he/him/his" or "she/her" unless explicitly specified (which it never will be in this context).
 
 MATCHING RULES (PRIORITY ORDER)
@@ -1824,9 +1826,9 @@ GUARDRAILS
 - If you pick a non-obvious adjacent role, justify with the specific overlap.
 
 OUTPUT
-- JSON { matches: [{ candidateId, score 0-1, explanation, excluded:false }], excluded:[{ candidateId, exclusionReason }] }
+- JSON { matches: [{ candidateId, explanation, excluded:false }], excluded:[{ candidateId, exclusionReason }] }
 - Explanation: 1–3 sentences, must cite the concrete overlap (e.g., “You need backend mentorship; B lists Go/Node backend and leads platform at X”). Avoid generic phrases.
-- Scoring: 0.9–1.0 strong overlap; 0.7–0.89 good; 0.5–0.69 partial; <0.5 weak/exclude.`
+- Do not include numeric scores; provide concise qualitative reasoning only.`
 
   const userPrompt = `USER A (Viewer) Profile:
 - Name: ${viewerProfile.firstName || ''} ${viewerProfile.lastName || ''}
@@ -1911,7 +1913,7 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
       })
     }
     
-    // Process excluded (mark them with score 0)
+    // Process excluded; no numeric scores expected from AI, set to 0 for compatibility
     if (result.excluded && Array.isArray(result.excluded)) {
       result.excluded.forEach((excluded: { candidateId: string; exclusionReason: string }) => {
         aiResultsMap.set(excluded.candidateId, {
@@ -1963,8 +1965,10 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
       }
       const aiResult = aiResultsMap.get(candidate.id)
       
+      const aiResult = aiResultsMap.get(candidate.id)
+      
       if (!aiResult) {
-        // Fallback: candidate wasn't in AI response, give neutral score
+        // Fallback: candidate wasn't in AI response, give neutral placeholder
         console.warn("ai_matching_missing_candidate", {
           candidateId: candidate.id,
           viewerId: viewerProfile.id
@@ -1986,19 +1990,20 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
         }
       }
       
-      // Use AI score and explanation
+      // Use AI explanation; no numeric score provided, so use neutral score baseline unless excluded
+      const baseScore = aiResult.excluded ? 0 : 0.5
       return {
         candidate,
         breakdown: {
-          wantFit: aiResult.score,
-          mutualValue: aiResult.excluded ? 0 : aiResult.score * 0.8, // Estimate
-          relationshipFit: aiResult.excluded ? 0 : aiResult.score * 0.7, // Estimate
-          totalScore: aiResult.excluded ? 0 : aiResult.score,
+          wantFit: baseScore,
+          mutualValue: aiResult.excluded ? 0 : baseScore,
+          relationshipFit: aiResult.excluded ? 0 : baseScore,
+          totalScore: aiResult.excluded ? 0 : baseScore,
           wantFitComponents: {
-            semantic: aiResult.score,
-            tagOverlap: aiResult.score * 0.8,
+            semantic: baseScore,
+            tagOverlap: baseScore,
             roleBonus: 0,
-            wantFit: aiResult.score,
+            wantFit: baseScore,
             aiExplanation: aiResult.explanation, // Store explanation for later use
             excluded: aiResult.excluded,
             exclusionReason: aiResult.exclusionReason
