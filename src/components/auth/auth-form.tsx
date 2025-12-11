@@ -235,11 +235,12 @@ export function AuthForm() {
                 id="consent"
                 checked={consent}
                 onCheckedChange={(checked) => setConsent(checked as boolean)}
-                className="mt-0.5 h-5 w-5 border-2 border-[#656361]"
+                className="mt-0.5 h-5 w-5 border-2 border-[#656361] flex-shrink-0"
               />
               <Label
                 htmlFor="consent"
-                className="text-sm text-foreground leading-relaxed cursor-pointer flex-1"
+                className="text-sm text-foreground leading-relaxed cursor-pointer flex-1 normal-case"
+                style={{ textTransform: 'none' }}
               >
                 By signing up, I accept the{" "}
                 <a href="/terms" className="text-accent hover:underline">
@@ -249,8 +250,7 @@ export function AuthForm() {
                 <a href="/privacy" className="text-accent hover:underline">
                   Privacy Policy
                 </a>
-                . I understand that my name and image will be visible to event attendees and that
-                OpenAI will be used for matching.
+                . I understand that my name and image will be visible to event attendees and that OpenAI will be used for matching.
               </Label>
             </div>
           )}

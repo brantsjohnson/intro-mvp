@@ -37,6 +37,7 @@ export interface Event {
   header_image_url: string | null
   is_active: boolean
   matchmaking_enabled: boolean
+  logo_url?: string | null
 }
 
 // Old interfaces removed - hobbies, matches, and old connection schema no longer used

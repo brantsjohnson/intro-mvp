@@ -968,6 +968,11 @@ export function HomePage() {
         } else if (attendanceRows && attendanceRows.length > 0) {
           const row: any = attendanceRows[0]
           if (row?.events) {
+            const matchingConfig = row.events.matching_config as {
+              show_refresh_button?: boolean
+              logo_url?: string
+            } | null
+            
             const mappedEvent: Event = {
               id: row.events.event_id,
               name: row.events.event_name,
@@ -978,13 +983,10 @@ export function HomePage() {
               header_image_url: null,
               is_active: true,
               matchmaking_enabled: true,
+              logo_url: matchingConfig?.logo_url || null,
             }
             setCurrentEvent(mappedEvent)
             setIsPresent(!!row.checked_in_at)
-
-            const matchingConfig = row.events.matching_config as {
-              show_refresh_button?: boolean
-            } | null
             setShowRefreshButton(matchingConfig?.show_refresh_button ?? false)
 
             console.log(
@@ -1120,6 +1122,11 @@ export function HomePage() {
     }
 
     const row: any = eventData
+    const matchingConfig = row.events.matching_config as {
+      show_refresh_button?: boolean
+      logo_url?: string
+    } | null
+    
     const mappedEvent: Event = {
       id: row.events.event_id,
       name: row.events.event_name,
@@ -1130,14 +1137,11 @@ export function HomePage() {
       header_image_url: null,
       is_active: true,
       matchmaking_enabled: true,
+      logo_url: matchingConfig?.logo_url || null,
     }
-
+    
     setCurrentEvent(mappedEvent)
     setIsPresent(!!row.checked_in_at)
-
-    const matchingConfig = row.events.matching_config as {
-      show_refresh_button?: boolean
-    } | null
     setShowRefreshButton(matchingConfig?.show_refresh_button ?? false)
 
     await loadMatches(mappedEvent.id)
@@ -1678,14 +1682,14 @@ export function HomePage() {
                 </Select>
               ) : (
                 <div className="flex flex-col items-center">
-                  <h1
-                    className="text-2xl font-bold text-accent"
-                    style={{
-                      fontFamily: "Changa One, cursive",
-                    }}
-                  >
-                    INTRO
-                  </h1>
+                <h1
+                  className="text-2xl font-bold text-accent"
+                  style={{
+                    fontFamily: "Changa One, cursive",
+                  }}
+                >
+                  INTRO
+                </h1>
                   <p className="text-xs text-muted-foreground mt-0.5">Beta Test</p>
                 </div>
               )}
@@ -1732,88 +1736,107 @@ export function HomePage() {
           {currentEvent && (
             <Card className="bg-card border-border shadow-elevation">
               <CardContent className="p-4 text-center space-y-4">
-                <h2 className="text-2xl font-semibold text-foreground">
-                  {currentEvent.name}
-                </h2>
+                {/* Logo or Title */}
+                {currentEvent.logo_url ? (
+                  <div className="flex items-center justify-center py-2 px-4">
+                    <img
+                      src={currentEvent.logo_url}
+                      alt={`${currentEvent.name} logo`}
+                      className="max-w-full max-h-20 object-contain"
+                      onError={(e) => {
+                        console.error("Error loading event logo:", currentEvent.logo_url)
+                        e.currentTarget.style.display = 'none'
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <h2 className="text-2xl font-semibold text-foreground">
+                    {currentEvent.name}
+                  </h2>
+                )}
 
-                <div className="h-1 w-full rounded-full bg-primary" />
+                    <div className="h-1 w-full rounded-full bg-primary" />
 
-                <div className="text-sm text-muted-foreground space-y-1">
-                  {currentEvent.starts_at && (
-                    <p>
-                      {(() => {
-                        const parseDateTime = (dateTimeStr: string | null) => {
-                          if (!dateTimeStr) return null
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      {currentEvent.starts_at && (
+                        <>
+                          {(() => {
+                            const parseDateTime = (dateTimeStr: string | null) => {
+                              if (!dateTimeStr) return null
 
-                          const match = dateTimeStr.match(
-                            /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
-                          )
-                          if (!match) return null
+                              const match = dateTimeStr.match(
+                                /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
+                              )
+                              if (!match) return null
 
-                          const [, year, month, day, hour, minute] = match
-                          return {
-                            year: parseInt(year, 10),
-                            month: parseInt(month, 10),
-                            day: parseInt(day, 10),
-                            hour: parseInt(hour, 10),
-                            minute: parseInt(minute, 10),
-                          }
-                        }
+                              const [, year, month, day, hour, minute] = match
+                              return {
+                                year: parseInt(year, 10),
+                                month: parseInt(month, 10),
+                                day: parseInt(day, 10),
+                                hour: parseInt(hour, 10),
+                                minute: parseInt(minute, 10),
+                              }
+                            }
 
-                        const startParts = parseDateTime(currentEvent.starts_at)
-                        if (!startParts) {
-                          return "Schedule coming soon"
-                        }
+                            const startParts = parseDateTime(currentEvent.starts_at)
+                            if (!startParts) {
+                              return <p className="whitespace-nowrap">Schedule coming soon</p>
+                            }
 
-                        const endParts = currentEvent.ends_at
-                          ? parseDateTime(currentEvent.ends_at)
-                          : null
+                            const endParts = currentEvent.ends_at
+                              ? parseDateTime(currentEvent.ends_at)
+                              : null
 
-                        const formatDate = (parts: {
-                          year: number
-                          month: number
-                          day: number
-                        }) => {
-                          const date = new Date(parts.year, parts.month - 1, parts.day)
-                          return date.toLocaleDateString("en-US", {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          })
-                        }
+                            const formatMonth = (month: number) => {
+                              const date = new Date(2000, month - 1, 1)
+                              return date.toLocaleDateString("en-US", { month: "long" })
+                            }
 
-                        const formatTime = (parts: {
-                          hour: number
-                          minute: number
-                        }) => {
-                          const hour12 = parts.hour % 12 || 12
-                          const ampm = parts.hour >= 12 ? "PM" : "AM"
-                          const minuteStr = String(parts.minute).padStart(2, "0")
-                          return `${hour12}:${minuteStr} ${ampm}`
-                        }
+                            const formatTime = (parts: {
+                              hour: number
+                              minute: number
+                            }) => {
+                              const hour12 = parts.hour % 12 || 12
+                              const ampm = parts.hour >= 12 ? "PM" : "AM"
+                              const minuteStr = String(parts.minute).padStart(2, "0")
+                              return `${hour12}:${minuteStr}${ampm}`
+                            }
 
-                        const startDateStr = formatDate(startParts)
-                        const startTimeStr = formatTime(startParts)
+                            const startTimeStr = formatTime(startParts)
+                            const endTimeStr = endParts ? formatTime(endParts) : null
 
-                        if (endParts) {
-                          const endDateStr = formatDate(endParts)
-                          const endTimeStr = formatTime(endParts)
+                            // Format date range: "November 12-13"
+                            let dateRange = ""
+                            if (endParts && startParts.month === endParts.month) {
+                              // Same month: "November 12-13"
+                              dateRange = `${formatMonth(startParts.month)} ${startParts.day}-${endParts.day}`
+                            } else if (endParts) {
+                              // Different months: "November 12 - December 1"
+                              dateRange = `${formatMonth(startParts.month)} ${startParts.day} - ${formatMonth(endParts.month)} ${endParts.day}`
+                            } else {
+                              // No end date: "November 12"
+                              dateRange = `${formatMonth(startParts.month)} ${startParts.day}`
+                            }
 
-                          if (startDateStr === endDateStr) {
-                            return `${startDateStr} @ ${startTimeStr} - ${endTimeStr}`
-                          } else {
-                            return `${startDateStr} @ ${startTimeStr} - ${endDateStr} @ ${endTimeStr}`
-                          }
-                        } else {
-                          return `${startDateStr} @ ${startTimeStr}`
-                        }
-                      })()}
-                    </p>
-                  )}
-                  {currentEvent.location && (
-                    <p className="font-medium">Location: {currentEvent.location}</p>
-                  )}
-                </div>
+                            return (
+                              <>
+                                <p className="whitespace-nowrap">Date: {dateRange}</p>
+                                {endTimeStr && (
+                                  <p className="whitespace-nowrap">Start: {startTimeStr} - End: {endTimeStr}</p>
+                                )}
+                                {!endTimeStr && (
+                                  <p className="whitespace-nowrap">Start: {startTimeStr}</p>
+                                )}
+                              </>
+                            )
+                          })()}
+                        </>
+                      )}
+                      {currentEvent.location && (
+                        <p className="font-medium whitespace-nowrap">Location: {currentEvent.location}</p>
+                      )}
+                    </div>
 
                 {!isPresent && (
                   <>

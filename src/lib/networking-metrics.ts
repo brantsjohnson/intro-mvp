@@ -246,11 +246,11 @@ export async function getNetworkingMetrics(
       .eq('event_id', eventId)
       .in('user_id', connectedUserIds)
 
-    // Merge industry tags from users and attendance
-    const allIndustryTags = [
-      ...(connectedUsers || []).flatMap((u) => u.industry_tags || []),
-      ...(attendanceData || []).flatMap((a) => a.event_industry_tags || []),
-    ]
+  // Merge industry tags from users and attendance
+  const allIndustryTags = [
+    ...(connectedUsers || []).flatMap((u) => u.industry_tags || []),
+    ...(attendanceData || []).flatMap((a) => a.event_industry_tags || []),
+  ]
     topIndustries = getTopItems(allIndustryTags, 5)
   }
 
