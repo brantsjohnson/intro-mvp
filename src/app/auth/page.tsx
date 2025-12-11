@@ -15,7 +15,7 @@ export default function AuthPage() {
           <p className="text-sm sm:text-base font-medium mb-2 sm:mb-3 text-foreground">
             The Best Way to Network
           </p>
-          <div className="flex justify-center items-center mb-0 sm:mb-1">
+          <div className="flex flex-col justify-center items-center mb-0 sm:mb-1">
             <div className="relative inline-block leading-none">
               <span
                 aria-hidden
@@ -29,6 +29,7 @@ export default function AuthPage() {
                 INTRO
               </span>
             </div>
+            <p className="text-xs text-muted-foreground mt-1">Beta Test</p>
           </div>
         </div>
       </div>

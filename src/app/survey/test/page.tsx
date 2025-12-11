@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -35,6 +36,7 @@ type SurveyConfig = {
 type SurveyStatus = "loading" | "ready" | "submitting" | "submitted" | "error"
 
 export default function TestSurveyPage() {
+  const router = useRouter()
   const [config, setConfig] = useState<SurveyConfig | null>(null)
   const [ratings, setRatings] = useState<Record<string, number>>({})
   const [selectedConnections, setSelectedConnections] = useState<Set<string>>(new Set())
@@ -146,6 +148,11 @@ export default function TestSurveyPage() {
         ratings,
         selectedConnections: Array.from(selectedConnections),
       })
+      
+      // Redirect to recap page after a brief delay
+      setTimeout(() => {
+        router.push('/survey/test/recap')
+      }, 1000)
     } catch (err) {
       console.error("Failed to submit test survey:", err)
       setError("Unable to submit test survey right now. Please try again.")
@@ -200,14 +207,8 @@ export default function TestSurveyPage() {
 
     if (status === "submitted") {
       return (
-        <div className="text-center space-y-3 py-10">
-          <h2 className="text-xl font-bold text-foreground uppercase" style={{ letterSpacing: '0.02em' }}>Thanks for your feedback!</h2>
-          <p className="text-muted-foreground">
-            Your responses were recorded. This is a test survey - no data was saved.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Check the browser console to see the submitted data.
-          </p>
+        <div className="text-center space-y-3 py-6">
+          <h2 className="text-xl font-bold text-foreground uppercase" style={{ letterSpacing: '0.02em' }}>Redirecting to your recap</h2>
         </div>
       )
     }
@@ -334,7 +335,7 @@ export default function TestSurveyPage() {
             </span>
           </div>
           <h1 className="text-2xl font-bold text-foreground uppercase" style={{ letterSpacing: '0.02em' }}>
-            Thank you so much for coming to {config?.eventName || "the event"}
+            Thank you for attending {config?.eventName || "the event"}
           </h1>
         </div>
 

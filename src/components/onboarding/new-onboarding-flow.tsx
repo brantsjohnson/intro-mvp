@@ -404,7 +404,10 @@ export function NewOnboardingFlow() {
       // Convert data URL to blob
       const response = await fetch(croppedImageUrl)
       const blob = await response.blob()
-      const file = new File([blob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      // Use the actual blob type (should be image/jpeg from canvas.toBlob)
+      const fileType = blob.type || 'image/jpeg'
+      const fileExtension = fileType.includes('png') ? 'png' : 'jpg'
+      const file = new File([blob], `avatar-${Date.now()}.${fileExtension}`, { type: fileType })
       
       setPhotoFile(file)
       setPhotoUrl(croppedImageUrl)
@@ -657,12 +660,14 @@ export function NewOnboardingFlow() {
     if (!photoFile || !user) return photoUrl
 
     try {
-      const fileName = `${user.id}/avatar-${Date.now()}.jpg`
+      // Use the actual file type from the photoFile
+      const fileExtension = photoFile.type.includes('png') ? 'png' : 'jpg'
+      const fileName = `${user.id}/avatar-${Date.now()}.${fileExtension}`
       
       const { data, error } = await supabase.storage
         .from('avatars')
         .upload(fileName, photoFile, {
-          contentType: 'image/jpeg',
+          contentType: photoFile.type || 'image/jpeg',
           upsert: true
         })
 

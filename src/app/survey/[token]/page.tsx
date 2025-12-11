@@ -1,6 +1,7 @@
 "use client"
 
 import { use, useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -8,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { PresenceAvatar } from "@/components/ui/presence-avatar"
 import { getAvatarUrl } from "@/lib/utils"
 import { Star, Search } from "lucide-react"
+import { NetworkingCardDisplay } from "@/components/survey/networking-card"
 
 const DEFAULT_FIXED_QUESTIONS = [
   "How useful is this app in helping you build your network?",
@@ -36,6 +38,7 @@ type SurveyStatus = "loading" | "ready" | "submitting" | "submitted" | "error"
 
 export default function SurveyPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
+  const router = useRouter()
   const [config, setConfig] = useState<SurveyConfig | null>(null)
   const [ratings, setRatings] = useState<Record<string, number>>({})
   const [selectedConnections, setSelectedConnections] = useState<Set<string>>(new Set())
@@ -161,6 +164,11 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
       }
 
       setStatus("submitted")
+      
+      // Redirect to recap page after a brief delay
+      // For regular survey, we'd need to create a recap route with token
+      // For now, just show the thank you message
+      // TODO: Create /survey/[token]/recap route if needed
     } catch (err) {
       console.error("Failed to submit survey:", err)
       setError("Unable to submit survey right now. Please try again.")
@@ -214,7 +222,7 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
 
     if (status === "submitted") {
       return (
-        <div className="text-center space-y-3 py-10">
+        <div className="text-center space-y-3 py-6">
           <h2 className="text-xl font-bold text-foreground uppercase" style={{ letterSpacing: '0.02em' }}>Thanks for your feedback!</h2>
           <p className="text-muted-foreground">
             Your responses were recorded. We hope you enjoyed {config?.eventName || "the event"}.
@@ -340,7 +348,7 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
       <div className="mx-auto max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-foreground uppercase" style={{ letterSpacing: '0.02em' }}>
-            Thank you so much for coming to {config?.eventName || "the event"}
+            Thank you for attending {config?.eventName || "the event"}
           </h1>
         </div>
 

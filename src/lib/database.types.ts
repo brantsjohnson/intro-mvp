@@ -19,6 +19,7 @@ export type Database = {
           career_title: string | null
           career_years_experience: number | null
           company_name: string | null
+          company_summary: string | null
           expertise_summary: string | null
           hobbies: string[] | null
           linkedin_raw_json: Json | null

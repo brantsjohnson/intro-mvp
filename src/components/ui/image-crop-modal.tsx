@@ -25,8 +25,8 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 })
 
-  const cropSize = 200 // Size of the circular crop area
-  const containerSize = 300 // Size of the container
+  const cropSize = 600 // Size of the circular crop area (increased for better resolution)
+  const containerSize = 300 // Size of the container (display size)
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -336,7 +336,8 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
         cropSize
       )
 
-      // Convert to blob and create URL
+      // Convert to blob and create URL with high quality JPEG
+      // Using 0.98 quality for excellent quality while maintaining reasonable file size
       canvas.toBlob((blob) => {
         if (blob) {
           const croppedUrl = URL.createObjectURL(blob)
@@ -344,7 +345,7 @@ export function ImageCropModal({ isOpen, onClose, onSave, imageUrl }: ImageCropM
         } else {
           console.error('Failed to convert canvas to blob')
         }
-      }, 'image/jpeg', 0.95)
+      }, 'image/jpeg', 0.98) // High quality JPEG (0.98 instead of 0.95)
     } catch (error) {
       console.error('Error cropping image:', error)
     }

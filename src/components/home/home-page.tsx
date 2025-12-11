@@ -103,7 +103,7 @@ const guideSteps: GuideStep[] = [
   {
     id: "suggested-connections",
     targetSelector: '[data-guide="suggested-connections"]',
-    title: "People You Should Know",
+    title: "Top 3 Suggestions",
     subtext: "The top three matches will appear here. They are matched based on the information you provided.",
     position: "auto",
     highlightShape: "rounded",
@@ -1677,14 +1677,17 @@ export function HomePage() {
                   </SelectContent>
                 </Select>
               ) : (
-                <h1
-                  className="text-2xl font-bold text-accent"
-                  style={{
-                    fontFamily: "Changa One, cursive",
-                  }}
-                >
-                  INTRO
-                </h1>
+                <div className="flex flex-col items-center">
+                  <h1
+                    className="text-2xl font-bold text-accent"
+                    style={{
+                      fontFamily: "Changa One, cursive",
+                    }}
+                  >
+                    INTRO
+                  </h1>
+                  <p className="text-xs text-muted-foreground mt-0.5">Beta Test</p>
+                </div>
               )}
             </div>
 
@@ -1836,16 +1839,16 @@ export function HomePage() {
           {/* SMS notifications (currently hidden toggle) */}
           {false && currentEvent && <SMSNotificationWidget />}
 
-          {/* People You Should Know */}
+          {/* Top 3 Suggestions */}
           {currentEvent && (
             <div className="space-y-3 pt-2" data-guide="suggested-connections">
               <div className="px-1">
                 <div className="flex items-center justify-between">
                   <h2 className="flex items-center space-x-2 text-lg font-semibold text-foreground">
                     <Users className="h-5 w-5" />
-                    <span>People You Should Know</span>
+                    <span>Top 3 Suggestions</span>
                   </h2>
-                  {showRefreshButton && currentEvent.matchmaking_enabled && (
+                  {false && showRefreshButton && currentEvent.matchmaking_enabled && (
                     <Button
                       variant="outline"
                       size="sm"

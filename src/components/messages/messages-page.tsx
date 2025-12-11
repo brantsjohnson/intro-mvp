@@ -472,12 +472,12 @@ export function MessagesPage() {
                 </DialogHeader>
                 <div className="flex flex-col flex-1 min-h-0 space-y-4 overflow-hidden">
                   <div className="flex-shrink-0">
-                    <Input
-                      placeholder="Search attendees..."
-                      value={attendeeSearchQuery}
-                      onChange={(event) => setAttendeeSearchQuery(event.target.value)}
-                      className="pl-10"
-                    />
+                  <Input
+                    placeholder="Search attendees..."
+                    value={attendeeSearchQuery}
+                    onChange={(event) => setAttendeeSearchQuery(event.target.value)}
+                    className="pl-10"
+                  />
                   </div>
                   {isAttendeeLoading ? (
                     <div className="py-8 text-center text-muted-foreground text-sm flex-shrink-0">
