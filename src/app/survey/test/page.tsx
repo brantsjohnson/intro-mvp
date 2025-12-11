@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -34,8 +34,7 @@ type SurveyConfig = {
 
 type SurveyStatus = "loading" | "ready" | "submitting" | "submitted" | "error"
 
-export default function SurveyPage({ params }: { params: Promise<{ token: string }> }) {
-  const { token } = use(params)
+export default function TestSurveyPage() {
   const [config, setConfig] = useState<SurveyConfig | null>(null)
   const [ratings, setRatings] = useState<Record<string, number>>({})
   const [selectedConnections, setSelectedConnections] = useState<Set<string>>(new Set())
@@ -49,11 +48,11 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
       setStatus("loading")
       setError(null)
       try {
-        const response = await fetch(`/api/survey/${token}`)
+        const response = await fetch(`/api/survey/test`)
         const data = await response.json()
         if (!response.ok) {
           if (!isMounted) return
-          setError(data?.error || "Unable to load survey")
+          setError(data?.error || "Unable to load test survey")
           setStatus("error")
           return
         }
@@ -62,11 +61,11 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
         
         // Log debug info to browser console
         if (data._debug) {
-          console.log('[Survey] Debug info:', data._debug)
-          console.log(`[Survey] Found ${data._debug.totalConnectionsFound} total connections`)
-          console.log(`[Survey] Found ${data._debug.userAddedConnections} user-added connections`)
-          console.log(`[Survey] Connected user IDs:`, data._debug.connectedUserIds)
-          console.log(`[Survey] Connection details:`, data._debug.connectionDetails)
+          console.log('[Survey Test] Debug info:', data._debug)
+          console.log(`[Survey Test] Found ${data._debug.totalConnectionsFound} total connections`)
+          console.log(`[Survey Test] Found ${data._debug.userAddedConnections} user-added connections`)
+          console.log(`[Survey Test] Connected user IDs:`, data._debug.connectedUserIds)
+          console.log(`[Survey Test] Connection details:`, data._debug.connectionDetails)
         }
         
         setConfig({
@@ -79,13 +78,13 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
         
         // Log attendees info
         const connectedCount = (data.attendees ?? []).filter((a: any) => a.isConnected).length
-        console.log(`[Survey] Loaded ${data.attendees?.length || 0} attendees, ${connectedCount} marked as connected`)
+        console.log(`[Survey Test] Loaded ${data.attendees?.length || 0} attendees, ${connectedCount} marked as connected`)
         
         setStatus("ready")
       } catch (err) {
-        console.error("Failed to load survey config:", err)
+        console.error("Failed to load test survey config:", err)
         if (!isMounted) return
-        setError("Unable to load survey right now. Please try again.")
+        setError("Unable to load test survey right now. Please try again.")
         setStatus("error")
       }
     }
@@ -94,7 +93,7 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
     return () => {
       isMounted = false
     }
-  }, [token])
+  }, [])
 
   const questions = useMemo(() => {
     if (!config) return []
@@ -140,30 +139,16 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
 
     setStatus("submitting")
     try {
-      const response = await fetch(`/api/survey/${token}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ratingCustom: ratings["custom"],
-          ratingUseful: ratings["useful"],
-          ratingBusiness: ratings["business"],
-          selectedConnections: Array.from(selectedConnections),
-        }),
-      })
-
-      const data = await response.json()
-      if (!response.ok) {
-        setError(data?.error || "Unable to submit survey.")
-        setStatus("ready")
-        return
-      }
-
+      // For test page, just simulate submission
+      await new Promise(resolve => setTimeout(resolve, 1000))
       setStatus("submitted")
+      console.log("Test survey submission:", {
+        ratings,
+        selectedConnections: Array.from(selectedConnections),
+      })
     } catch (err) {
-      console.error("Failed to submit survey:", err)
-      setError("Unable to submit survey right now. Please try again.")
+      console.error("Failed to submit test survey:", err)
+      setError("Unable to submit test survey right now. Please try again.")
       setStatus("ready")
     }
   }
@@ -199,7 +184,7 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
       return (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading survey...</p>
+          <p className="text-muted-foreground">Loading test survey...</p>
         </div>
       )
     }
@@ -207,7 +192,8 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
     if (status === "error") {
       return (
         <div className="text-center text-muted-foreground py-12">
-          {error || "Unable to load this survey link."}
+          <p className="mb-2">{error || "Unable to load this test survey."}</p>
+          <p className="text-sm">Make sure event TEST12 exists and has connections.</p>
         </div>
       )
     }
@@ -217,7 +203,10 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
         <div className="text-center space-y-3 py-10">
           <h2 className="text-xl font-bold text-foreground uppercase" style={{ letterSpacing: '0.02em' }}>Thanks for your feedback!</h2>
           <p className="text-muted-foreground">
-            Your responses were recorded. We hope you enjoyed {config?.eventName || "the event"}.
+            Your responses were recorded. This is a test survey - no data was saved.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Check the browser console to see the submitted data.
           </p>
         </div>
       )
@@ -317,7 +306,7 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
             </div>
           ) : (
             <div className="text-center py-4 text-muted-foreground text-sm">
-              No attendees found for this event.
+              No attendees found for this event. Make sure event TEST12 has attendees.
             </div>
           )}
         </div>
@@ -329,7 +318,7 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
           disabled={status === "submitting"}
           className="w-full h-12 rounded-concave"
         >
-          {status === "submitting" ? "Submitting..." : "Submit survey"}
+          {status === "submitting" ? "Submitting..." : "Submit survey (test)"}
         </Button>
       </div>
     )
@@ -339,6 +328,11 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
     <div className="min-h-screen bg-background px-4 py-12">
       <div className="mx-auto max-w-md">
         <div className="text-center mb-8">
+          <div className="mb-2">
+            <span className="inline-block px-2 py-1 text-xs font-semibold text-muted-foreground bg-muted rounded">
+              TEST MODE
+            </span>
+          </div>
           <h1 className="text-2xl font-bold text-foreground uppercase" style={{ letterSpacing: '0.02em' }}>
             Thank you so much for coming to {config?.eventName || "the event"}
           </h1>
@@ -353,4 +347,3 @@ export default function SurveyPage({ params }: { params: Promise<{ token: string
     </div>
   )
 }
-

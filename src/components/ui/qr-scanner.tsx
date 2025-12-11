@@ -195,8 +195,11 @@ export function QRScanner({ isOpen, onClose, onConnectionCreated }: QRScannerPro
           router.push(`/profile/${qrData.userId}?source=qr&eventId=${qrData.eventId}`)
         }, 200)
       } else {
-        setError("Failed to create connection. Please try again.")
+        // Show the actual error message from the API
+        const errorMessage = result?.error || "Failed to create connection. Please try again."
+        setError(errorMessage)
         setIsProcessing(false)
+        console.error('Connection creation failed:', result)
       }
     } catch (error: any) {
       console.error('Error handling QR code result:', error)

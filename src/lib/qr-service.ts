@@ -97,17 +97,18 @@ export class QRCodeService {
 
   /**
    * Create a connection between two users when QR code is scanned
+   * Returns the connection result object with success status and user IDs
    */
   async createConnectionFromQR(
     scannerUserId: string,
     qrData: QRCodeData
-  ): Promise<boolean> {
+  ): Promise<{ success: boolean; scannerUserId?: string; targetUserId?: string; eventId?: string; alreadyConnected?: boolean; error?: string }> {
     try {
       console.log('Creating connection from QR:', { scannerUserId, qrData })
       
       // Don't allow self-connection
       if (scannerUserId === qrData.userId) {
-        return false
+        return { success: false, error: 'Cannot connect to yourself' }
       }
 
       const response = await fetch('/api/connect-qr', {
@@ -126,15 +127,24 @@ export class QRCodeService {
 
       if (!response.ok) {
         console.error('connect-qr error', payload)
-        // Throw error with details so it can be caught and displayed
-        throw new Error(payload.error || payload.details || 'Failed to create connection')
+        // Return error details so it can be displayed
+        return { 
+          success: false, 
+          error: payload.error || payload.details || 'Failed to create connection' 
+        }
       }
 
-      // Return the payload so we can access scannerUserId and targetUserId
-      return payload
-    } catch (error) {
+      // Return the payload with success status
+      return {
+        success: true,
+        ...payload
+      }
+    } catch (error: any) {
       console.error('Error creating connection:', error)
-      return false
+      return { 
+        success: false, 
+        error: error?.message || 'An unexpected error occurred while creating the connection' 
+      }
     }
   }
 

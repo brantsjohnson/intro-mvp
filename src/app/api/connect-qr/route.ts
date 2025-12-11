@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       throw checkError
     }
 
-    // If connection already exists, return success
+    // If connection already exists, return success with full details
     if (existingConnection) {
       // If it's a pending request, upgrade it to confirmed
       if (existingConnection.connection_kind === "user_request_pending") {
@@ -84,11 +84,22 @@ export async function POST(request: NextRequest) {
           throw updateError
         }
       }
-      return NextResponse.json({ success: true, alreadyConnected: true })
+      // Return success with full details even if connection already exists
+      return NextResponse.json({ 
+        success: true, 
+        alreadyConnected: true,
+        eventId,
+        aId,
+        bId,
+        scannerUserId,
+        targetUserId,
+      })
     }
 
     // Create new connection
-    const { error: insertError } = await supabase
+    console.log(`[connect-qr] Creating connection: scanner=${scannerUserId}, target=${targetUserId}, event=${eventId}, a_id=${aId}, b_id=${bId}`)
+    
+    const { data: insertedConnection, error: insertError } = await supabase
       .from("connections")
       .insert({
         event_id: eventId,
@@ -98,13 +109,20 @@ export async function POST(request: NextRequest) {
         user_add_method: "qr",
         created_by_user_id: scannerUserId,
       })
+      .select()
+      .single()
 
     if (insertError) {
-      console.error("Error inserting connection:", insertError)
+      console.error("[connect-qr] Error inserting connection:", insertError)
       throw insertError
     }
 
-    await refreshPairMatchExplanation(supabase, eventId, aId, bId)
+    console.log(`[connect-qr] Connection created successfully: ${insertedConnection?.connection_id}`)
+
+    // Refresh match explanation in the background (don't wait for it)
+    refreshPairMatchExplanation(supabase, eventId, aId, bId).catch((err) => {
+      console.error("[connect-qr] Error refreshing match explanation:", err)
+    })
 
     return NextResponse.json({
       success: true,
@@ -113,6 +131,7 @@ export async function POST(request: NextRequest) {
       bId,
       scannerUserId, // Return scanner ID so target user can navigate to scanner's profile
       targetUserId,  // Return target ID so scanner can navigate to target's profile
+      connectionId: insertedConnection?.connection_id,
     })
   } catch (error: any) {
     console.error("connect-qr error:", error)

@@ -337,8 +337,12 @@ export function HomePage() {
             }
             lastConnectionCheckRef.current = connectionKey
 
+            // Navigate to the other user's profile from any page when QR connection is created
+            // This ensures both users see each other's profiles when one scans the other's QR code
             const currentPath = window.location.pathname
-            if (currentPath === "/home" || currentPath.startsWith("/home?")) {
+            // Only navigate if we're not already viewing this user's profile
+            if (!currentPath.includes(`/profile/${otherUserId}`)) {
+              console.log(`[QR Connection] Navigating to profile of ${otherUserId} from ${currentPath}`)
               setTimeout(() => {
                 router.push(`/profile/${otherUserId}?source=qr&eventId=${currentEvent.id}`)
               }, 500)

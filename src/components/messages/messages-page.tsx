@@ -466,27 +466,29 @@ export function MessagesPage() {
                 </DialogTrigger>
               </GradientButton>
 
-              <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
+              <DialogContent className="sm:max-w-lg h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] flex flex-col sm:h-auto sm:max-h-[90vh]">
+                <DialogHeader className="flex-shrink-0 pb-2">
                   <DialogTitle>Start a new conversation</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <Input
-                    placeholder="Search attendees..."
-                    value={attendeeSearchQuery}
-                    onChange={(event) => setAttendeeSearchQuery(event.target.value)}
-                    className="pl-10"
-                  />
+                <div className="flex flex-col flex-1 min-h-0 space-y-4 overflow-hidden">
+                  <div className="flex-shrink-0">
+                    <Input
+                      placeholder="Search attendees..."
+                      value={attendeeSearchQuery}
+                      onChange={(event) => setAttendeeSearchQuery(event.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
                   {isAttendeeLoading ? (
-                    <div className="py-8 text-center text-muted-foreground text-sm">
+                    <div className="py-8 text-center text-muted-foreground text-sm flex-shrink-0">
                       Loading attendees...
                     </div>
                   ) : filteredAttendeesForDialog.length === 0 ? (
-                    <div className="py-8 text-center text-muted-foreground text-sm">
+                    <div className="py-8 text-center text-muted-foreground text-sm flex-shrink-0">
                       No attendees found
                     </div>
                   ) : (
-                    <div className="max-h-72 overflow-y-auto space-y-2">
+                    <div className="flex-1 overflow-y-auto min-h-0 space-y-2 -mx-1 px-1">
                       {filteredAttendeesForDialog.map((attendee, index) => {
                         const fullName = `${attendee.first_name} ${attendee.last_name}`.trim()
                         const subtitleParts = [attendee.job_title, attendee.company].filter(Boolean)
@@ -494,13 +496,13 @@ export function MessagesPage() {
                         const showDivider = isTopMatch && index === topMatches.length - 1 && filteredAttendeesForDialog.length > topMatches.length
 
                         return (
-                          <div key={attendee.id}>
+                          <div key={attendee.id} className="w-full">
                             <Card
-                              className="cursor-pointer border-border bg-card hover:bg-card/80 transition-all shadow-sm hover:shadow-[0px_3px_4px_rgba(0,0,0,0.15)]"
+                              className="cursor-pointer border-border bg-card hover:bg-card/80 transition-all shadow-sm hover:shadow-[0px_3px_4px_rgba(0,0,0,0.15)] w-full"
                               onClick={() => handleStartConversation(attendee)}
                             >
                               <CardContent className="p-3">
-                                <div className="flex items-center space-x-3">
+                                <div className="flex items-center gap-3 w-full">
                                   <PresenceAvatar
                                     src={attendee.avatar_url || undefined}
                                     fallback={fullName
@@ -509,8 +511,9 @@ export function MessagesPage() {
                                       .join("")}
                                     isPresent={false}
                                     size="md"
+                                    className="flex-shrink-0"
                                   />
-                                  <div className="min-w-0 flex-1">
+                                  <div className="min-w-0 flex-1 overflow-hidden">
                                     <p className="font-medium text-foreground truncate">{fullName}</p>
                                     {subtitleParts.length > 0 && (
                                       <p className="text-sm text-muted-foreground truncate">
@@ -518,7 +521,7 @@ export function MessagesPage() {
                                       </p>
                                     )}
                                   </div>
-                                  <Button variant="ghost" size="icon">
+                                  <Button variant="ghost" size="icon" className="flex-shrink-0">
                                     <MessageCircle className="h-4 w-4" />
                                   </Button>
                                 </div>
