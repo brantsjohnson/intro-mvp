@@ -274,7 +274,7 @@ export function EventJoinScanner({
           <GradientButton 
             type="submit"
             disabled={!isCodeComplete || isLoading}
-            className="max-w-xs rounded-2xl py-3 text-base font-medium"
+            className="max-w-xs rounded-full py-3 text-base font-medium"
           >
             {isLoading ? (
               "Joining..."
@@ -321,7 +321,7 @@ export function EventJoinScanner({
               <GradientButton 
                 onClick={stopScanning}
                 variant="outline"
-                className="max-w-xs rounded-2xl py-3 text-base font-medium"
+                className="max-w-xs rounded-full py-3 text-base font-medium"
               >
                 <X className="h-5 w-5 mr-2" />
                 Stop Scanning
@@ -334,7 +334,7 @@ export function EventJoinScanner({
               <GradientButton 
                 onClick={startScanning}
                 disabled={isLoading}
-                className="rounded-2xl py-3 px-6 text-base font-medium"
+                className="rounded-full py-3 px-6 text-base font-medium"
               >
                 <Camera className="h-5 w-5 mr-2" />
                 Scan QR Code

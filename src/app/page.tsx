@@ -143,9 +143,6 @@ export default function Home() {
       {/* Top section */}
       <div className="px-4 pt-6 sm:pt-8 lg:pt-10 pb-2 sm:pb-3 lg:pb-4 relative">
         <div className="relative z-10 text-center">
-          <p className="text-sm sm:text-base font-medium mb-2 sm:mb-3 text-foreground">
-            Connecting Attendees
-          </p>
           <div className="flex flex-col justify-center items-center mb-0 sm:mb-1">
             <div className="relative inline-block leading-none">
               <span
@@ -161,6 +158,9 @@ export default function Home() {
               </span>
             </div>
           </div>
+          <p className="text-lg sm:text-xl md:text-2xl font-medium mt-2 sm:mt-3 text-foreground">
+            Connecting Attendees
+          </p>
         </div>
       </div>
 
