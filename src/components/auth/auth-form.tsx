@@ -405,8 +405,8 @@ export function AuthForm() {
               </>
             ) : (
               <>
-                <span className="text-muted-foreground">Don&apos;t have an account? </span>
                 <span className="text-accent hover:underline font-medium">Sign up</span>
+                <span className="text-muted-foreground"> manually with email</span>
               </>
             )}
           </button>

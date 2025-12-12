@@ -157,14 +157,6 @@ export default function Home() {
                 INTRO
               </span>
             </div>
-            <div className="relative inline-block mt-2 sm:mt-3 leading-none">
-              <p 
-                className="text-foreground text-base md:text-lg lg:text-xl font-normal"
-                style={{ fontFamily: "var(--font-avenir-next)" }}
-              >
-                Connecting Attendees
-              </p>
-            </div>
           </div>
           <p className="text-lg sm:text-xl md:text-2xl font-medium mt-2 sm:mt-3 text-foreground">
             Connecting Attendees
