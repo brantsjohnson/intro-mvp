@@ -244,7 +244,7 @@ export function AuthForm() {
         {/* Header */}
         <div className="text-center">
           <h2 className="text-2xl font-title mb-2">welcome!</h2>
-          <p className="text-foreground text-left">Log in/Sign up</p>
+          <p className="text-foreground text-center">Sign-up takes 3 minutes</p>
         </div>
 
         {/* LinkedIn OAuth */}

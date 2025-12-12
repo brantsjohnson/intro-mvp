@@ -166,6 +166,9 @@ export default function Home() {
               </p>
             </div>
           </div>
+          <p className="text-lg sm:text-xl md:text-2xl font-medium mt-2 sm:mt-3 text-foreground">
+            Connecting Attendees
+          </p>
         </div>
       </div>
 

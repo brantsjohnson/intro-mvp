@@ -961,7 +961,7 @@ export function UserProfile({ userId }: UserProfileProps) {
           {profile.hobbies && profile.hobbies.length > 0 && (
             <Card className="bg-card border-border shadow-elevation">
               <CardHeader className="pb-1">
-                <CardTitle className="text-primary">Interests</CardTitle>
+                <CardTitle className="text-primary">Hobbies</CardTitle>
               </CardHeader>
               <CardContent className="pt-0 pb-6">
                 {renderTagList(profile.hobbies, 'plum')}

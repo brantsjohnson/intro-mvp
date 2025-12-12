@@ -31,7 +31,7 @@ import { UserGuide, type GuideStep } from "@/components/ui/user-guide"
 import { createClientComponentClient } from "@/lib/supabase"
 import { MessageService } from "@/lib/message-service-simple"
 import { User, Profile, Event } from "@/lib/types"
-import { getAvatarUrl } from "@/lib/utils"
+import { getAvatarUrl, cn } from "@/lib/utils"
 import { decryptEventCode } from "@/lib/event-code-encryption"
 import { haptics } from "@/lib/haptics"
 import { toast } from "sonner"
@@ -181,6 +181,10 @@ export function HomePage() {
   const searchParams = useSearchParams()
   const supabase = createClientComponentClient() as any
   const messageService = useMemo(() => new MessageService(), [])
+
+  // 6-digit code input state for home page (no QR scanner)
+  const [eventCodeInput, setEventCodeInput] = useState<string[]>(["", "", "", "", "", ""])
+  const eventCodeInputRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const filteredDirectory = useMemo(() => {
     if (directoryFilter === "connected") {
@@ -1744,11 +1748,108 @@ export function HomePage() {
           {/* JOIN EVENT when no event yet */}
           {!currentEvent && (
             <div className="max-w-md mx-auto">
-              <EventJoinScanner
-                onJoinEvent={handleJoinEvent}
-                onScanQR={() => {}}
-                isLoading={isJoiningEvent}
-              />
+              <div className="space-y-6">
+                {/* Title and Subtitle */}
+                <div className="text-center space-y-2">
+                  <p className="text-sm text-foreground">Enter 6 digit code to join.</p>
+                </div>
+
+                {/* 6-Digit Code Input - No QR Scanner */}
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    const fullCode = eventCodeInput.join('')
+                    if (fullCode.length === 6) {
+                      handleJoinEvent(fullCode)
+                    }
+                  }}
+                  className="space-y-4"
+                >
+                  <div className="flex justify-center items-center gap-2">
+                    {eventCodeInput.map((digit, index) => (
+                      <input
+                        key={index}
+                        ref={(el) => {
+                          eventCodeInputRefs.current[index] = el
+                        }}
+                        type="text"
+                        inputMode="text"
+                        maxLength={1}
+                        value={digit}
+                        onChange={(e) => {
+                          const sanitized = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+                          if (sanitized.length > 1) {
+                            // Handle paste
+                            const chars = sanitized.split('').slice(0, 6)
+                            const newCode = [...eventCodeInput]
+                            chars.forEach((char, i) => {
+                              if (index + i < 6) {
+                                newCode[index + i] = char
+                              }
+                            })
+                            setEventCodeInput(newCode)
+                            const nextIndex = Math.min(index + chars.length, 5)
+                            eventCodeInputRefs.current[nextIndex]?.focus()
+                          } else {
+                            const newCode = [...eventCodeInput]
+                            newCode[index] = sanitized
+                            setEventCodeInput(newCode)
+                            if (sanitized && index < 5) {
+                              eventCodeInputRefs.current[index + 1]?.focus()
+                            }
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Backspace' && !eventCodeInput[index] && index > 0) {
+                            eventCodeInputRefs.current[index - 1]?.focus()
+                          } else if (e.key === 'ArrowLeft' && index > 0) {
+                            eventCodeInputRefs.current[index - 1]?.focus()
+                          } else if (e.key === 'ArrowRight' && index < 5) {
+                            eventCodeInputRefs.current[index + 1]?.focus()
+                          }
+                        }}
+                        onPaste={(e) => {
+                          e.preventDefault()
+                          const pasted = e.clipboardData.getData('text').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)
+                          const newCode = [...eventCodeInput]
+                          pasted.split('').forEach((char, i) => {
+                            if (i < 6) {
+                              newCode[i] = char
+                            }
+                          })
+                          setEventCodeInput(newCode)
+                          const lastFilledIndex = Math.min(pasted.length - 1, 5)
+                          eventCodeInputRefs.current[lastFilledIndex]?.focus()
+                        }}
+                        className={cn(
+                          "w-12 h-14 text-center text-xl font-semibold rounded-lg border-2 bg-muted/40 text-foreground",
+                          "focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                          "transition-all",
+                          digit ? "border-primary" : "border-border"
+                        )}
+                        disabled={isJoiningEvent}
+                      />
+                    ))}
+                  </div>
+                  
+                  <div className="flex justify-center">
+                    <GradientButton 
+                      type="submit"
+                      disabled={eventCodeInput.join('').length !== 6 || isJoiningEvent}
+                      className="max-w-xs rounded-full py-3 text-base font-medium"
+                    >
+                      {isJoiningEvent ? (
+                        "Joining..."
+                      ) : (
+                        <>
+                          Add Event Code
+                          <ArrowRight className="h-5 w-5 ml-2" />
+                        </>
+                      )}
+                    </GradientButton>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
 
