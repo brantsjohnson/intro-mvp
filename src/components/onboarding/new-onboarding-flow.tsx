@@ -50,6 +50,71 @@ function toSentenceCase(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase()
 }
 
+// Helper function to parse and normalize hobby input
+// Extracts keywords from sentences like "I enjoy hiking" -> "Hiking"
+function parseAndNormalizeHobby(input: string): string {
+  if (!input) return input
+  
+  let cleaned = input.trim()
+  
+  // Remove common prefixes (case-insensitive)
+  const prefixes = [
+    /^i\s+(enjoy|like|love|prefer|do|am\s+into|am\s+interested\s+in)\s+/i,
+    /^i'm\s+(into|interested\s+in)\s+/i,
+    /^i\s+am\s+(into|interested\s+in)\s+/i,
+    /^my\s+hobby\s+is\s+/i,
+    /^my\s+hobbies\s+are\s+/i,
+    /^i\s+do\s+/i,
+    /^i\s+practice\s+/i,
+    /^i\s+play\s+/i,
+  ]
+  
+  for (const prefix of prefixes) {
+    cleaned = cleaned.replace(prefix, '').trim()
+  }
+  
+  // Remove trailing punctuation
+  cleaned = cleaned.replace(/[.,;:!?]+$/, '').trim()
+  
+  // If it's still a sentence, try to extract the main noun/activity
+  // Look for common patterns: "verb + noun" or just the noun
+  const words = cleaned.split(/\s+/)
+  
+  // If it's a single word or short phrase (2-3 words), use it as-is
+  if (words.length <= 3) {
+    // Capitalize first letter of each word (Title Case)
+    return words
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ')
+  }
+  
+  // For longer sentences, try to extract the main activity
+  // Look for common verbs and extract what follows
+  const activityPatterns = [
+    /(?:enjoy|like|love|do|practice|play|go|participate\s+in)\s+([a-zA-Z]+(?:\s+[a-zA-Z]+){0,2})/i,
+    /([a-zA-Z]+(?:\s+[a-zA-Z]+){0,2})\s+(?:is|are)\s+my/i,
+  ]
+  
+  for (const pattern of activityPatterns) {
+    const match = cleaned.match(pattern)
+    if (match && match[1]) {
+      const activity = match[1].trim()
+      // Title case
+      return activity
+        .split(/\s+/)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ')
+    }
+  }
+  
+  // Fallback: take first 2-3 words and title case them
+  const fallback = words.slice(0, 3).join(' ')
+  return fallback
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
 export function NewOnboardingFlow() {
   const searchParams = useSearchParams()
   const eventCode = searchParams.get('code') // Can be encrypted code or legacy eventCode
@@ -986,13 +1051,15 @@ export function NewOnboardingFlow() {
       })
       
       // Parse hobbies from input (comma or newline separated) if this is first-time event onboarding
+      // Normalize hobbies to extract keywords and fix capitalization
       let hobbiesArray: string[] = []
       if (hobbies.length > 0) {
-        hobbiesArray = hobbies
+        // Normalize existing hobbies (in case they weren't normalized when added)
+        hobbiesArray = hobbies.map(h => parseAndNormalizeHobby(h))
       } else if (hobbiesInput.trim()) {
         hobbiesArray = hobbiesInput
           .split(/[,\n]+/)
-          .map(h => h.trim())
+          .map(h => parseAndNormalizeHobby(h.trim()))
           .filter(h => h.length > 0)
           .slice(0, 10) // Limit to 10 hobbies
       }
@@ -1726,10 +1793,17 @@ export function NewOnboardingFlow() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && hobbiesInput.trim()) {
                   e.preventDefault()
-                  const newHobby = hobbiesInput.trim()
-                  if (!hobbies.includes(newHobby) && hobbies.length < 10) {
-                    setHobbies([...hobbies, newHobby])
-                  }
+                  // Parse comma-separated hobbies
+                  const hobbiesToAdd = hobbiesInput
+                    .split(',')
+                    .map(h => parseAndNormalizeHobby(h.trim()))
+                    .filter(h => h.length > 0)
+                  
+                  hobbiesToAdd.forEach(hobby => {
+                    if (!hobbies.includes(hobby) && hobbies.length < 10) {
+                      setHobbies(prev => [...prev, hobby])
+                    }
+                  })
                   setHobbiesInput("")
                   setTimeout(() => {
                     hobbiesInputRef.current?.focus()
@@ -1743,10 +1817,17 @@ export function NewOnboardingFlow() {
               <button
                 type="button"
                 onClick={() => {
-                  const newHobby = hobbiesInput.trim()
-                  if (!hobbies.includes(newHobby) && hobbies.length < 10) {
-                    setHobbies([...hobbies, newHobby])
-                  }
+                  // Parse comma-separated hobbies
+                  const hobbiesToAdd = hobbiesInput
+                    .split(',')
+                    .map(h => parseAndNormalizeHobby(h.trim()))
+                    .filter(h => h.length > 0)
+                  
+                  hobbiesToAdd.forEach(hobby => {
+                    if (!hobbies.includes(hobby) && hobbies.length < 10) {
+                      setHobbies(prev => [...prev, hobby])
+                    }
+                  })
                   setHobbiesInput("")
                   setTimeout(() => {
                     hobbiesInputRef.current?.focus()
