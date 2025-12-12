@@ -35,11 +35,6 @@ interface ViewerProfile {
   companySummary: string | null
   companyUrl?: string | null
   careerYears: number | null
-  offerEmbedding: number[] | null
-  needEmbedding: number[] | null
-  profileEmbedding: number[] | null
-  eventNeedEmbedding?: number[] | null
-  eventOfferEmbedding?: number[] | null
   offerTags: string[]
   wantTags: string[]
   needTags: string[]
@@ -50,7 +45,6 @@ interface ViewerProfile {
   whyAttending: string | null
   roleIntent: string | null
   availabilityStatus: string | null
-  personalityEmbedding: number[] | null
   connectionTypes: string[] | null
   followUps: Record<string, string> | null
   linkedinSkills: string[]
@@ -68,7 +62,6 @@ interface ScoreBreakdown {
   relationshipFit: number
   totalScore: number
   wantFitComponents: {
-    semantic: number
     tagOverlap: number
     roleBonus: number
     wantFit?: number
@@ -188,20 +181,6 @@ function hasKeywords(text: string | null, keywordSet: Set<string>): boolean {
   const lowerText = text.toLowerCase()
   // Check if any keyword appears in the text
   return Array.from(keywordSet).some(keyword => lowerText.includes(keyword))
-}
-
-function cosineSimilarity(a: number[], b: number[]): number {
-  if (!a || !b || a.length === 0 || b.length === 0 || a.length !== b.length) return 0
-  let dotProduct = 0
-  let normA = 0
-  let normB = 0
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i]
-    normA += a[i] * a[i]
-    normB += b[i] * b[i]
-  }
-  if (normA === 0 || normB === 0) return 0
-  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB))
 }
 
 function jaccardSimilarity(setA: Set<string>, setB: Set<string>): number {
@@ -467,12 +446,6 @@ async function loadViewerProfile(
     companySummary: user.company_summary ?? null,
     companyUrl: user.company_url ?? null,
     careerYears: user.career_years_experience ?? null,
-    // Vector fields intentionally omitted to avoid pulling embeddings
-    offerEmbedding: null,
-    needEmbedding: null,
-    profileEmbedding: null,
-    eventNeedEmbedding: null,
-    eventOfferEmbedding: null,
     offerTags: mergeUnique(user.offer_tags, attendance.event_offer_tags),
     wantTags: mergeUnique(user.want_tags, attendance.event_want_tags),
     needTags: mergeUnique(user.need_tags, attendance.event_need_tags),
@@ -483,7 +456,6 @@ async function loadViewerProfile(
     whyAttending: attendance.why_attending_text ?? null,
     roleIntent: attendance.event_role_intent ?? null,
     availabilityStatus: attendance.event_availability_status ?? null,
-    personalityEmbedding: null,
     connectionTypes: attendance.connection_types_selected ?? null,
     followUps: (attendance.connection_followups_json as Record<string, string>) ?? null,
     linkedinSkills: user.linkedin_skills || [],
@@ -882,12 +854,6 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
         companySummary: user.company_summary ?? null,
         companyUrl: user.company_url ?? null,
         careerYears: user.career_years_experience ?? null,
-        // Vector fields intentionally omitted to avoid pulling embeddings
-        offerEmbedding: null,
-        needEmbedding: null,
-        profileEmbedding: null,
-        eventNeedEmbedding: null,
-        eventOfferEmbedding: null,
         offerTags: mergeUnique(user.offer_tags, row.event_offer_tags),
         wantTags: mergeUnique(user.want_tags, row.event_want_tags),
         needTags: mergeUnique(user.need_tags, row.event_need_tags),
@@ -898,7 +864,6 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
         whyAttending: row.why_attending_text ?? null,
         roleIntent: row.event_role_intent ?? null,
         availabilityStatus: row.event_availability_status ?? null,
-        personalityEmbedding: null,
         connectionTypes: row.connection_types_selected ?? null,
         followUps: (row.connection_followups_json as Record<string, string>) ?? null,
         linkedinSkills: user.linkedin_skills || [],
@@ -1136,18 +1101,7 @@ function computeWantFit(
   viewerProfile: ViewerProfile,
   candidate: CandidateProfile
 ): ScoreBreakdown["wantFitComponents"] {
-  // 1) Semantic similarity: viewer need ↔ candidate offer
-  const viewerNeedEmbedding =
-    viewerProfile.eventNeedEmbedding ?? viewerProfile.needEmbedding
-  const candidateOfferEmbedding =
-    candidate.eventOfferEmbedding ?? candidate.offerEmbedding
-
-  let semantic = 0
-  if (viewerNeedEmbedding && candidateOfferEmbedding) {
-    semantic = Math.max(0, cosineSimilarity(viewerNeedEmbedding, candidateOfferEmbedding))
-  }
-
-  // 2) Tag overlap between want tags and candidate's offer / industry / skills
+  // Tag overlap between want tags and candidate's offer / industry / skills
   const viewerWantTags = new Set(viewerWant.tags.map(canon))
 
   const candidateTagSet = new Set(
@@ -1160,7 +1114,7 @@ function computeWantFit(
 
   const tagOverlap = jaccardSimilarity(viewerWantTags, candidateTagSet)
 
-  // 3) Role + intent bonus
+  // Role + intent bonus
   let roleBonus = 0
 
   const title = (candidate.jobTitle || "").toLowerCase()
@@ -1207,25 +1161,16 @@ function computeWantFit(
   const normalizedRole = Math.max(0, Math.min(1, 0.5 + roleBonus))
   const wantFit = Math.max(
     0,
-    Math.min(1, 0.65 * semantic + 0.25 * tagOverlap + 0.10 * normalizedRole)
+    Math.min(1, 0.25 * tagOverlap + 0.75 * normalizedRole)
   )
 
-  return { semantic, tagOverlap, roleBonus, wantFit }
+  return { tagOverlap, roleBonus, wantFit }
 }
 
 function computeMutualValue(
   viewerProfile: ViewerProfile,
   candidate: CandidateProfile
 ): number {
-  // Semantic: viewer offer -> candidate need
-  const viewerOfferEmbedding = viewerProfile.eventOfferEmbedding ?? viewerProfile.offerEmbedding
-  const candidateNeedEmbedding = candidate.eventNeedEmbedding ?? candidate.needEmbedding
-
-  let semantic = 0
-  if (viewerOfferEmbedding && candidateNeedEmbedding) {
-    semantic = Math.max(0, cosineSimilarity(viewerOfferEmbedding, candidateNeedEmbedding))
-  }
-
   // Tag overlap
   const viewerOfferTags = new Set((viewerProfile.offerTags || []).map(canon))
   const candidateNeedTags = new Set((candidate.needTags || []).map(canon))
@@ -1236,7 +1181,7 @@ function computeMutualValue(
   const candidateIndustryTags = new Set((candidate.industryTags || []).map(canon))
   const sharedIndustry = jaccardSimilarity(viewerIndustryTags, candidateIndustryTags)
 
-  return 0.5 * semantic + 0.3 * tagOverlap + 0.2 * sharedIndustry
+  return 0.6 * tagOverlap + 0.4 * sharedIndustry
 }
 
 function computeRelationshipFit(
@@ -1254,13 +1199,7 @@ function computeRelationshipFit(
   ].map(canon))
   const sharedInterests = jaccardSimilarity(viewerHobbies, candidateHobbies)
 
-  // Personality similarity (if embeddings exist)
-  let personality = 0
-  if (viewerProfile.personalityEmbedding && candidate.personalityEmbedding) {
-    personality = Math.max(0, cosineSimilarity(viewerProfile.personalityEmbedding, candidate.personalityEmbedding))
-  }
-
-  return 0.5 * sharedInterests + 0.5 * personality
+  return sharedInterests
 }
 
 function scoreCandidates(
@@ -1981,7 +1920,6 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
             relationshipFit: 0,
             totalScore: 0,
             wantFitComponents: {
-              semantic: 0,
               tagOverlap: 0,
               roleBonus: 0,
               wantFit: 0,
@@ -2013,7 +1951,6 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
             relationshipFit: 0.5,
             totalScore: 0.5,
             wantFitComponents: {
-              semantic: 0.5,
               tagOverlap: 0.5,
               roleBonus: 0,
               wantFit: 0.5
@@ -2050,7 +1987,6 @@ Evaluate each candidate following the decision tree rules. Return JSON with matc
           relationshipFit: aiResult.excluded ? 0 : baseScore,
           totalScore: aiResult.excluded ? 0 : baseScore,
           wantFitComponents: {
-            semantic: baseScore,
             tagOverlap: baseScore,
             roleBonus: 0,
             wantFit: baseScore,

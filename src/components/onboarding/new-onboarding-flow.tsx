@@ -65,6 +65,7 @@ export function NewOnboardingFlow() {
   const [profileCompleted, setProfileCompleted] = useState(false)
   const [profileExists, setProfileExists] = useState(false)
   const [eventName, setEventName] = useState<string>("")
+  const [hasCompletedEventOnboardingBefore, setHasCompletedEventOnboardingBefore] = useState(false)
   
   // Profile data (one-time)
   const [firstName, setFirstName] = useState("")
@@ -83,6 +84,9 @@ export function NewOnboardingFlow() {
   const [companyUrlTouched, setCompanyUrlTouched] = useState(false)
   const [companyUrlError, setCompanyUrlError] = useState("")
   const expertiseInputRef = useRef<HTMLInputElement>(null)
+  const [hobbies, setHobbies] = useState<string[]>([])
+  const [hobbiesInput, setHobbiesInput] = useState("")
+  const hobbiesInputRef = useRef<HTMLInputElement>(null)
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [isCropModalOpen, setIsCropModalOpen] = useState(false)
@@ -148,12 +152,22 @@ export function NewOnboardingFlow() {
           if (eventData?.event_name) {
             setEventName(eventData.event_name)
           }
+          
+          // Check if user has completed event onboarding before (any event)
+          const { data: previousAttendance } = await supabase
+            .from("attendance")
+            .select("onboarding_completed")
+            .eq("user_id", user.id)
+            .eq("onboarding_completed", true)
+            .limit(1)
+          
+          setHasCompletedEventOnboardingBefore((previousAttendance?.length || 0) > 0)
         }
         
         // Check if profile exists and is complete
         const { data: person } = await supabase
           .from("users")
-          .select("first_name, last_name, career_title, company_name, company_url, photo_url, expertise_summary")
+          .select("first_name, last_name, career_title, company_name, company_url, photo_url, expertise_summary, hobbies")
           .eq("user_id", user.id)
           .single()
         
@@ -171,6 +185,11 @@ export function NewOnboardingFlow() {
           if (person.expertise_summary) {
             const expertiseList = person.expertise_summary.split(',').map(e => e.trim()).filter(Boolean)
             setAreasOfExpertise(expertiseList)
+          }
+          
+          // Load hobbies if exists
+          if (person.hobbies && Array.isArray(person.hobbies) && person.hobbies.length > 0) {
+            setHobbies(person.hobbies)
           }
           
           // Extract company from email if not a common email provider and no company URL exists
@@ -729,6 +748,19 @@ export function NewOnboardingFlow() {
     return Object.keys(errors).length === 0
   }
 
+  const validateHobbiesForm = () => {
+    const errors: Record<string, string> = {}
+    
+    // If hobbies already exist from profile, validation passes
+    // Otherwise require at least one hobby
+    if (hobbies.length === 0 && !hobbiesInput.trim()) {
+      errors.hobbies = "Please add at least one hobby or interest"
+    }
+    
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
   const handleCompleteProfile = async () => {
     if (!user) {
       console.error('handleCompleteProfile: No user')
@@ -844,6 +876,7 @@ export function NewOnboardingFlow() {
         company_summary: companySummaryToSave || null,
         career_years_experience: yearsExpInt,
         expertise_summary: expertiseArray.join(", "),
+        // Don't save hobbies here - hobbies are saved during event onboarding (first time)
       }
       
       console.log("Saving profile data:", {
@@ -951,6 +984,38 @@ export function NewOnboardingFlow() {
         const dbKey = mapConnectionTypeToDB(uiKey)
         dbFollowUpResponses[dbKey] = followUpResponses[uiKey]
       })
+      
+      // Parse hobbies from input (comma or newline separated) if this is first-time event onboarding
+      let hobbiesArray: string[] = []
+      if (hobbies.length > 0) {
+        hobbiesArray = hobbies
+      } else if (hobbiesInput.trim()) {
+        hobbiesArray = hobbiesInput
+          .split(/[,\n]+/)
+          .map(h => h.trim())
+          .filter(h => h.length > 0)
+          .slice(0, 10) // Limit to 10 hobbies
+      }
+      
+      // If "general" connection type is selected and user has hobbies, use those instead of asking
+      if (dbConnectionTypes.includes("general") && hobbiesArray.length > 0) {
+        dbFollowUpResponses["general"] = hobbiesArray.join(", ")
+      }
+      
+      // Save hobbies to users table if this is first-time event onboarding and hobbies were provided
+      if (!hasCompletedEventOnboardingBefore && hobbiesArray.length > 0) {
+        const { error: hobbiesUpdateError } = await supabase
+          .from("users")
+          .update({ hobbies: hobbiesArray })
+          .eq("user_id", user.id)
+        
+        if (hobbiesUpdateError) {
+          console.error("Error saving hobbies to user profile:", hobbiesUpdateError)
+          // Don't block onboarding completion if hobbies save fails
+        } else {
+          console.log("Hobbies saved to user profile:", hobbiesArray)
+        }
+      }
 
       console.log("Saving event onboarding:", {
         event_id: eventId,
@@ -1501,6 +1566,11 @@ export function NewOnboardingFlow() {
     .map((typeId) => {
       const question = getFollowUpQuestion(typeId)
       if (!question) return null
+      // Skip hobbies question if user already has hobbies in their profile
+      // (hobbies will be asked separately after event questions for first-time users)
+      if (typeId === "general" && hobbies.length > 0) {
+        return null
+      }
       return { typeId, question }
     })
     .filter((item): item is { typeId: string; question: string } => Boolean(item))
@@ -1616,6 +1686,86 @@ export function NewOnboardingFlow() {
           />
         </div>
       )
+    }] : []),
+    // Add hobbies step after event questions - only for first-time event onboarding
+    // Show if: user hasn't completed event onboarding before AND doesn't already have hobbies
+    ...((!hasCompletedEventOnboardingBefore && hobbies.length === 0) ? [{
+      id: "hobbies",
+      title: "What are your hobbies or interests?",
+      description: "Tell us about what you enjoy doing in your free time",
+      component: (
+        <div className="space-y-6">
+          {/* Hobbies bubbles display */}
+          {hobbies.length > 0 && (
+            <div className="mt-2 mb-3 flex flex-wrap gap-2">
+              {hobbies.map((hobby) => (
+                <div
+                  key={hobby}
+                  className="px-3 py-1.5 rounded-xl text-xs font-body bg-primary text-white flex items-center gap-2"
+                >
+                  {hobby}
+                  <button
+                    type="button"
+                    onClick={() => setHobbies(hobbies.filter(h => h !== hobby))}
+                    className="hover:text-destructive"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Input for adding hobbies */}
+          <div className="relative">
+            <Input
+              ref={hobbiesInputRef}
+              id="hobbies"
+              value={hobbiesInput}
+              onChange={(e) => setHobbiesInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && hobbiesInput.trim()) {
+                  e.preventDefault()
+                  const newHobby = hobbiesInput.trim()
+                  if (!hobbies.includes(newHobby) && hobbies.length < 10) {
+                    setHobbies([...hobbies, newHobby])
+                  }
+                  setHobbiesInput("")
+                  setTimeout(() => {
+                    hobbiesInputRef.current?.focus()
+                  }, 0)
+                }
+              }}
+              placeholder="Type a hobby and press Enter to add (e.g., hiking, reading, cooking)"
+              className={`mt-3 rounded-2xl pr-10 bg-input ${validationErrors.hobbies ? 'border-destructive' : ''}`}
+            />
+            {hobbiesInput.trim() && (
+              <button
+                type="button"
+                onClick={() => {
+                  const newHobby = hobbiesInput.trim()
+                  if (!hobbies.includes(newHobby) && hobbies.length < 10) {
+                    setHobbies([...hobbies, newHobby])
+                  }
+                  setHobbiesInput("")
+                  setTimeout(() => {
+                    hobbiesInputRef.current?.focus()
+                  }, 0)
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-concave bg-primary text-primary-foreground text-xs font-title hover:opacity-90"
+              >
+                +
+              </button>
+            )}
+          </div>
+          {validationErrors.hobbies && (
+            <p className="text-xs text-destructive mt-1">{validationErrors.hobbies}</p>
+          )}
+          {hobbies.length >= 10 && (
+            <p className="text-xs text-muted-foreground mt-1">Maximum 10 hobbies reached</p>
+          )}
+        </div>
+      )
     }] : [])
   ]
 
@@ -1709,6 +1859,7 @@ export function NewOnboardingFlow() {
     if (!currentStepData) return false
     if (currentStepData.id === "profile") return firstName && lastName
     if (currentStepData.id === "professional") return jobTitle && company && yearsExperience && areasOfExpertise.length > 0
+    if (currentStepData.id === "hobbies") return hobbies.length > 0 || hobbiesInput.trim().length > 0
     if (currentStepData.id === "connection-types") return connectionTypesSelected.length > 0
     if (currentStepData.id === "why-attending") return whyAttending.trim().length > 0
     if (currentStepData.id.startsWith("follow-up-")) {
@@ -1726,6 +1877,8 @@ export function NewOnboardingFlow() {
     if (stepId === "profile" && !validateForm()) {
       return
     } else if (stepId === "professional" && !validateProfessionalForm()) {
+      return
+    } else if (stepId === "hobbies" && !validateHobbiesForm()) {
       return
     } else if (stepId === "connection-types") {
       if (connectionTypesSelected.length === 0) {
