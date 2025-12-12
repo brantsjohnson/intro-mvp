@@ -68,6 +68,7 @@ export function AuthForm() {
           email,
           password,
           options: {
+            emailRedirectTo: undefined, // Disable email verification redirect
             data: {
               first_name: firstName,
               last_name: lastName,
@@ -77,9 +78,137 @@ export function AuthForm() {
 
         if (error) {
           console.error("Sign up error:", error)
+          alert(`Sign up failed: ${error.message}`)
         } else if (data.user) {
           // Profile will be created automatically by database trigger
           console.log("Sign up successful, user created:", data.user.id)
+          console.log("Session exists:", !!data.session)
+          console.log("Email confirmed:", data.user.email_confirmed_at ? "Yes" : "No")
+          
+          // Wait for session to be properly established and persisted before proceeding
+          // Sometimes the session needs a moment to be available and cookies need time to be set
+          let sessionConfirmed = !!data.session
+          let attempts = 0
+          const maxAttempts = 10 // Increased attempts
+          
+          console.log("Initial session check:", !!data.session)
+          
+          while (!sessionConfirmed && attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 300)) // Increased delay
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+            if (session) {
+              sessionConfirmed = true
+              console.log("Session confirmed after", attempts + 1, "attempt(s)")
+              console.log("Session user ID:", session.user.id)
+            } else {
+              attempts++
+              console.log(`Waiting for session... (${attempts}/${maxAttempts})`, sessionError)
+            }
+          }
+          
+          // Double-check with getUser() as well
+          if (sessionConfirmed) {
+            const { data: { user }, error: userError } = await supabase.auth.getUser()
+            if (!user) {
+              console.warn("getUser() returned no user even though session exists")
+              sessionConfirmed = false
+            } else {
+              console.log("getUser() confirmed user:", user.id)
+            }
+          }
+          
+          if (!sessionConfirmed) {
+            console.error("Session not established after signup. This may cause issues.")
+            alert("Account created but session not established. Please try signing in.")
+            return
+          }
+          
+          // Additional delay to ensure cookies are fully set and trigger has executed
+          console.log("Waiting for cookies and trigger to complete...")
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          // Try to verify user row exists
+          const { data: userRow, error: userError } = await supabase
+            .from("users")
+            .select("user_id")
+            .eq("user_id", data.user.id)
+            .single()
+          
+          if (userRow) {
+            console.log("User row confirmed in database")
+          } else {
+            console.warn("User row not found. Trigger may have failed. Creating user row manually...")
+            
+            // Fallback: Manually create the user row if trigger failed
+            // Retry logic in case of race condition
+            let retries = 3
+            let createError = null
+            
+            while (retries > 0) {
+              const { error: err } = await supabase
+                .from("users")
+                .insert({
+                  user_id: data.user.id,
+                  email: data.user.email || email,
+                  first_name: firstName || data.user.user_metadata?.first_name || "",
+                  last_name: lastName || data.user.user_metadata?.last_name || "",
+                  photo_url: data.user.user_metadata?.avatar_url || data.user.user_metadata?.picture || null,
+                })
+              
+              if (!err) {
+                console.log("User row created successfully via fallback")
+                createError = null
+                break
+              } else if (err.code === '23505') {
+                // Unique violation - user already exists (trigger might have just created it)
+                console.log("User row already exists (trigger may have just created it)")
+                createError = null
+                break
+              } else {
+                createError = err
+                retries--
+                if (retries > 0) {
+                  console.log(`Retry creating user row... (${3 - retries + 1}/3)`)
+                  await new Promise(resolve => setTimeout(resolve, 200))
+                }
+              }
+            }
+            
+            if (createError) {
+              console.error("Failed to create user row manually after retries:", createError)
+              // Still redirect - onboarding will handle missing profile
+            }
+          }
+          
+          // Determine redirect URL - always go to onboarding after sign-up
+          let redirectUrl = "/onboarding"  // Always start onboarding after sign-up
+          if (encryptedCode) {
+            // Encrypted code - preserve it in onboarding
+            redirectUrl = `/onboarding?code=${encryptedCode}`
+          } else if (eventCode) {
+            // Legacy event code - go to event join page
+            redirectUrl = `/event/join?code=${eventCode}`
+          }
+          
+          // Final session check before redirect
+          const { data: { session: finalSession } } = await supabase.auth.getSession()
+          if (!finalSession) {
+            console.error("Session lost before redirect! This will cause issues.")
+            alert("Session was lost. Please try signing in.")
+            return
+          }
+          
+          console.log("Final session check passed. Redirecting to:", redirectUrl)
+          console.log("User ID:", data.user.id)
+          console.log("User email:", data.user.email)
+          console.log("Session access token exists:", !!finalSession.access_token)
+          
+          // Use href instead of replace to ensure cookies are sent properly
+          // The replace was causing session issues
+          window.location.href = redirectUrl
+        } else {
+          console.warn("Sign up completed but no user object returned")
+          alert("Sign up completed but there was an issue. Please try signing in.")
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -230,17 +359,17 @@ export function AuthForm() {
           )}
 
           {isSignUp && (
-            <div className="flex items-start space-x-3 p-4 rounded-lg border border-border bg-card/50">
+            <div className="flex items-center space-x-3 p-4 rounded-lg border border-border bg-card/50">
               <Checkbox
                 id="consent"
                 checked={consent}
                 onCheckedChange={(checked) => setConsent(checked as boolean)}
-                className="mt-0.5 h-5 w-5 border-2 border-[#656361] flex-shrink-0"
+                className="h-5 w-5 border-2 border-[#656361] flex-shrink-0"
               />
               <Label
                 htmlFor="consent"
-                className="text-sm text-foreground leading-relaxed cursor-pointer flex-1 normal-case"
-                style={{ textTransform: 'none' }}
+                className="text-sm text-foreground cursor-pointer normal-case font-normal whitespace-normal font-body"
+                style={{ textTransform: 'none', fontWeight: 'normal' }}
               >
                 By signing up, I accept the{" "}
                 <a href="/terms" className="text-accent hover:underline">

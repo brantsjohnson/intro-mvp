@@ -44,11 +44,10 @@ const experienceOptions = [
   "21+ years"
 ]
 
-// Helper function to convert text to Title Case (only for onboarding)
-function toTitleCase(text: string): string {
-  return text.replace(/\w\S*/g, (txt) => {
-    return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
-  })
+// Helper function to convert text to Sentence Case (only first letter capitalized)
+function toSentenceCase(text: string): string {
+  if (!text) return text
+  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase()
 }
 
 export function NewOnboardingFlow() {
@@ -354,7 +353,8 @@ export function NewOnboardingFlow() {
   }
 
   const shouldShowBusinessNeed = () => {
-    return connectionTypesSelected.length > 0 && !connectionTypesSelected.includes("find-job")
+    // Hidden for now - always return false
+    return false
   }
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -474,12 +474,16 @@ export function NewOnboardingFlow() {
           }
         }
         // Always update company summary/description when URL changes
-        if (enriched.company_description) {
-          console.log('[enrichCompany] Setting summary:', enriched.company_description)
-          setCompanySummary(enriched.company_description)
+        // Check for description in multiple possible field names
+        const companyDescription = enriched.company_description || enriched.description || enriched.summary || null
+        
+        if (companyDescription) {
+          console.log('[enrichCompany] Setting summary (length:', companyDescription.length, '):', companyDescription.substring(0, 100) + '...')
+          setCompanySummary(companyDescription)
         } else {
-          console.log('[enrichCompany] No description in response')
-          setCompanySummary(null)
+          console.log('[enrichCompany] No description in response. Response keys:', Object.keys(enriched))
+          console.log('[enrichCompany] Full response:', JSON.stringify(enriched, null, 2))
+          // Don't clear summary - preserve existing value
         }
       } else {
         const errorText = await res.text()
@@ -490,7 +494,8 @@ export function NewOnboardingFlow() {
         if (domainName && domainName.length > 1) {
           setCompanyName(domainName.charAt(0).toUpperCase() + domainName.slice(1))
         }
-        setCompanySummary(null) // Clear summary if enrichment fails
+        // Don't clear summary on error - preserve existing value if available
+        console.log('[enrichCompany] Enrichment failed, preserving existing summary if available')
       }
     } catch (e) {
       console.error("[enrichCompany] Error:", e)
@@ -500,7 +505,8 @@ export function NewOnboardingFlow() {
       if (domainName && domainName.length > 1) {
         setCompanyName(domainName.charAt(0).toUpperCase() + domainName.slice(1))
       }
-      setCompanySummary(null) // Clear summary on error
+      // Don't clear summary on error - preserve existing value if available
+      console.log('[enrichCompany] Enrichment error, preserving existing summary if available')
     }
   }
 
@@ -754,14 +760,16 @@ export function NewOnboardingFlow() {
       let companyNameToSave = companyName.trim() || null
       let companySummaryToSave = companySummary || null
       
-      // If URL exists, always try to enrich to ensure we have summary (but don't block on it)
+      // If URL exists, always try to enrich to ensure we have summary
       // This ensures that even if user manually edited the name, we still get the summary
       if (company && /[.]/.test(company)) {
         try {
           const { data: session } = await supabase.auth.getSession()
           const token = session.session?.access_token
           const enrichUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/company-enrich`
-          console.log('[handleCompleteProfile] Enriching on submit for:', company, 'Current summary:', companySummaryToSave)
+          console.log('[handleCompleteProfile] Enriching on submit for:', company)
+          console.log('[handleCompleteProfile] Current companySummary state:', companySummary)
+          console.log('[handleCompleteProfile] Current companySummaryToSave:', companySummaryToSave)
           
           const res = await fetch(enrichUrl, {
             method: "POST",
@@ -774,25 +782,49 @@ export function NewOnboardingFlow() {
           
           if (res.ok) {
             const enriched = await res.json()
-            console.log('[handleCompleteProfile] Enrichment response:', enriched)
+            console.log('[handleCompleteProfile] Enrichment response keys:', Object.keys(enriched))
+            console.log('[handleCompleteProfile] Full enrichment response:', JSON.stringify(enriched, null, 2))
+            
+            // Check for company description in multiple possible field names
+            const companyDescription = enriched.company_description || enriched.description || enriched.summary || null
+            
             // Update company name if we don't have one yet (don't overwrite user's manual entry)
             if (!companyNameToSave && enriched.company_name) {
               companyNameToSave = enriched.company_name
             }
-            // Always update company summary if we don't have one yet (this is the key fix)
-            if (!companySummaryToSave && enriched.company_description) {
-              console.log('[handleCompleteProfile] Setting summary from enrichment:', enriched.company_description)
-              companySummaryToSave = enriched.company_description
+            
+            // Always update company summary from enrichment if available (prioritize fresh enrichment)
+            if (companyDescription) {
+              console.log('[handleCompleteProfile] Setting summary from enrichment (length:', companyDescription.length, ')')
+              companySummaryToSave = companyDescription
+            } else if (companySummary) {
+              // Fallback: use state value if enrichment didn't return description
+              console.log('[handleCompleteProfile] No description in enrichment response, using state value (length:', companySummary.length, ')')
+              companySummaryToSave = companySummary
             } else {
-              console.log('[handleCompleteProfile] Summary already exists or not in response. Current:', companySummaryToSave, 'Enriched:', enriched.company_description)
+              console.log('[handleCompleteProfile] No description available from enrichment or state')
             }
           } else {
             const errorText = await res.text()
             console.error('[handleCompleteProfile] Enrichment failed:', res.status, errorText)
+            // If enrichment fails, use state value if available
+            if (companySummary && !companySummaryToSave) {
+              console.log('[handleCompleteProfile] Using state value after enrichment failure')
+              companySummaryToSave = companySummary
+            }
           }
         } catch (e) {
           console.error("[handleCompleteProfile] Enrichment error (non-blocking):", e)
+          // If enrichment errors, use state value if available
+          if (companySummary && !companySummaryToSave) {
+            console.log('[handleCompleteProfile] Using state value after enrichment error')
+            companySummaryToSave = companySummary
         }
+        }
+      } else if (companySummary && !companySummaryToSave) {
+        // If no URL but we have state value, use it
+        console.log('[handleCompleteProfile] No URL provided, using state value')
+        companySummaryToSave = companySummary
       }
 
       // Validation: must have either company_name OR company URL
@@ -804,7 +836,7 @@ export function NewOnboardingFlow() {
         user_id: user.id,
         first_name: firstName,
         last_name: lastName,
-        email: user.email || "",
+        // email removed - already set by database trigger, including it causes 409 conflict
         photo_url: finalPhotoUrl,
         career_title: jobTitle,
         company_name: companyNameToSave || null,
@@ -814,27 +846,65 @@ export function NewOnboardingFlow() {
         expertise_summary: expertiseArray.join(", "),
       }
       
-      console.log("Saving profile data:", profileData)
+      console.log("Saving profile data:", {
+        ...profileData,
+        company_summary_preview: companySummaryToSave ? companySummaryToSave.substring(0, 100) + '...' : null,
+        company_summary_length: companySummaryToSave?.length || 0
+      })
       
-      const { data: savedData, error: profileError } = await supabase
+      let savedData = null
+      let profileError = null
+      
+      const { data: initialData, error: initialError } = await supabase
         .from("users")
         .upsert(profileData, {
           onConflict: 'user_id'
         })
         .select()
 
-      if (profileError) {
-        console.error("Profile upsert error:", profileError)
+      if (initialError) {
+        console.error("Profile upsert error:", initialError)
         console.error("Error details:", {
-          code: profileError.code,
-          message: profileError.message,
-          details: profileError.details,
-          hint: profileError.hint
+          code: initialError.code,
+          message: initialError.message,
+          details: initialError.details,
+          hint: initialError.hint
         })
+        
+        // Handle 409 conflict specifically (duplicate email constraint)
+        if (initialError.code === '23505' && (initialError.message?.includes('email') || initialError.message?.includes('users_email_key'))) {
+          console.warn("Email constraint conflict detected. Retrying without email field...")
+          
+          // Retry without email field (email already set by trigger)
+          const retryProfileData = {
+            ...profileData,
+            // email explicitly omitted - already set by database trigger
+          }
+          
+          const { data: retryData, error: retryError } = await supabase
+            .from("users")
+            .upsert(retryProfileData, {
+              onConflict: 'user_id'
+            })
+            .select()
+          
+          if (retryError) {
+            console.error("Retry upsert also failed:", retryError)
+            alert("Failed to save profile. Please try again or contact support.")
         return
       }
       
+          savedData = retryData
+          console.log("Profile saved successfully after retry:", savedData)
+        } else {
+          // Other errors - return early
+          alert("Failed to save profile. Please try again.")
+          return
+        }
+      } else {
+        savedData = initialData
       console.log("Profile saved successfully:", savedData)
+      }
 
       setProfileCompleted(true)
       
@@ -1175,7 +1245,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="e.g. John"
-                className={`mt-1 rounded-2xl bg-input ${validationErrors.firstName ? 'border-destructive' : ''}`}
+                className={`mt-3 rounded-2xl bg-input ${validationErrors.firstName ? 'border-destructive' : ''}`}
                 required
               />
               {validationErrors.firstName && (
@@ -1218,7 +1288,7 @@ export function NewOnboardingFlow() {
       component: (
         <div className="space-y-6">
           {/* All fields stacked vertically for mobile */}
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div>
               <Label htmlFor="jobTitle" className="text-sm font-title text-foreground">
                 Job Title *
@@ -1237,7 +1307,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="e.g. Software Engineer"
-                className={`mt-1 rounded-2xl bg-input ${validationErrors.jobTitle ? 'border-destructive' : ''}`}
+                className={`mt-3 rounded-2xl bg-input ${validationErrors.jobTitle ? 'border-destructive' : ''}`}
                 required
               />
               {validationErrors.jobTitle && (
@@ -1250,7 +1320,7 @@ export function NewOnboardingFlow() {
               <Label className="text-sm font-title text-foreground">
                 Years in your career field *
               </Label>
-              <div className="mt-2 grid grid-cols-2 gap-2">
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 {experienceOptions.map(option => (
                   <button
                     key={option}
@@ -1312,7 +1382,7 @@ export function NewOnboardingFlow() {
                   }
                 }}
                 placeholder="https://company.com"
-                className={`mt-1 rounded-2xl bg-input ${companyUrlError ? 'border-destructive' : ''}`}
+                className={`mt-3 rounded-2xl bg-input ${companyUrlError ? 'border-destructive' : ''}`}
               />
               {companyUrlError && (
                 <p className="text-xs text-destructive mt-1">{companyUrlError}</p>
@@ -1337,7 +1407,7 @@ export function NewOnboardingFlow() {
                       }
                     }}
                     placeholder="Company name"
-                    className={`mt-1 rounded-2xl bg-input ${validationErrors.company ? 'border-destructive' : ''}`}
+                    className={`mt-3 rounded-2xl bg-input ${validationErrors.company ? 'border-destructive' : ''}`}
                   />
                 </div>
               )}
@@ -1405,7 +1475,7 @@ export function NewOnboardingFlow() {
                   onChange={(e) => setExpertiseInput(e.target.value)}
                   onKeyDown={handleExpertiseKeyDown}
                   placeholder="Type and press Enter to add expertise"
-                  className={`mt-1 rounded-2xl pr-10 bg-input ${validationErrors.areasOfExpertise ? 'border-destructive' : ''}`}
+                  className={`mt-3 rounded-2xl pr-10 bg-input ${validationErrors.areasOfExpertise ? 'border-destructive' : ''}`}
                 />
                 {expertiseInput.trim() && (
                   <button
@@ -1442,7 +1512,7 @@ export function NewOnboardingFlow() {
       title: question,
       description: "",
       component: (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <Textarea
             value={followUpResponses[typeId] || ""}
             onChange={(e) => {
@@ -1466,7 +1536,7 @@ export function NewOnboardingFlow() {
               // Command+Shift+Enter or Ctrl+Shift+Enter allows new line (default behavior)
             }}
             placeholder="Type here..."
-            className="rounded-2xl resize-none overflow-hidden"
+            className="mt-3 rounded-2xl resize-none overflow-hidden"
             rows={2}
             style={{ minHeight: '60px', maxHeight: '200px' }}
           />
@@ -1481,7 +1551,7 @@ export function NewOnboardingFlow() {
       title: eventName ? `Why are you attending ${eventName}?` : "Why are you attending?",
       description: "", // Removed subtitle
       component: (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <Textarea
             value={whyAttending}
             onChange={(e) => {
@@ -1491,7 +1561,7 @@ export function NewOnboardingFlow() {
               e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
             }}
             placeholder="Help us understand your goals for this event"
-            className="resize-none overflow-hidden"
+            className="mt-3 resize-none overflow-hidden"
             rows={2}
             style={{ minHeight: '60px', maxHeight: '200px' }}
           />
@@ -1503,7 +1573,7 @@ export function NewOnboardingFlow() {
       title: "Connection Types",
       description: "What types of connections would you be ok with?",
       component: (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {connectionTypes.map((type) => (
             <div key={type.id} className="flex items-center space-x-3 rounded-concave p-4 transition-colors hover:bg-[#EDEBE6]/50">
               <Checkbox
@@ -1530,7 +1600,7 @@ export function NewOnboardingFlow() {
       title: "What is something your business is in need of right now?",
       description: "",
       component: (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <Textarea
             value={businessNeed}
             onChange={(e) => {
@@ -1540,7 +1610,7 @@ export function NewOnboardingFlow() {
               e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
             }}
             placeholder="Type your answer here..."
-            className="resize-none overflow-hidden"
+            className="mt-3 resize-none overflow-hidden"
             rows={2}
             style={{ minHeight: '60px', maxHeight: '200px' }}
           />
@@ -1575,6 +1645,51 @@ export function NewOnboardingFlow() {
       }
     }
   }, [visibleSteps.length, currentStep, currentStepData, connectionTypesSelected])
+
+  // Prevent browser back button navigation during event onboarding
+  useEffect(() => {
+    // Only prevent navigation if we're in event onboarding (eventId present and not completed)
+    const isInEventOnboarding = eventId && !adaptiveQnAComplete
+    
+    if (!isInEventOnboarding) return
+
+    // Handle beforeunload (page refresh/close)
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = "You haven't completed the event onboarding questions yet. Are you sure you want to leave?"
+      return e.returnValue
+    }
+
+    // Handle browser back/forward buttons
+    const handlePopState = (e: PopStateEvent) => {
+      // Check if we're navigating away from onboarding
+      const currentPath = window.location.pathname
+      if (!currentPath.includes('/onboarding')) {
+        const confirmed = window.confirm(
+          "You haven't completed the event onboarding questions yet. Are you sure you want to leave? Your progress will be lost."
+        )
+        
+        if (!confirmed) {
+          // Push current state back to prevent navigation
+          const currentUrl = `/onboarding?eventId=${eventId}${fromEventJoin ? '&from=event-join' : ''}`
+          window.history.pushState(null, '', currentUrl)
+          // Force router to stay on current page
+          router.replace(currentUrl)
+        }
+      }
+    }
+
+    // Push current state to history to intercept back button
+    window.history.pushState(null, '', window.location.pathname + window.location.search)
+    
+    window.addEventListener('popstate', handlePopState)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [eventId, adaptiveQnAComplete, router, fromEventJoin])
 
   // Show adaptive Q&A if we have a current question or are loading one
   // DISABLED: Adaptive Q&A is dormant for now
@@ -1667,7 +1782,7 @@ export function NewOnboardingFlow() {
           <div className="bg-[#EDEBE6] border border-border rounded-lg p-8 text-center shadow-elevation">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
             <h3 className="text-lg font-title text-foreground mb-2" style={{ textTransform: 'none' }}>
-              {isRedirecting ? toTitleCase("Redirecting to your dashboard...") : toTitleCase("Saving your information...")}
+              {isRedirecting ? toSentenceCase("Redirecting to your dashboard...") : toSentenceCase("Saving your information...")}
             </h3>
             <p className="text-muted-foreground">
               {isRedirecting 
@@ -1705,7 +1820,7 @@ export function NewOnboardingFlow() {
 
       {/* Main Content Area - Fixed height to prevent scrolling */}
       <div className="flex-1 flex items-center justify-center px-4 md:px-6 overflow-hidden" style={{ paddingTop: '52px' }}>
-        <div className="w-full max-w-lg transition-all duration-300 animate-fade-up rounded-concave bg-[#EDEBE6] double-border p-4 md:p-6 mb-24 max-h-[calc(100vh-12rem)] overflow-y-auto"
+        <div className="w-full max-w-lg transition-all duration-300 animate-fade-up rounded-concave bg-[#EDEBE6] double-border p-8 md:p-10 mb-24 max-h-[calc(100vh-10rem)] overflow-y-auto"
           style={{
             scrollbarWidth: 'thin',
             scrollbarColor: '#72A557 transparent'
@@ -1729,7 +1844,7 @@ export function NewOnboardingFlow() {
                 <div className="space-y-4 md:space-y-6">
                   <div>
                     <h3 className="text-base md:text-lg font-title text-foreground mb-4 md:mb-6 leading-tight" style={{ textTransform: 'none' }}>
-                      {toTitleCase(currentAdaptiveQuestion.text)}
+                      {toSentenceCase(currentAdaptiveQuestion.text)}
                     </h3>
                   </div>
                   <div className="space-y-2 md:space-y-3">
@@ -1753,10 +1868,10 @@ export function NewOnboardingFlow() {
             </div>
           ) : currentStepData ? (
             // Regular onboarding steps
-            <div className="space-y-4 md:space-y-6">
+            <div className="space-y-6 md:space-y-8">
               <div>
-                <h2 className="text-lg md:text-xl font-title text-foreground mb-2 leading-tight" style={{ textTransform: 'none' }}>
-                  {toTitleCase(currentStepData.title)}
+                <h2 className="text-lg md:text-xl font-title text-foreground mb-4 md:mb-6 leading-tight" style={{ textTransform: 'none' }}>
+                  {toSentenceCase(currentStepData.title)}
                 </h2>
                 {currentStepData.description && (
                   <p className="text-sm md:text-base text-muted-foreground font-body">
@@ -1804,9 +1919,9 @@ export function NewOnboardingFlow() {
               variant="outline" 
               onClick={handleBack} 
               disabled={currentStep <= 0} 
-              className="flex items-center justify-center w-12 h-12 md:w-16 md:h-16 rounded-2xl border-2 border-primary disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+              className="flex items-center justify-center w-12 h-12 md:w-16 md:h-16 rounded-2xl border-2 border-primary disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
             >
-              <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
+              <ChevronLeft className="w-5 h-5 md:w-6 md:h-6 text-gray-800 dark:text-gray-300 stroke-[2.5]" />
             </GradientButton>
             
             {/* Continue Button */}

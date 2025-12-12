@@ -144,7 +144,7 @@ export default function Home() {
       <div className="px-4 pt-6 sm:pt-8 lg:pt-10 pb-2 sm:pb-3 lg:pb-4 relative">
         <div className="relative z-10 text-center">
           <p className="text-sm sm:text-base font-medium mb-2 sm:mb-3 text-foreground">
-            The Best Way to Network
+            Connecting Attendees
           </p>
           <div className="flex flex-col justify-center items-center mb-0 sm:mb-1">
             <div className="relative inline-block leading-none">
@@ -160,7 +160,6 @@ export default function Home() {
                 INTRO
               </span>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Beta Test</p>
           </div>
         </div>
       </div>

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std/http/server.ts"
+import OpenAI from "https://esm.sh/openai@4"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -122,6 +123,42 @@ function bestCompanyName(domain: string, html?: string | null): string {
   return domain.split(".")[0]
 }
 
+function extractTextContent(html: string): string {
+  // Remove script and style tags
+  let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+  text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+  
+  // Extract title
+  const titleMatch = text.match(/<title[^>]*>([^<]+)<\/title>/i)
+  const title = titleMatch?.[1]?.trim() || ''
+  
+  // Extract headings (h1-h3)
+  const headings = []
+  const h1Matches = text.matchAll(/<h[1-3][^>]*>([^<]+)<\/h[1-3]>/gi)
+  for (const match of h1Matches) {
+    if (match[1]) headings.push(match[1].trim())
+  }
+  
+  // Extract first few paragraphs
+  const paragraphs = []
+  const pMatches = text.matchAll(/<p[^>]*>([^<]+)<\/p>/gi)
+  for (const match of pMatches) {
+    if (match[1] && paragraphs.length < 3) {
+      paragraphs.push(match[1].trim())
+    }
+  }
+  
+  // Combine and limit length
+  const content = [title, ...headings.slice(0, 3), ...paragraphs.slice(0, 2)]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .substring(0, 2000) // Limit to 2000 chars for AI
+  
+  return content
+}
+
 function bestDescription(html?: string | null): string | null {
   if (!html) return null
   const ld = extractJsonLd(html)
@@ -132,6 +169,56 @@ function bestDescription(html?: string | null): string | null {
   const desc = candidates[0]!
   // Clean up whitespace
   return desc.replace(/\s+/g, " ").trim()
+}
+
+async function generateDescriptionWithAI(companyName: string, html: string): Promise<string | null> {
+  const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
+  if (!openaiApiKey) {
+    console.log('[company-enrich] No OPENAI_API_KEY found, skipping AI description generation')
+    return null
+  }
+  
+  try {
+    const openai = new OpenAI({ apiKey: openaiApiKey })
+    const textContent = extractTextContent(html)
+    
+    if (!textContent || textContent.length < 20) {
+      console.log('[company-enrich] Insufficient text content for AI generation')
+      return null
+    }
+    
+    const prompt = `Based on the following website content, write a brief, professional description of ${companyName}. 
+    
+Website content:
+${textContent}
+
+Write a concise 1-2 sentence description that explains what ${companyName} does. Be specific and professional. Return only the description, nothing else.`
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert at writing concise company descriptions. Return only the description text, nothing else.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.5,
+      max_tokens: 150
+    })
+    
+    const description = completion.choices[0]?.message?.content?.trim() || null
+    if (description) {
+      console.log('[company-enrich] AI-generated description:', description.substring(0, 100))
+    }
+    return description
+  } catch (error) {
+    console.error('[company-enrich] Error generating AI description:', error)
+    return null
+  }
 }
 
 serve(async (req) => {
@@ -164,9 +251,18 @@ serve(async (req) => {
     console.log('[company-enrich] Fetched HTML, length:', html?.length || 0)
     
     const companyName = bestCompanyName(norm.domain, html)
-    const description = bestDescription(html) || ""
+    let description = bestDescription(html)
     
-    console.log('[company-enrich] Extracted name:', companyName, 'Description:', description.substring(0, 50))
+    // If no description from meta tags, try AI generation
+    if (!description && html) {
+      console.log('[company-enrich] No meta description found, attempting AI generation...')
+      description = await generateDescriptionWithAI(companyName, html)
+    }
+    
+    // Fallback to empty string if still no description
+    description = description || ""
+    
+    console.log('[company-enrich] Extracted name:', companyName, 'Description:', description ? description.substring(0, 50) : '(empty)')
     
     const response = {
       ok: true,

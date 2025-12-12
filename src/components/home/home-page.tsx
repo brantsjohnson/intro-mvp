@@ -967,6 +967,16 @@ export function HomePage() {
           setMatches([])
         } else if (attendanceRows && attendanceRows.length > 0) {
           const row: any = attendanceRows[0]
+          
+          // Check if event onboarding is incomplete - redirect to onboarding
+          if (row?.events && row.onboarding_completed === false) {
+            console.log(
+              `[loadUserData] Event onboarding incomplete, redirecting to onboarding (eventId: ${row.events.event_id})`,
+            )
+            router.replace(`/onboarding?eventId=${row.events.event_id}&from=event-join`)
+            return
+          }
+          
           if (row?.events) {
             const matchingConfig = row.events.matching_config as {
               show_refresh_button?: boolean
@@ -1110,6 +1120,7 @@ export function HomePage() {
       .select(`
         checked_in_at,
         event_id,
+        onboarding_completed,
         events:event_id(event_id, event_name, event_code, event_starts_at, event_ends_at, event_location, matching_config)
       `)
       .eq("user_id", user.id)
@@ -1118,6 +1129,15 @@ export function HomePage() {
 
     if (eventError || !eventData?.events) {
       toast.error("Failed to load event")
+      return
+    }
+
+    // Check if event onboarding is incomplete - redirect to onboarding
+    if (eventData.onboarding_completed === false) {
+      console.log(
+        `[handleEventSwitch] Event onboarding incomplete, redirecting to onboarding (eventId: ${eventId})`,
+      )
+      router.replace(`/onboarding?eventId=${eventId}&from=event-join`)
       return
     }
 
@@ -1139,7 +1159,7 @@ export function HomePage() {
       matchmaking_enabled: true,
       logo_url: matchingConfig?.logo_url || null,
     }
-    
+
     setCurrentEvent(mappedEvent)
     setIsPresent(!!row.checked_in_at)
     setShowRefreshButton(matchingConfig?.show_refresh_button ?? false)
@@ -1750,60 +1770,60 @@ export function HomePage() {
                     />
                   </div>
                 ) : (
-                  <h2 className="text-2xl font-semibold text-foreground">
-                    {currentEvent.name}
-                  </h2>
+                <h2 className="text-2xl font-semibold text-foreground">
+                  {currentEvent.name}
+                </h2>
                 )}
 
-                    <div className="h-1 w-full rounded-full bg-primary" />
+                <div className="h-1 w-full rounded-full bg-primary" />
 
-                    <div className="text-sm text-muted-foreground space-y-1">
-                      {currentEvent.starts_at && (
+                <div className="text-sm text-muted-foreground space-y-1">
+                  {currentEvent.starts_at && (
                         <>
-                          {(() => {
-                            const parseDateTime = (dateTimeStr: string | null) => {
-                              if (!dateTimeStr) return null
+                      {(() => {
+                        const parseDateTime = (dateTimeStr: string | null) => {
+                          if (!dateTimeStr) return null
 
-                              const match = dateTimeStr.match(
-                                /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
-                              )
-                              if (!match) return null
+                          const match = dateTimeStr.match(
+                            /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
+                          )
+                          if (!match) return null
 
-                              const [, year, month, day, hour, minute] = match
-                              return {
-                                year: parseInt(year, 10),
-                                month: parseInt(month, 10),
-                                day: parseInt(day, 10),
-                                hour: parseInt(hour, 10),
-                                minute: parseInt(minute, 10),
-                              }
-                            }
+                          const [, year, month, day, hour, minute] = match
+                          return {
+                            year: parseInt(year, 10),
+                            month: parseInt(month, 10),
+                            day: parseInt(day, 10),
+                            hour: parseInt(hour, 10),
+                            minute: parseInt(minute, 10),
+                          }
+                        }
 
-                            const startParts = parseDateTime(currentEvent.starts_at)
-                            if (!startParts) {
+                        const startParts = parseDateTime(currentEvent.starts_at)
+                        if (!startParts) {
                               return <p className="whitespace-nowrap">Schedule coming soon</p>
-                            }
+                        }
 
-                            const endParts = currentEvent.ends_at
-                              ? parseDateTime(currentEvent.ends_at)
-                              : null
+                        const endParts = currentEvent.ends_at
+                          ? parseDateTime(currentEvent.ends_at)
+                          : null
 
                             const formatMonth = (month: number) => {
                               const date = new Date(2000, month - 1, 1)
                               return date.toLocaleDateString("en-US", { month: "long" })
-                            }
+                        }
 
-                            const formatTime = (parts: {
-                              hour: number
-                              minute: number
-                            }) => {
-                              const hour12 = parts.hour % 12 || 12
-                              const ampm = parts.hour >= 12 ? "PM" : "AM"
-                              const minuteStr = String(parts.minute).padStart(2, "0")
+                        const formatTime = (parts: {
+                          hour: number
+                          minute: number
+                        }) => {
+                          const hour12 = parts.hour % 12 || 12
+                          const ampm = parts.hour >= 12 ? "PM" : "AM"
+                          const minuteStr = String(parts.minute).padStart(2, "0")
                               return `${hour12}:${minuteStr}${ampm}`
-                            }
+                        }
 
-                            const startTimeStr = formatTime(startParts)
+                        const startTimeStr = formatTime(startParts)
                             const endTimeStr = endParts ? formatTime(endParts) : null
 
                             // Format date range: "November 12-13"
@@ -1814,7 +1834,7 @@ export function HomePage() {
                             } else if (endParts) {
                               // Different months: "November 12 - December 1"
                               dateRange = `${formatMonth(startParts.month)} ${startParts.day} - ${formatMonth(endParts.month)} ${endParts.day}`
-                            } else {
+                          } else {
                               // No end date: "November 12"
                               dateRange = `${formatMonth(startParts.month)} ${startParts.day}`
                             }
@@ -1830,13 +1850,13 @@ export function HomePage() {
                                 )}
                               </>
                             )
-                          })()}
+                      })()}
                         </>
-                      )}
-                      {currentEvent.location && (
+                  )}
+                  {currentEvent.location && (
                         <p className="font-medium whitespace-nowrap">Location: {currentEvent.location}</p>
-                      )}
-                    </div>
+                  )}
+                </div>
 
                 {!isPresent && (
                   <>
