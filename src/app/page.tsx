@@ -143,9 +143,6 @@ export default function Home() {
       {/* Top section */}
       <div className="px-4 pt-6 sm:pt-8 lg:pt-10 pb-2 sm:pb-3 lg:pb-4 relative">
         <div className="relative z-10 text-center">
-          <p className="text-sm sm:text-base font-medium mb-2 sm:mb-3 text-foreground">
-            Connecting Attendees
-          </p>
           <div className="flex flex-col justify-center items-center mb-0 sm:mb-1">
             <div className="relative inline-block leading-none">
               <span
@@ -159,6 +156,14 @@ export default function Home() {
               >
                 INTRO
               </span>
+            </div>
+            <div className="relative inline-block mt-2 sm:mt-3 leading-none">
+              <p 
+                className="text-foreground text-base md:text-lg lg:text-xl font-normal"
+                style={{ fontFamily: "var(--font-avenir-next)" }}
+              >
+                Connecting Attendees
+              </p>
             </div>
           </div>
         </div>
@@ -174,7 +179,7 @@ export default function Home() {
       {/* Contact section */}
       <div className="text-center px-4 py-2">
         <p className="text-muted-foreground text-sm">
-          <span className="text-accent hover:underline cursor-pointer">Contact us</span> if you want to use INTRO at your event.
+          <a href="https://www.linkedin.com/in/brantshanonjohnson/" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline cursor-pointer">Contact us</a> if you want to use INTRO at your event.
         </p>
       </div>
     </div>

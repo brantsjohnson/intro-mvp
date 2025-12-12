@@ -46,7 +46,7 @@ export default function AuthPage() {
       {/* Contact section */}
       <div className="text-center px-4 py-2">
         <p className="text-muted-foreground text-sm">
-          <span className="text-accent hover:underline cursor-pointer">Contact us</span> if you want to use INTRO at your event.
+          <a href="https://www.linkedin.com/in/brantshanonjohnson/" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline cursor-pointer">Contact us</a> if you want to use INTRO at your event.
         </p>
       </div>
     </div>
