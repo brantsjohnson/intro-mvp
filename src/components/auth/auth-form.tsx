@@ -368,7 +368,7 @@ export function AuthForm() {
               />
               <Label
                 htmlFor="consent"
-                className="text-sm text-foreground cursor-pointer normal-case font-normal whitespace-normal font-body"
+                className="text-sm text-foreground cursor-pointer normal-case font-normal whitespace-nowrap font-body"
                 style={{ textTransform: 'none', fontWeight: 'normal' }}
               >
                 By signing up, I accept the{" "}
@@ -378,8 +378,7 @@ export function AuthForm() {
                 and{" "}
                 <a href="/privacy" className="text-accent hover:underline">
                   Privacy Policy
-                </a>
-                . I understand that my name and image will be visible to event attendees and that OpenAI will be used for matching.
+                </a>.
               </Label>
             </div>
           )}

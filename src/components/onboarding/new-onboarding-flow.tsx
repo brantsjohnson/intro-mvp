@@ -1566,9 +1566,9 @@ export function NewOnboardingFlow() {
     .map((typeId) => {
       const question = getFollowUpQuestion(typeId)
       if (!question) return null
-      // Skip hobbies question if user already has hobbies in their profile
-      // (hobbies will be asked separately after event questions for first-time users)
-      if (typeId === "general" && hobbies.length > 0) {
+      // Always skip hobbies question for "general" - hobbies will be asked separately after event questions
+      // This prevents duplicate hobbies questions
+      if (typeId === "general") {
         return null
       }
       return { typeId, question }

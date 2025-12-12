@@ -65,16 +65,46 @@ export function UserGuide({
         return
       }
 
-      const rect = element.getBoundingClientRect()
+      // For container elements, we want to include all children in the highlight
+      // Calculate the bounding box that includes all children
+      let rect = element.getBoundingClientRect()
+      
+      // If this is a container (like the first guide), ensure we capture all content
+      // by checking if there are child elements and expanding the rect if needed
+      if (element.children.length > 0) {
+        const children = Array.from(element.children)
+        let minTop = rect.top
+        let minLeft = rect.left
+        let maxBottom = rect.bottom
+        let maxRight = rect.right
+        
+        children.forEach((child) => {
+          const childRect = (child as HTMLElement).getBoundingClientRect()
+          minTop = Math.min(minTop, childRect.top)
+          minLeft = Math.min(minLeft, childRect.left)
+          maxBottom = Math.max(maxBottom, childRect.bottom)
+          maxRight = Math.max(maxRight, childRect.right)
+        })
+        
+        // Create a new rect that encompasses all children
+        rect = new DOMRect(
+          minLeft,
+          minTop,
+          maxRight - minLeft,
+          maxBottom - minTop
+        )
+      }
+      
       setTargetRect(rect)
 
       // Calculate tooltip position based on step position preference
       // Since overlay is fixed, use viewport coordinates (no scroll offset needed)
       const preferredPosition = currentStepData.position || "auto"
       const tooltipHeight = 200 // Approximate tooltip height (increased for safety)
-      const padding = 8 // Highlight padding
+      // Increased padding for better visibility, especially for container highlights
+      const padding = currentStep === 0 ? 16 : 8 // Extra padding for first guide
       const arrowHeight = 12
-      const spacing = 8 // Additional spacing between highlight and tooltip
+      const spacing = currentStep === 0 ? 16 : 8 // More spacing for first guide
       
       let top = 0
       let left = 0
@@ -218,7 +248,8 @@ export function UserGuide({
      actualPosition === "left" ? "right" : "left")
 
   // Add padding around highlighted element
-  const padding = 8
+  // Use more padding for the first guide to ensure entire container is visible
+  const padding = currentStep === 0 ? 16 : 8
   const highlightTop = Math.max(0, targetRect.top - padding)
   const highlightLeft = Math.max(0, targetRect.left - padding)
   const highlightWidth = targetRect.width + padding * 2

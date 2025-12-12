@@ -1927,10 +1927,13 @@ export function HomePage() {
                         const startTimeStr = formatTime(startParts)
                             const endTimeStr = endParts ? formatTime(endParts) : null
 
-                            // Format date range: "November 12-13"
+                            // Format date range: "December 12" (for single day) or "November 12 - December 1" (for multi-day)
                             let dateRange = ""
-                            if (endParts && startParts.month === endParts.month) {
-                              // Same month: "November 12-13"
+                            if (endParts && startParts.month === endParts.month && startParts.day === endParts.day) {
+                              // Same day: "December 12"
+                              dateRange = `${formatMonth(startParts.month)} ${startParts.day}`
+                            } else if (endParts && startParts.month === endParts.month) {
+                              // Same month, different days: "November 12-13"
                               dateRange = `${formatMonth(startParts.month)} ${startParts.day}-${endParts.day}`
                             } else if (endParts) {
                               // Different months: "November 12 - December 1"
@@ -1942,12 +1945,13 @@ export function HomePage() {
 
                             return (
                               <>
-                                <p className="whitespace-nowrap">Date: {dateRange}</p>
-                                {endTimeStr && (
-                                  <p className="whitespace-nowrap">Start: {startTimeStr} - End: {endTimeStr}</p>
-                                )}
-                                {!endTimeStr && (
-                                  <p className="whitespace-nowrap">Start: {startTimeStr}</p>
+                                {endTimeStr ? (
+                                  <p className="whitespace-nowrap">Date: {dateRange} from {startTimeStr} - {endTimeStr}</p>
+                                ) : (
+                                  <>
+                                    <p className="whitespace-nowrap">Date: {dateRange}</p>
+                                    <p className="whitespace-nowrap">Start: {startTimeStr}</p>
+                                  </>
                                 )}
                               </>
                             )
