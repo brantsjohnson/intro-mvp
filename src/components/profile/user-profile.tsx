@@ -403,7 +403,7 @@ export function UserProfile({ userId }: UserProfileProps) {
           mbti: profileData.mbti_type || null,
           enneagram: profileData.enneagram_type || null,
           networking_goals: null,
-          hobbies: (profileData.hobbies as string[] | null) || null,
+          hobbies: normalizeToStringArray(profileData.hobbies),
           expertise_tags: null,
           consent: true,
           offer_summary: profileData.offer_summary_text || null,
