@@ -25,6 +25,7 @@ interface OnboardingStep {
 
 // Connection type options
 const connectionTypes = [
+  { id: "join-startup", label: "Join a startup" },
   { id: "general", label: "General Connections" },
   { id: "business-opportunities", label: "Discover Business Opportunities" },
   { id: "find-mentor", label: "Find a Mentor" },
@@ -326,6 +327,7 @@ export function NewOnboardingFlow() {
   // Map UI connection type IDs to database format
   const mapConnectionTypeToDB = (uiId: string): string => {
     const mapping: Record<string, string> = {
+      "join-startup": "join_startup",
       "business-opportunities": "biz_opps",
       "find-mentor": "find_mentor",
       "be-mentor": "be_mentor",
@@ -340,6 +342,7 @@ export function NewOnboardingFlow() {
   // Map database connection type IDs back to UI format
   const mapConnectionTypeFromDB = (dbId: string): string => {
     const mapping: Record<string, string> = {
+      "join_startup": "join-startup",
       "biz_opps": "business-opportunities",
       "find_mentor": "find-mentor",
       "be_mentor": "be-mentor",
@@ -413,6 +416,9 @@ export function NewOnboardingFlow() {
     const normalizedId = typeId.includes('-') ? typeId : mapConnectionTypeFromDB(typeId)
     
     switch (normalizedId) {
+      case "join-startup":
+      case "join_startup":
+        return "What type of startup would you like to join?"
       case "find-mentor":
       case "find_mentor":
         return "What type of mentorship are you looking for?"
