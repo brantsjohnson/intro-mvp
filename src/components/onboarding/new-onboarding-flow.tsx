@@ -25,13 +25,13 @@ interface OnboardingStep {
 
 // Connection type options
 const connectionTypes = [
-  { id: "join-startup", label: "Join a startup" },
   { id: "general", label: "General Connections" },
   { id: "business-opportunities", label: "Discover Business Opportunities" },
   { id: "find-mentor", label: "Find a Mentor" },
   { id: "be-mentor", label: "Be a Mentor" },
   { id: "find-job", label: "Find a Job" },
   { id: "recruit", label: "Recruit" },
+  { id: "join-startup", label: "Join a startup" },
   { id: "other", label: "Other" }
 ]
 
