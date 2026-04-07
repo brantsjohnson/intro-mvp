@@ -7,7 +7,7 @@ import { Changa_One } from "next/font/google"
 
 const changaOne = Changa_One({ weight: "400", subsets: ["latin"] })
 
-export default function AuthPage() {
+function AuthPageInner() {
   return (
     <AuthLandingGate>
       <div className="min-h-screen">
@@ -58,5 +58,17 @@ export default function AuthPage() {
         </div>
       </div>
     </AuthLandingGate>
+  )
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading...</div>
+      }
+    >
+      <AuthPageInner />
+    </Suspense>
   )
 }

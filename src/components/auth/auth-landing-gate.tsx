@@ -1,9 +1,15 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { createClientComponentClient } from "@/lib/supabase"
 import type { User } from "@supabase/supabase-js"
+import { decryptEventCode } from "@/lib/event-code-encryption"
+import {
+  mergeInviteFromUrl,
+  peekEncryptedInvitePayload,
+  peekLegacyPlainEventCode,
+} from "@/lib/pending-event-invite"
 
 /**
  * For /auth only: if already signed in, send to /home or /onboarding; otherwise show children (login UI).
@@ -12,7 +18,62 @@ export function AuthLandingGate({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<User | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClientComponentClient()
+
+  const inviteQuerySuffix = (): string => {
+    const urlCode = searchParams.get("code")
+    const urlEventCode = searchParams.get("eventCode")
+    mergeInviteFromUrl(urlCode, urlEventCode)
+
+    let enc: string | null = null
+    if (urlCode?.trim() && decryptEventCode(urlCode.trim())) {
+      enc = urlCode.trim()
+    } else {
+      enc = peekEncryptedInvitePayload()
+    }
+
+    let leg: string | null = null
+    if (urlEventCode?.trim() && /^[A-Z0-9]{6}$/i.test(urlEventCode.trim())) {
+      leg = urlEventCode.trim().toUpperCase()
+    } else if (urlCode?.trim() && /^[A-Z0-9]{6}$/i.test(urlCode.trim())) {
+      leg = urlCode.trim().toUpperCase()
+    } else {
+      leg = peekLegacyPlainEventCode()
+    }
+
+    const q = new URLSearchParams()
+    if (enc) q.set("code", enc)
+    if (leg) q.set("eventCode", leg)
+    const s = q.toString()
+    return s ? `?${s}` : ""
+  }
+
+  const postAuthPathForCompleteProfile = (): string => {
+    const urlCode = searchParams.get("code")
+    const urlEventCode = searchParams.get("eventCode")
+    mergeInviteFromUrl(urlCode, urlEventCode)
+
+    let enc: string | null = null
+    if (urlCode?.trim() && decryptEventCode(urlCode.trim())) {
+      enc = urlCode.trim()
+    } else {
+      enc = peekEncryptedInvitePayload()
+    }
+
+    let leg: string | null = null
+    if (urlEventCode?.trim() && /^[A-Z0-9]{6}$/i.test(urlEventCode.trim())) {
+      leg = urlEventCode.trim().toUpperCase()
+    } else if (urlCode?.trim() && /^[A-Z0-9]{6}$/i.test(urlCode.trim())) {
+      leg = urlCode.trim().toUpperCase()
+    } else {
+      leg = peekLegacyPlainEventCode()
+    }
+
+    if (enc) return `/home?code=${encodeURIComponent(enc)}`
+    if (leg) return `/event/join?code=${encodeURIComponent(leg)}`
+    return "/home"
+  }
 
   useEffect(() => {
     let isMounted = true
@@ -42,7 +103,7 @@ export function AuthLandingGate({ children }: { children: ReactNode }) {
 
         if (userError) {
           console.warn("User row not found yet; route to onboarding", userError)
-          if (isMounted) router.push("/onboarding")
+          if (isMounted) router.push(`/onboarding${inviteQuerySuffix()}`)
         } else if (
           person &&
           typeof person === "object" &&
@@ -55,9 +116,9 @@ export function AuthLandingGate({ children }: { children: ReactNode }) {
           person.career_title &&
           person.company_name
         ) {
-          if (isMounted) router.push("/home")
+          if (isMounted) router.push(postAuthPathForCompleteProfile())
         } else {
-          if (isMounted) router.push("/onboarding")
+          if (isMounted) router.push(`/onboarding${inviteQuerySuffix()}`)
         }
       } catch (dbError) {
         if (checkTimeout) {
@@ -65,7 +126,7 @@ export function AuthLandingGate({ children }: { children: ReactNode }) {
           checkTimeout = null
         }
         console.error("Database error:", dbError)
-        if (isMounted) router.push("/home")
+        if (isMounted) router.push(postAuthPathForCompleteProfile())
       }
     }
 
@@ -112,7 +173,7 @@ export function AuthLandingGate({ children }: { children: ReactNode }) {
       if (checkTimeout) clearTimeout(checkTimeout)
       subscription.unsubscribe()
     }
-  }, [router, supabase])
+  }, [router, supabase, searchParams])
 
   if (isLoading) {
     return (

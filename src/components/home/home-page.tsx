@@ -33,6 +33,12 @@ import { MessageService } from "@/lib/message-service-simple"
 import { User, Profile, Event } from "@/lib/types"
 import { getAvatarUrl, cn } from "@/lib/utils"
 import { decryptEventCode } from "@/lib/event-code-encryption"
+import {
+  mergeInviteFromUrl,
+  peekEncryptedInvitePayload,
+  peekLegacyPlainEventCode,
+  clearPendingEventInvite,
+} from "@/lib/pending-event-invite"
 import { haptics } from "@/lib/haptics"
 import { toast } from "sonner"
 import {
@@ -225,13 +231,23 @@ export function HomePage() {
     }
   }, [router, supabase.auth])
 
-  // Handle auto-join via encrypted code on /home?code=...
+  // Handle auto-join via encrypted code on /home?code=... or session-backed invite (OAuth-safe)
   useEffect(() => {
     const handleAutoJoin = async () => {
       if (!user || hasProcessedAutoJoin || isLoading) return
 
-      const encryptedCode = searchParams.get("code")
-      if (!encryptedCode) return
+      mergeInviteFromUrl(searchParams.get("code"), searchParams.get("eventCode"))
+
+      let encryptedCode =
+        searchParams.get("code") || peekEncryptedInvitePayload()
+      if (!encryptedCode) {
+        const legacy = peekLegacyPlainEventCode()
+        if (legacy) {
+          setHasProcessedAutoJoin(true)
+          router.replace(`/event/join?code=${encodeURIComponent(legacy)}`)
+        }
+        return
+      }
 
       setHasProcessedAutoJoin(true)
 
@@ -263,6 +279,7 @@ export function HomePage() {
           .maybeSingle()
 
         if (existingMember) {
+          clearPendingEventInvite()
           router.replace(`/onboarding?eventId=${event.event_id}&from=auto-join`)
           return
         }
@@ -280,6 +297,8 @@ export function HomePage() {
             router.replace("/home")
             return
           }
+
+          clearPendingEventInvite()
 
           try {
             await fetch("/api/refresh-matches", {

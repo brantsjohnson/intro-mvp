@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { createClientComponentClient } from "@/lib/supabase"
+import { mergeInviteFromUrl, clearPendingEventInvite } from "@/lib/pending-event-invite"
 import { haptics } from "@/lib/haptics"
 import { toast } from "sonner"
 import { ArrowLeft, Calendar, MapPin } from "lucide-react"
@@ -43,6 +44,7 @@ export function EventJoinPage() {
           data: { user },
         } = await supabase.auth.getUser()
         const eventCode = searchParams.get("code")
+        mergeInviteFromUrl(eventCode, null)
 
         if (!user) {
           // User is not authenticated - redirect to auth with event code
@@ -165,6 +167,7 @@ export function EventJoinPage() {
       }
 
       if (existingMember) {
+        clearPendingEventInvite()
         // Redirect to home page since they're already in the event
         router.push("/home")
         return
@@ -181,6 +184,8 @@ export function EventJoinPage() {
         console.error("Error joining event:", joinError)
         return
       }
+
+      clearPendingEventInvite()
 
       // Success haptic feedback
       haptics.success()

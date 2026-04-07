@@ -3,9 +3,14 @@
 ## Main User-Facing Routes
 
 ### `/` (Root)
-**What it does:** Entry point that checks authentication status and redirects users based on profile completion - shows auth form if not logged in, redirects to onboarding if profile incomplete, or redirects to home if complete.
+**What it does:** By default, **`next.config.ts` rewrites** this to **`/marketing/index.html`** (public marketing site). The **Next.js app does not render** at `/` unless:
 
-**What it records:** No direct data recording - only checks `users` table for `first_name`, `last_name`, `career_title`, `company_name` to determine routing.
+- **`src/proxy.ts`** intercepts: OAuth `?code=` / `?state=` on `/` → redirect to **`/auth/callback`**; authenticated user on `/` → **`/onboarding`**; or  
+- The **inline script** in **`public/marketing/index.html`** performs the same redirects if the request still hits the static file.
+
+**What it records:** Marketing page only (no app DB access on `/` itself).
+
+**See also:** `docs/APP-ROUTING-FLOW.md` for the full marketing vs app map and post–sign-in path.
 
 ---
 

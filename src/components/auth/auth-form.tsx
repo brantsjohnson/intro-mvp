@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, FormEvent } from "react"
+import { useState, useEffect, FormEvent } from "react"
 import { useSearchParams } from "next/navigation"
+import { mergeInviteFromUrl } from "@/lib/pending-event-invite"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,16 +22,20 @@ export function AuthForm() {
   const searchParams = useSearchParams()
   const eventCode = searchParams.get("eventCode") // Legacy support
   const encryptedCode = searchParams.get("code") // New encrypted code
-  const codeToUse = encryptedCode || eventCode
   const supabase = createClientComponentClient()
+
+  useEffect(() => {
+    mergeInviteFromUrl(encryptedCode, eventCode)
+  }, [encryptedCode, eventCode])
 
   const startOAuth = async (provider: "google" | "linkedin_oidc") => {
     setIsLoading(true)
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
-      const redirectUrl = codeToUse
-        ? `${baseUrl}/auth/callback?code=${codeToUse}`
-        : `${baseUrl}/auth/callback`
+      // Must match the tab you started from. NEXT_PUBLIC_APP_URL is often set to production,
+      // which would send localhost dev flows to eventintroductions.com instead of back here.
+      const baseUrl = window.location.origin
+      mergeInviteFromUrl(encryptedCode, eventCode)
+      const redirectUrl = `${baseUrl}/auth/callback`
 
       console.log(`Starting ${provider} OAuth with redirect URL:`, redirectUrl)
 

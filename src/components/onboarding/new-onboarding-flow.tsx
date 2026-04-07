@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,6 +15,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ImageCropModal } from "@/components/ui/image-crop-modal"
 import { CameraCapture } from "@/components/ui/camera-capture"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { decryptEventCode } from "@/lib/event-code-encryption"
+import {
+  mergeInviteFromUrl,
+  peekEncryptedInvitePayload,
+  peekLegacyPlainEventCode,
+} from "@/lib/pending-event-invite"
 
 interface OnboardingStep {
   id: string
@@ -118,11 +124,31 @@ function parseAndNormalizeHobby(input: string): string {
 
 export function NewOnboardingFlow() {
   const searchParams = useSearchParams()
-  const eventCode = searchParams.get('code') // Can be encrypted code or legacy eventCode
-  const encryptedCode = eventCode // For encrypted codes
+  const codeFromUrl = searchParams.get("code")
+  const eventCodeFromUrl = searchParams.get("eventCode")
   const eventId = searchParams.get('eventId')
   const fromEventJoin = searchParams.get('from') === 'event-join'
   const fromAutoJoin = searchParams.get('from') === 'auto-join'
+
+  useEffect(() => {
+    mergeInviteFromUrl(codeFromUrl, eventCodeFromUrl)
+  }, [codeFromUrl, eventCodeFromUrl])
+
+  const effectiveInviteEncrypted = useMemo(() => {
+    const t = codeFromUrl?.trim()
+    if (t && decryptEventCode(t)) return t
+    return peekEncryptedInvitePayload()
+  }, [codeFromUrl])
+
+  const effectiveInviteLegacy = useMemo(() => {
+    const ev = eventCodeFromUrl?.trim()
+    if (ev && /^[A-Z0-9]{6}$/i.test(ev)) return ev.toUpperCase()
+    const c = codeFromUrl?.trim()
+    if (c && /^[A-Z0-9]{6}$/i.test(c) && !decryptEventCode(c)) {
+      return c.toUpperCase()
+    }
+    return peekLegacyPlainEventCode()
+  }, [codeFromUrl, eventCodeFromUrl])
   
   const [currentStep, setCurrentStep] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
@@ -288,11 +314,11 @@ export function NewOnboardingFlow() {
             // Otherwise, redirect to home (user can join events from there)
             if (eventId) {
               setCurrentStep(0) // Start with event-specific questions
-            } else if (encryptedCode && !eventId) {
-              // Has encrypted code but no eventId yet - redirect to home to auto-join
-              router.push(`/home?code=${encryptedCode}`)
+            } else if (effectiveInviteEncrypted && !eventId) {
+              router.push(`/home?code=${encodeURIComponent(effectiveInviteEncrypted)}`)
+            } else if (effectiveInviteLegacy && !eventId) {
+              router.push(`/event/join?code=${encodeURIComponent(effectiveInviteLegacy)}`)
             } else {
-              // No event, redirect to home where they can join an event
               router.push("/home")
             }
           }
@@ -322,7 +348,7 @@ export function NewOnboardingFlow() {
     }
     
     checkProfileStatus()
-  }, [router, supabase, fromEventJoin])
+  }, [router, supabase, fromEventJoin, eventId, effectiveInviteEncrypted, effectiveInviteLegacy])
 
   // Map UI connection type IDs to database format
   const mapConnectionTypeToDB = (uiId: string): string => {
@@ -1016,9 +1042,10 @@ export function NewOnboardingFlow() {
       // If encrypted code exists, redirect to home with it for auto-join
       setIsRedirecting(true)
       setTimeout(() => {
-        if (encryptedCode && !eventId) {
-          // Has encrypted code but no eventId yet - redirect to home to auto-join
-          router.push(`/home?code=${encryptedCode}`)
+        if (effectiveInviteEncrypted && !eventId) {
+          router.push(`/home?code=${encodeURIComponent(effectiveInviteEncrypted)}`)
+        } else if (effectiveInviteLegacy && !eventId) {
+          router.push(`/event/join?code=${encodeURIComponent(effectiveInviteLegacy)}`)
         } else {
           router.push("/home")
         }

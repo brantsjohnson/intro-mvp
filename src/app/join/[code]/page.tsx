@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { createClientComponentClient } from "@/lib/supabase"
 import { decryptEventCode } from "@/lib/event-code-encryption"
+import { mergeInviteFromUrl } from "@/lib/pending-event-invite"
 
 export default function JoinEventPage() {
   const router = useRouter()
@@ -23,6 +24,8 @@ export default function JoinEventPage() {
           router.push('/event/join')
           return
         }
+
+        mergeInviteFromUrl(encryptedCode, null)
 
         // Check authentication status
         const { data: { user } } = await supabase.auth.getUser()

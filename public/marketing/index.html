@@ -3,6 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- If OAuth lands on / (marketing rewrite), exchange must run at /auth/callback (backup if edge proxy skips). -->
+<script>
+(function () {
+  var path = window.location.pathname || "";
+  if (path !== "/" && path !== "") return;
+  var params = new URLSearchParams(window.location.search || "");
+  var code = params.get("code");
+  var state = params.get("state");
+  if (code) {
+    var uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code);
+    if (state || uuid || code.length >= 40) {
+      window.location.replace("/auth/callback" + window.location.search + window.location.hash);
+      return;
+    }
+  }
+  try {
+    var c = document.cookie || "";
+    if (/\bsb-[a-z0-9-]+-auth-token(?:\.[0-9]+)?=/.test(c)) {
+      window.location.replace("/onboarding" + window.location.search);
+    }
+  } catch (e) {}
+})();
+</script>
 <title>Intro — Prove Event ROI</title>
 <meta name="description" content="Intro matches attendees and sponsors to the right people, records who they meet, and syncs follow-ups to CRM so event-driven pipeline is visible. Prove event ROI without rebuilding your stack.">
 <meta property="og:title" content="Intro — Prove Event ROI">
@@ -29,7 +52,7 @@
 :root {
   /* ── NEW PALETTE ── */
   --background:   #EDEBE6;
-  --foreground:   #222019;
+  --foreground:   #191816;
   --muted-foreground: #7D7A73;
   --primary:      #72A557;
   --primary-fg:   #FFFFFF;
@@ -44,13 +67,13 @@
   --radius:       3rem;
 
   /* ── LEGACY ALIASES (keeps old references working) ── */
-  --charcoal:    #222019;
+  --charcoal:    #191816;
   --eggshell:    #EDEBE6;
   --sage:        #72A557;
   --wine:        #99424E;
   --muted:       #7D7A73;
-  --border-dark:  rgba(34,32,25,0.12);
-  --border-light: rgba(34,32,25,0.12);
+  --border-dark:  rgba(25,24,22,0.12);
+  --border-light: rgba(25,24,22,0.12);
 
   /* ── TYPOGRAPHY ── */
   --font-display: 'Changa One', cursive;
@@ -2035,7 +2058,7 @@ function initCanvas() {
       else { p.tx=p.ox; p.ty=p.oy; }
       p.cx=lerp(p.cx,p.tx,LERP); p.cy=lerp(p.cy,p.ty,LERP);
     });
-    ctx.strokeStyle='rgba(34,32,25,0.08)'; ctx.lineWidth=0.5;
+    ctx.strokeStyle='rgba(25,24,22,0.08)'; ctx.lineWidth=0.5;
     for (let r=0;r<rows;r++) for (let c=0;c<cols-1;c++) { const a=points[r*cols+c],b=points[r*cols+c+1]; ctx.beginPath();ctx.moveTo(a.cx,a.cy);ctx.lineTo(b.cx,b.cy);ctx.stroke(); }
     for (let r=0;r<rows-1;r++) for (let c=0;c<cols;c++) { const a=points[r*cols+c],b=points[(r+1)*cols+c]; ctx.beginPath();ctx.moveTo(a.cx,a.cy);ctx.lineTo(b.cx,b.cy);ctx.stroke(); }
     requestAnimationFrame(draw);
