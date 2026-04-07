@@ -37,14 +37,19 @@ export async function POST(request: NextRequest) {
         <p style="font-size:12px;color:#7D7A73;">Submitted via eventintroductions.com</p>
       </div>`
 
-    await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from:    `Intro <${FROM}>`,
       to:      OWNER,
       subject: `New ${roleLabel[role] ?? role} inquiry — ${event || 'no event listed'}`,
       html:    ownerHtml,
     })
 
-    return NextResponse.json({ success: true })
+    if (error) {
+      console.error('Resend rejected contact-form email:', error)
+      return NextResponse.json({ error: 'Email delivery failed' }, { status: 502 })
+    }
+
+    return NextResponse.json({ success: true, id: data?.id ?? null })
   } catch (err) {
     console.error('contact-form error:', err)
     return NextResponse.json({ error: 'Failed to send' }, { status: 500 })
