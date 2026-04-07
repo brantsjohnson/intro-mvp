@@ -379,6 +379,98 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 .ec-hover { position: absolute; inset: 0; padding: 2.5rem; opacity: 0; transform: translateY(8px); background: var(--background); display: flex; flex-direction: column; justify-content: flex-start; }
 .event-card:hover .ec-default { opacity: 0; transform: translateY(-8px); }
 .event-card:hover .ec-hover { opacity: 1; transform: translateY(0); }
+
+/* ── EVENT TYPES CAROUSEL (mobile only) ── */
+@media (max-width: 599px) {
+  /* Wrap the grid in a relative container for controls */
+  .ec-carousel-wrap { position: relative; }
+
+  /* Grid becomes a single-card view */
+  .ec-grid {
+    display: block !important;
+    position: relative;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  /* All cards stacked; only active one is visible */
+  .ec-grid .event-card {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    min-height: 300px;
+    border-right: none;
+    border-bottom: none;
+    border-top: none;
+    border-left: none;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.45s ease, transform 0.45s ease;
+    transform: translateX(60px);
+  }
+  /* Active card */
+  .ec-grid .event-card.ec-active {
+    position: relative;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+  /* Tapped (hover) state on mobile */
+  .ec-grid .event-card.ec-tapped .ec-default { opacity: 0; transform: translateY(-8px); }
+  .ec-grid .event-card.ec-tapped .ec-hover  { opacity: 1; transform: translateY(0); }
+
+  /* Prev / Next arrows */
+  .ec-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 1rem;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  }
+  .ec-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .ec-btn-prev { left: -14px; }
+  .ec-btn-next { right: -14px; }
+
+  /* Dot indicators */
+  .ec-dots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 1.25rem;
+  }
+  .ec-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.25s, transform 0.25s;
+    cursor: pointer;
+  }
+  .ec-dot.ec-dot-active { background: var(--primary); transform: scale(1.35); }
+
+  /* Progress bar under active card */
+  .ec-progress {
+    height: 2px;
+    background: var(--border);
+    margin-top: 0.5rem;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .ec-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--primary);
+    transition: width linear;
+  }
+}
 .ec-icon { width: 36px; height: 36px; color: var(--primary); margin-bottom: 1.25rem; stroke: var(--primary); }
 .ec-title { font-family: var(--font-heading); font-size: 0.85rem; font-weight: bold; letter-spacing: 0.01em; color: var(--foreground); margin-bottom: 0.5rem; line-height: 1.3; }
 .ec-sub { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--primary); margin-bottom: 1rem; }
@@ -745,7 +837,11 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
       <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="ENHANCE EVERY EVENT"></span></div>
       <h2 class="section-headline reveal">For All <em class="accent-sage italic">Event Types</em></h2>
       <p class="body-text reveal reveal-delay-1" style="color:var(--foreground);margin-bottom:3rem;">No matter the format, size, or audience. Intro works for you.</p>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--border);">
+      <div class="ec-carousel-wrap">
+        <button class="ec-btn ec-btn-prev" aria-label="Previous" onclick="ecStep(-1)">&#8592;</button>
+        <button class="ec-btn ec-btn-next" aria-label="Next"     onclick="ecStep(1)">&#8594;</button>
+
+      <div class="ec-grid" style="display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--border);">
 
         <!-- Card 1: Chambers of Commerce -->
         <div class="event-card reveal" style="--card-delay:0s;">
@@ -837,7 +933,12 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
           </div>
         </div>
 
-      </div>
+      </div><!-- /ec-grid -->
+
+        <!-- Dots + progress bar (mobile only, injected by JS) -->
+        <div class="ec-dots" id="ec-dots"></div>
+        <div class="ec-progress" id="ec-progress"><div class="ec-progress-bar" id="ec-progress-bar"></div></div>
+      </div><!-- /ec-carousel-wrap -->
     </div>
   </section>
 
@@ -1739,6 +1840,96 @@ function initObserver() {
 /* ════ INIT ════ */
 initObserver();
 initCanvas();
+
+/* ════ EVENT-TYPES CAROUSEL (mobile only) ════ */
+(function () {
+  const INTERVAL = 3000;
+  let current = 0;
+  let timer = null;
+  let isMobile = () => window.innerWidth < 600;
+
+  const grid   = document.querySelector('.ec-grid');
+  const dotsEl = document.getElementById('ec-dots');
+  const barEl  = document.getElementById('ec-progress-bar');
+  if (!grid || !dotsEl || !barEl) return;
+
+  const cards = Array.from(grid.querySelectorAll('.event-card'));
+  const total = cards.length;
+
+  /* Build dot buttons */
+  cards.forEach((_, i) => {
+    const d = document.createElement('button');
+    d.className = 'ec-dot';
+    d.setAttribute('aria-label', 'Go to slide ' + (i + 1));
+    d.onclick = () => { goTo(i); resetTimer(); };
+    dotsEl.appendChild(d);
+  });
+
+  function show(idx) {
+    if (!isMobile()) return;
+    current = (idx + total) % total;
+    cards.forEach((c, i) => {
+      c.classList.toggle('ec-active', i === current);
+      if (i !== current) c.classList.remove('ec-tapped');
+    });
+    dotsEl.querySelectorAll('.ec-dot').forEach((d, i) =>
+      d.classList.toggle('ec-dot-active', i === current));
+    startProgressBar();
+  }
+
+  function goTo(idx) { show(idx); }
+
+  /* Handle tap → show hover state; second tap → back to default */
+  cards.forEach(c => {
+    c.addEventListener('click', () => {
+      if (!isMobile()) return;
+      c.classList.toggle('ec-tapped');
+    });
+  });
+
+  /* Progress bar animation */
+  function startProgressBar() {
+    barEl.style.transition = 'none';
+    barEl.style.width = '0%';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      barEl.style.transition = 'width ' + INTERVAL + 'ms linear';
+      barEl.style.width = '100%';
+    }));
+  }
+
+  function resetTimer() {
+    clearInterval(timer);
+    startProgressBar();
+    timer = setInterval(() => show(current + 1), INTERVAL);
+  }
+
+  function init() {
+    if (!isMobile()) {
+      /* Reset everything on desktop */
+      cards.forEach(c => c.classList.remove('ec-active', 'ec-tapped'));
+      clearInterval(timer);
+      barEl.style.width = '0%';
+      return;
+    }
+    show(0);
+    resetTimer();
+  }
+
+  /* Global helpers for arrow buttons */
+  window.ecStep = function (dir) {
+    show(current + dir);
+    resetTimer();
+  };
+
+  /* Re-init on resize (debounced) */
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(init, 120);
+  });
+
+  init();
+})();
 </script>
 </body>
 </html>
