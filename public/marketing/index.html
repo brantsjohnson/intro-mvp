@@ -1648,8 +1648,15 @@ function updateContactForm() {
   }
 }
 
-function submitContactForm() {
-  const role = document.getElementById('contact-role').value;
+async function submitContactForm() {
+  const role      = document.getElementById('contact-role').value;
+  const name      = (document.getElementById('cf-name')?.value      || '').trim();
+  const email     = (document.getElementById('cf-email')?.value     || '').trim();
+  const event     = (document.getElementById('cf-event')?.value     || '').trim();
+  const attendees = (document.getElementById('cf-attendees')?.value || '').trim();
+  const organizer = (document.getElementById('cf-organizer')?.value || '').trim();
+  const bcc       = (document.getElementById('cf-bcc')?.value       || '').trim();
+
   const headlines = {
     director: "You're on the list.",
     sponsor:  "We'll reach out to them.",
@@ -1660,6 +1667,27 @@ function submitContactForm() {
     sponsor:  "We'll contact your organizer on your behalf. You'll hear from us soon.",
     attendee: "Your organizer will hear from us. Your name stays anonymous."
   };
+
+  /* Show loading state on button */
+  const btn = document.getElementById('cf-submit');
+  const originalText = btn.textContent;
+  btn.textContent = 'Sending…';
+  btn.disabled = true;
+
+  try {
+    await fetch('/api/contact-form', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role, name, email, event, attendees, organizer, bcc })
+    });
+  } catch (e) {
+    console.error('Contact form error:', e);
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+
+  /* Show confirmation regardless (form still works even if email fails) */
   document.getElementById('cf-confirm-headline').textContent = headlines[role];
   document.getElementById('cf-confirm-body').textContent     = bodies[role];
   document.getElementById('contact-form-wrap').style.display = 'none';
