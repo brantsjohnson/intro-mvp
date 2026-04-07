@@ -1585,6 +1585,55 @@ const pageNames = {
   contact: 'Contact'
 };
 
+/* SPA paths: readable URLs + GA page_path (requires matching rewrites in next.config.ts). */
+const pathById = {
+  home: '/',
+  works: '/how-it-works',
+  sponsors: '/your-sponsors',
+  attendees: '/your-attendees',
+  pricing: '/pricing',
+  contact: '/contact'
+};
+const idByPath = {
+  '/': 'home',
+  '/how-it-works': 'works',
+  '/your-sponsors': 'sponsors',
+  '/your-attendees': 'attendees',
+  '/pricing': 'pricing',
+  '/contact': 'contact'
+};
+
+function trimTrailingSlash(p) {
+  if (!p || p === '') return '/';
+  if (p.length > 1 && p.endsWith('/')) return p.slice(0, -1);
+  return p;
+}
+
+function buildPathAndSearch(id, role) {
+  const path = pathById[id] || '/';
+  if (id === 'contact' && (role === 'director' || role === 'sponsor' || role === 'attendee')) {
+    return path + '?role=' + encodeURIComponent(role);
+  }
+  return path;
+}
+
+function parseRouteFromLocation() {
+  const rawPath = window.location.pathname;
+  let path = trimTrailingSlash(rawPath);
+  let id = idByPath[path];
+  if (!id) id = 'home';
+
+  let role = null;
+  const params = new URLSearchParams(window.location.search);
+  const r = params.get('role');
+  if (r === 'director' || r === 'sponsor' || r === 'attendee') role = r;
+  if (id !== 'contact') role = null;
+
+  const expectedNoQuery = buildPathAndSearch(id, role).split('?')[0];
+  const needsPathFix = path !== expectedNoQuery;
+  return { id, role, needsPathFix };
+}
+
 const analyticsState = {
   currentPage: 'home',
   visibleSections: new Set(),
@@ -1629,7 +1678,12 @@ function trackPageView(id) {
   const pageTitle = pageNames[id] || id;
   analyticsState.currentPage = id;
   document.title = pageTitle === 'Home' ? 'Intro — Prove Event ROI' : 'Intro — ' + pageTitle;
-  trackEvent('page_view', { page_id: id, page_title: pageTitle });
+  trackEvent('page_view', {
+    page_id: id,
+    page_title: pageTitle,
+    page_path: window.location.pathname + window.location.search,
+    page_location: window.location.href
+  });
 }
 
 function setupClickTracking() {
@@ -1720,32 +1774,27 @@ function observeSectionsForActivePage() {
   });
 }
 
-function navigate(id, role) {
-  // Hide all pages
+function applyRoute(id, role) {
+  if (!pages.includes(id)) id = 'home';
+
   pages.forEach(p => {
     const el = document.getElementById('page-' + p);
     if (el) el.classList.remove('active');
   });
-  // Show target
   const target = document.getElementById('page-' + id);
   if (target) target.classList.add('active');
 
-  // Update nav active state
   document.querySelectorAll('[data-page]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.page === id);
   });
 
-  // Scroll to top
   window.scrollTo({ top: 0, behavior: 'auto' });
 
-  // Re-run scroll animations for new page
   setTimeout(initObserver, 50);
   setTimeout(observeSectionsForActivePage, 60);
 
-  // Re-init canvas if going home
   if (id === 'home') setTimeout(initCanvas, 100);
 
-  // Pre-select role on contact page if passed
   if (id === 'contact' && role) {
     setTimeout(() => {
       const sel = document.getElementById('contact-role');
@@ -1754,6 +1803,13 @@ function navigate(id, role) {
   }
 
   trackPageView(id);
+}
+
+function navigate(id, role) {
+  const next = buildPathAndSearch(id, role);
+  const cur = window.location.pathname + window.location.search;
+  if (cur !== next) history.pushState({ intro: 1 }, '', next);
+  applyRoute(id, role);
 }
 
 /* ════ CONTACT FORM ════ */
@@ -2036,10 +2092,20 @@ function initObserver() {
 /* ════ INIT ════ */
 initGoogleAnalytics();
 setupClickTracking();
+
+const initRoute = parseRouteFromLocation();
+if (initRoute.needsPathFix) {
+  history.replaceState({ intro: 1 }, '', buildPathAndSearch(initRoute.id, initRoute.role));
+}
+applyRoute(initRoute.id, initRoute.role);
+
 initObserver();
-initCanvas();
 observeSectionsForActivePage();
-trackPageView('home');
+
+window.addEventListener('popstate', () => {
+  const { id, role } = parseRouteFromLocation();
+  applyRoute(id, role);
+});
 
 analyticsState.heartbeatTimer = window.setInterval(() => {
   sendSectionEngagement('heartbeat');

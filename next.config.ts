@@ -25,6 +25,16 @@ const nextConfig: NextConfig = {
       // This avoids an iframe and lets the static file render without any wrapper.
       beforeFiles: [
         { source: '/', destination: '/marketing/index.html' },
+        { source: '/how-it-works', destination: '/marketing/index.html' },
+        { source: '/how-it-works/', destination: '/marketing/index.html' },
+        { source: '/your-sponsors', destination: '/marketing/index.html' },
+        { source: '/your-sponsors/', destination: '/marketing/index.html' },
+        { source: '/your-attendees', destination: '/marketing/index.html' },
+        { source: '/your-attendees/', destination: '/marketing/index.html' },
+        { source: '/pricing', destination: '/marketing/index.html' },
+        { source: '/pricing/', destination: '/marketing/index.html' },
+        { source: '/contact', destination: '/marketing/index.html' },
+        { source: '/contact/', destination: '/marketing/index.html' },
       ],
     }
   },
