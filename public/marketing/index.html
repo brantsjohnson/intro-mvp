@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Intro — Prove Event ROI</title>
+<meta name="description" content="Intro matches attendees and sponsors to the right people, records who they meet, and syncs follow-ups to CRM so event-driven pipeline is visible. Prove event ROI without rebuilding your stack.">
+<meta property="og:title" content="Intro — Prove Event ROI">
+<meta property="og:description" content="Match every attendee or sponsor to the right person in the room. Prove event ROI and sync follow-ups to CRM.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Intro — Prove Event ROI">
+<meta name="twitter:description" content="Match every attendee or sponsor to the right person in the room. Prove event ROI.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Changa+One&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Avenir+Next:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  /* ── NEW PALETTE ── */
+  --background:   #EDEBE6;
+  --foreground:   #222019;
+  --muted-foreground: #7D7A73;
+  --primary:      #72A557;
+  --primary-fg:   #FFFFFF;
+  --amber:        #C4782A;
+  --accent:       #99424E;
+  --accent-fg:    #FFFFFF;
+  --destructive:  #BF341E;
+  --border:       #BEBCB8;
+  --border-inner: #656361;
+  --ring:         rgba(114,165,87,0.2);
+  --card:         #E3DFD7;
+  --radius:       3rem;
+
+  /* ── LEGACY ALIASES (keeps old references working) ── */
+  --charcoal:    #222019;
+  --eggshell:    #EDEBE6;
+  --sage:        #72A557;
+  --wine:        #99424E;
+  --muted:       #7D7A73;
+  --border-dark:  rgba(34,32,25,0.12);
+  --border-light: rgba(34,32,25,0.12);
+
+  /* ── TYPOGRAPHY ── */
+  --font-display: 'Changa One', cursive;
+  --font-heading: Arial, 'Arial Bold', sans-serif;
+  --font-sans: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: var(--font-sans); /* remap — no more Cormorant */
+}
+html { scroll-behavior: smooth; }
+body { font-family: var(--font-sans); background: var(--background); color: var(--foreground); line-height: 1.8; font-size: 0.93rem; overflow-x: hidden; }
+
+/* ── PAGE SYSTEM ── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── NAV ── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  background: rgba(237,235,230,0.97); backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border); height: 64px;
+}
+.nav-inner {
+  height: 64px; max-width: 1280px; margin: 0 auto;
+  padding: 0 2rem; display: flex; align-items: center;
+}
+.nav-logo {
+  font-family: var(--font-display); font-size: 1.45rem; font-weight: 400;
+  color: var(--foreground); text-decoration: none; letter-spacing: 0.02em;
+  white-space: nowrap; flex-shrink: 0; line-height: 1; margin-right: 1.5rem;
+  cursor: pointer; border: none; background: none;
+}
+.nav-links { display: flex; list-style: none; flex: 1; justify-content: center; align-items: stretch; margin: 0; padding: 0; }
+.nav-links li { display: flex; align-items: center; }
+.nav-links button {
+  display: flex; align-items: center; font-family: var(--font-sans);
+  font-size: 0.65rem; font-weight: 500; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted-foreground); background: none;
+  border: none; padding: 0 0.8rem; height: 64px; white-space: nowrap;
+  cursor: pointer; transition: color 0.2s;
+}
+.nav-links button:hover { color: var(--primary); }
+.nav-links button.active { color: var(--primary) !important; text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px; }
+.nav-cta { flex-shrink: 0; margin-left: 1.5rem; display: flex; align-items: center; }
+.nav-btn {
+  display: inline-flex; align-items: center; font-family: var(--font-sans);
+  font-size: 0.63rem; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; text-decoration: none; padding: 0.6rem 1.25rem;
+  background: var(--primary); color: var(--primary-fg);
+  border-radius: var(--radius); border: none; cursor: pointer;
+  white-space: nowrap; line-height: 1;
+  box-shadow: 0 1.5px 1.5px #95928C;
+  transition: filter 0.15s, box-shadow 0.15s;
+}
+.nav-btn:hover { filter: brightness(1.05); box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+.nav-hamburger {
+  display: none; flex-direction: column; justify-content: center; gap: 5px;
+  background: none; border: none; cursor: pointer; padding: 8px;
+  margin-left: auto; flex-shrink: 0; height: 64px;
+}
+.nav-hamburger span { display: block; width: 22px; height: 1.5px; background: var(--foreground); transition: transform 0.25s, opacity 0.25s; }
+.nav-hamburger.open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+.nav-hamburger.open span:nth-child(2) { opacity: 0; }
+.nav-hamburger.open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+.nav-drawer {
+  position: fixed; top: 64px; left: 0; right: 0;
+  background: rgba(237,235,230,0.98); border-bottom: 1px solid var(--border);
+  z-index: 999; padding: 0.5rem 2rem 1.5rem; flex-direction: column; display: none;
+}
+.nav-drawer.open { display: flex; }
+.nav-drawer button {
+  font-family: var(--font-sans); font-size: 0.72rem; font-weight: 500;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground);
+  background: none; border: none; border-bottom: 1px solid var(--border);
+  padding: 0.9rem 0; cursor: pointer; text-align: left; transition: color 0.2s;
+}
+.nav-drawer button:hover, .nav-drawer button.active { color: var(--primary); }
+.nav-drawer .drawer-cta {
+  margin-top: 1.25rem; border-bottom: none; display: inline-block;
+  padding: 0.7rem 1.5rem; background: var(--primary); color: var(--primary-fg) !important;
+  border-radius: var(--radius); box-shadow: 0 1.5px 1.5px #95928C;
+  font-weight: 600; width: fit-content;
+}
+@media (max-width: 860px) {
+  .nav-links { display: none; } .nav-cta { display: none; }
+  .nav-hamburger { display: flex; }
+}
+
+/* ── GLOBAL BUTTONS ── */
+.btn {
+  display: inline-block; font-family: var(--font-sans); font-size: 0.72rem;
+  font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  text-decoration: none; padding: 0.85rem 2rem; border: none; cursor: pointer;
+  border-radius: var(--radius);
+  transition: filter 0.15s ease, box-shadow 0.15s ease; white-space: nowrap; line-height: 1;
+}
+.btn-primary { background: var(--primary); color: var(--primary-fg); box-shadow: 0 1.5px 1.5px #95928C; }
+.btn-primary:hover { filter: brightness(1.05); box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+.btn-ghost-dark { background: rgba(237,235,230,0.15); color: var(--foreground); border: 1.5px solid var(--border); }
+.btn-ghost-dark:hover { background: rgba(237,235,230,0.3); box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+.btn-ghost-light { background: transparent; color: var(--foreground); border: 1.5px solid var(--border); }
+.btn-ghost-light:hover { background: rgba(58,56,53,0.05); box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+.btn-wine { background: var(--accent); color: var(--accent-fg); box-shadow: 0 1.5px 1.5px #95928C; }
+.btn-wine:hover { filter: brightness(1.05); box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+.btn-sage { background: var(--primary); color: var(--primary-fg); box-shadow: 0 1.5px 1.5px #95928C; }
+.btn-sage:hover { filter: brightness(1.05); box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+
+/* ── LAYOUT ── */
+section { position: relative; overflow: hidden; }
+.section-dark { background: var(--foreground); color: var(--background); }
+.section-dark + .section-dark { background: #2C2923; }
+.section-dark + .section-dark + .section-dark { background: var(--foreground); }
+.section-light { background: var(--background); color: var(--foreground); }
+.section-light + .section-light { background: #E6E2DA; }
+.section-light + .section-light + .section-light { background: var(--background); }
+.container { max-width: 1200px; margin: 0 auto; padding: 0 5rem; }
+.section-pad { padding: 8rem 0; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 5rem; align-items: center; }
+
+/* ── EYEBROW ── */
+.eyebrow { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; opacity: 0; transition: opacity 0.4s; }
+.eyebrow.visible { opacity: 1; }
+.eyebrow-line { width: 32px; height: 1px; background: currentColor; opacity: 0.4; flex-shrink: 0; }
+.eyebrow-text { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.25em; text-transform: uppercase; }
+.eyebrow-cursor { display: inline-block; width: 2px; height: 0.75em; background: currentColor; margin-left: 2px; vertical-align: middle; animation: blink 0.7s step-end infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ── REVEAL ── */
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease-out, transform 0.6s ease-out; }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+
+/* ── TYPOGRAPHY ── */
+h1, h2, h3 { font-family: var(--font-heading); font-weight: bold; letter-spacing: 0.01em; line-height: 1; }
+.hero-headline { font-size: clamp(2.5rem, 5.5vw, 4.75rem); font-weight: bold; letter-spacing: 0.01em; line-height: 1.05; margin-bottom: 1.5rem; }
+.section-headline { font-size: clamp(1.9rem, 4vw, 4rem); font-weight: bold; letter-spacing: 0.01em; line-height: 1.05; margin-bottom: 1.5rem; }
+/* Accent colors */
+.accent-amber { color: var(--amber) !important; }
+.accent-sage  { color: var(--primary) !important; }
+.accent-wine  { color: var(--accent)  !important; }
+.italic { font-style: italic; }
+.hero-headline em,
+.section-headline em {
+  display: inline;
+}
+.body-text { font-size: 0.93rem; line-height: 1.8; color: var(--muted-foreground); max-width: 560px; }
+
+/* ── HERO ── */
+.hero-section { position: relative; overflow: hidden; }
+#hero-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 1; pointer-events: none; }
+.hero-content { position: relative; z-index: 2; max-width: 820px; }
+.hero-content .body-text { color: var(--muted-foreground); margin-bottom: 2.5rem; }
+
+/* ── PULL QUOTE ── */
+.pull-quote { border-left: 3px solid var(--accent); padding-left: 1.5rem; margin: 2rem 0; font-family: var(--font-sans); font-size: clamp(1rem, 1.6vw, 1.25rem); font-style: normal; font-weight: 500; line-height: 1.5; color: var(--foreground); }
+.section-light .pull-quote { color: var(--foreground); }
+.section-dark .pull-quote { color: var(--background); }
+
+/* ── STAT ── */
+.stat-block {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2rem;
+  margin: 0 0 2rem 0;
+  padding: 0;
+  border: none;
+}
+.stat-number {
+  font-family: var(--font-heading);
+  font-size: clamp(3.5rem, 8vw, 6.5rem);
+  font-weight: bold;
+  letter-spacing: -0.02em;
+  line-height: 0.9;
+  color: var(--amber);
+  flex-shrink: 0;
+}
+.stat-label {
+  font-family: var(--font-sans);
+  font-size: clamp(1rem, 1.5vw, 1.1rem);
+  font-weight: 500;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+  max-width: 340px;
+  letter-spacing: 0;
+}
+
+/* ── STEPS ── */
+.steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2rem; margin-top: 3rem; }
+.step-card { border: 1px solid var(--border); padding: 2.5rem; border-radius: 0 2rem 2rem 0; background: var(--card); }
+.step-number { font-family: var(--font-heading); font-size: 2.5rem; font-weight: bold; color: var(--amber); line-height: 1; margin-bottom: 1rem; letter-spacing: -0.01em; }
+.step-title { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--foreground); margin-bottom: 0.75rem; }
+.step-body { font-size: 0.88rem; color: var(--muted-foreground); line-height: 1.7; }
+
+/* ── FEATURES ── */
+.feature-row { display: grid; grid-template-columns: 56px 1fr; gap: 2rem; align-items: flex-start; padding: 2.5rem 0; border-bottom: 1px solid var(--border); }
+.feature-row:first-child { border-top: 1px solid var(--border); }
+.feature-icon { width: 48px; height: 48px; }
+.feature-content h4 { font-family: var(--font-heading); font-size: 0.95rem; font-weight: bold; color: var(--foreground); margin-bottom: 0.5rem; line-height: 1.3; }
+.feature-content p { font-size: 0.88rem; color: var(--muted-foreground); line-height: 1.7; max-width: 500px; }
+
+/* ── BEFORE/AFTER ── */
+.before-after-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-top: 2rem; border: 1.5px solid var(--border); border-radius: 0 2rem 2rem 0; overflow: hidden; }
+.ba-header { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 1rem 1.5rem; border: 1px solid; background: var(--background); }
+.ba-col.before .ba-header { border-color: rgba(153,66,78,0.3); color: var(--accent); border-right: 1px solid rgba(153,66,78,0.15); border-left: none; border-top: none; border-bottom: 1px solid rgba(153,66,78,0.2); }
+.ba-col.after  .ba-header { border-color: rgba(114,165,87,0.3); color: var(--primary); border-left: none; border-right: none; border-top: none; border-bottom: 1px solid rgba(114,165,87,0.2); }
+.ba-item { display: grid; grid-template-columns: 24px 1fr; gap: 1rem; align-items: center; padding: 1rem 1.5rem; border: none; border-top: none; background: var(--background); border-bottom: 1px solid var(--border); }
+.ba-item:last-child { border-bottom: none; }
+.ba-col.before .ba-item { border-right: 1px solid var(--border); }
+.ba-col.after  .ba-item { border-right: none; }
+.ba-mark { font-size: 1rem; font-weight: 700; text-align: center; }
+.ba-col.before .ba-mark { color: var(--accent); }
+.ba-col.after  .ba-mark { color: var(--primary); }
+.ba-label { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted-foreground); margin-bottom: 0.15rem; }
+.ba-value { color: var(--foreground); font-size: 0.88rem; }
+
+/* ── STEP TIMELINE (how it works page) ── */
+.steps-timeline { display: flex; flex-direction: column; }
+.step-row { display: grid; grid-template-columns: 80px 1fr; gap: 3rem; padding: 3rem 0; border-bottom: 1px solid rgba(237,235,230,0.12); align-items: start; }
+.step-row:first-child { border-top: 1px solid rgba(237,235,230,0.12); }
+.step-num { font-family: var(--font-heading); font-size: 3rem; font-weight: bold; line-height: 1; color: var(--amber); letter-spacing: -0.02em; padding-top: 0.1rem; }
+.step-content h4 { font-family: var(--font-heading); font-size: 1.1rem; font-weight: bold; letter-spacing: 0.01em; margin-bottom: 0.75rem; line-height: 1.2; color: rgba(237,235,230,0.95); }
+.step-content p { font-size: 0.92rem; color: rgba(237,235,230,0.65); line-height: 1.8; max-width: 520px; }
+.step-content p strong { color: rgba(237,235,230,0.95); }
+
+/* ── OUTPUT CARDS (how it works page) ── */
+.outputs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 3rem; }
+.output-card { border: 1px solid var(--border); padding: 2.5rem; border-radius: 0 2rem 2rem 0; background: var(--card); }
+.output-card-num { font-size: 0.85rem; font-weight: 700; color: var(--primary); letter-spacing: 0.08em; margin-bottom: 1rem; }
+.output-card h4 { font-family: var(--font-heading); font-size: 0.95rem; font-weight: bold; letter-spacing: 0.01em; color: var(--foreground); margin-bottom: 0.75rem; line-height: 1.2; }
+.output-card .before { font-size: 0.8rem; color: var(--accent); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-top: 1.25rem; margin-bottom: 0.35rem; }
+.output-card .after  { font-size: 0.8rem; color: var(--primary); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-top: 0.75rem; margin-bottom: 0.35rem; }
+.output-card .quote-mini { font-family: var(--font-sans); font-size: 1rem; color: var(--muted-foreground); line-height: 1.5; }
+
+/* ── PRICING CARDS ── */
+.pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-top: 3rem; }
+.pricing-card { border: 1.5px solid var(--border); padding: 3rem 2.5rem; position: relative; background: var(--card); border-radius: 0 2rem 2rem 0; }
+.pricing-card.featured { border: 2px solid var(--amber); }
+.featured-badge { position: absolute; top: -1px; left: 50%; transform: translateX(-50%); background: var(--amber); color: #fff; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.3rem 1rem; white-space: nowrap; border-radius: 0 0 1rem 1rem; }
+.plan-name { font-family: var(--font-heading); font-size: 1.1rem; font-weight: bold; letter-spacing: 0.01em; color: var(--foreground); margin-bottom: 0.5rem; }
+.plan-tagline { font-size: 0.82rem; color: var(--muted-foreground); line-height: 1.6; margin-bottom: 2rem; min-height: 3.5rem; }
+.plan-cta { width: 100%; display: block; text-align: center; margin-top: 2rem; }
+.plan-divider { height: 1px; background: var(--border); margin: 2rem 0; }
+.plan-features { list-style: none; display: flex; flex-direction: column; gap: 0.75rem; }
+.plan-features li { font-size: 0.85rem; color: var(--foreground); display: flex; gap: 0.75rem; align-items: flex-start; line-height: 1.5; }
+.plan-features li::before { content: '✓'; color: var(--primary); font-weight: 700; flex-shrink: 0; margin-top: 0.1rem; }
+
+/* ── FAQ ── */
+.faq-list { display: flex; flex-direction: column; margin-top: 3rem; }
+.faq-item { border-top: 1px solid var(--border); padding: 1.25rem 0; }
+.faq-item:last-child { border-bottom: 1px solid var(--border); }
+.faq-q { font-family: var(--font-heading); font-size: 1.1rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 0.75rem; line-height: 1.3; color: var(--foreground); }
+.faq-accordion .faq-toggle {
+  width: 100%; display: flex; justify-content: space-between; align-items: center;
+  background: none; border: none; cursor: pointer; padding: 0; text-align: left; gap: 2rem;
+}
+.faq-accordion .faq-q { font-family: var(--font-heading); font-size: 0.85rem; font-weight: bold; letter-spacing: 0.01em; color: var(--foreground); line-height: 1.3; }
+.section-dark .faq-accordion .faq-q { color: var(--background); }
+.faq-icon { font-size: 1.5rem; color: var(--primary); flex-shrink: 0; transition: transform 0.3s; line-height: 1; font-family: var(--font-sans); font-weight: 300; }
+.faq-accordion.open .faq-icon { transform: rotate(45deg); }
+.faq-answer { max-height: 0; overflow: hidden; transition: max-height 0.35s ease, padding 0.35s ease; padding-top: 0; }
+.faq-accordion.open .faq-answer { max-height: 200px; padding-top: 1rem; }
+.faq-a { font-size: 0.9rem; color: var(--muted-foreground); line-height: 1.8; }
+.section-dark .faq-a { color: rgba(237,235,230,0.75); }
+
+/* ── SPONSOR RESULTS ── */
+.results-card { border: 1.5px solid var(--border); padding: 2.5rem; background: var(--card); border-radius: 0 2rem 2rem 0; }
+.results-metric { display: flex; gap: 1.75rem; align-items: center; padding: 1.25rem 0; border-bottom: 1px solid var(--border); }
+.results-metric:last-of-type { border-bottom: none; }
+.results-num { font-family: var(--font-heading); font-size: 2.25rem; font-weight: bold; color: var(--amber); line-height: 1; min-width: 56px; flex-shrink: 0; letter-spacing: -0.02em; }
+.results-desc { font-size: 0.9rem; color: var(--foreground); line-height: 1.5; }
+.ba-table { display: grid; grid-template-columns: 1fr 1fr; border: 1.5px solid var(--border); margin-top: 3rem; background: var(--card); border-radius: 0 1.5rem 1.5rem 0; overflow: hidden; }
+.ba-col-head { padding: 1.25rem 2rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.ba-col-head.before { color: var(--accent); border-right: 1px solid var(--border); }
+.ba-col-head.after  { color: var(--primary); }
+.ba-row-item { padding: 1.25rem 2rem; font-size: 0.85rem; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.2rem; }
+.ba-row-item:last-child { border-bottom: none; }
+.ba-row-item.before-cell { border-right: 1px solid var(--border); }
+.ba-row-label { font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted-foreground); margin-bottom: 0.1rem; }
+.ba-row-val { color: var(--foreground); font-size: 0.9rem; }
+.ba-row-val.bad { color: var(--accent); }
+.ba-row-val.good { color: var(--primary); }
+.pst-block { border: 2px solid var(--accent); padding: 3rem; border-radius: 0 2rem 2rem 0; }
+.pst-block-sage { border: 2px solid var(--primary); padding: 3rem; border-radius: 0 2rem 2rem 0; background: rgba(114,165,87,0.08); }
+.pst-label { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 1.5rem; }
+
+/* ── ATTENDEE FEATURES ── */
+.att-row { display: grid; grid-template-columns: 80px 1fr; gap: 2.5rem; padding: 2.5rem 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+.att-row:first-child { border-top: 1px solid var(--border); }
+.att-content h4 { font-family: var(--font-heading); font-size: 0.85rem; font-weight: bold; letter-spacing: 0.01em; margin-bottom: 0.5rem; line-height: 1.3; color: var(--foreground); }
+.att-content p { font-size: 0.9rem; color: var(--muted-foreground); line-height: 1.8; max-width: 500px; }
+
+/* ── FOOTER ── */
+footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0.1); padding: 2.5rem 0 2rem; }
+.footer-inner { max-width: 1200px; margin: 0 auto; padding: 0 5rem; }
+.footer-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 3rem; padding-bottom: 2rem; border-bottom: 1px solid rgba(237,235,230,0.1); margin-bottom: 1.5rem; flex-wrap: wrap; }
+.footer-logo { font-family: var(--font-display); font-size: 1.5rem; font-weight: 400; letter-spacing: 0.02em; color: var(--background); line-height: 1; }
+.footer-logo span { color: var(--background); }
+.footer-tagline { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(237,235,230,0.5); margin-top: 0.35rem; }
+.footer-links { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.footer-links button { font-size: 0.72rem; color: rgba(237,235,230,0.4); background: none; border: none; cursor: pointer; transition: color 0.2s; padding: 0.25rem 0.6rem; letter-spacing: 0.05em; }
+.footer-links button:hover { color: var(--background); }
+.footer-builder { border: 1px solid rgba(237,235,230,0.1); padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; display: flex; align-items: baseline; gap: 1.5rem; flex-wrap: wrap; border-radius: 0 1rem 1rem 0; }
+.footer-builder-label { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--primary); flex-shrink: 0; }
+.footer-builder-text { font-size: 0.8rem; color: rgba(237,235,230,0.4); line-height: 1.6; }
+.footer-builder-name { color: rgba(237,235,230,0.6); font-style: italic; }
+.footer-bottom { display: flex; justify-content: space-between; align-items: flex-start; font-size: 0.68rem; color: rgba(237,235,230,0.2); flex-wrap: wrap; gap: 1rem; }
+.footer-guarantee { font-size: 0.68rem; color: rgba(237,235,230,0.2); }
+.footnotes { list-style: none; font-size: 0.65rem; color: rgba(237,235,230,0.2); line-height: 1.7; text-align: right; } .footnotes li { display: inline; }
+.footer-builder-label { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--primary); flex-shrink: 0; }
+.footer-builder-text { font-size: 0.8rem; color: rgba(237,235,230,0.4); line-height: 1.6; }
+.footer-builder-name { color: rgba(237,235,230,0.6); font-style: italic; }
+.footer-bottom { display: flex; justify-content: space-between; align-items: flex-start; font-size: 0.68rem; color: rgba(237,235,230,0.2); flex-wrap: wrap; gap: 1rem; }
+.footer-guarantee { font-size: 0.68rem; color: rgba(237,235,230,0.2); }
+.footnotes { list-style: none; font-size: 0.65rem; color: rgba(237,235,230,0.2); line-height: 1.7; text-align: right; } .footnotes li { display: inline; }
+
+/* ── EVENT TYPE CARDS ── */
+.event-card {
+  position: relative;
+  padding: 2.5rem;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  min-height: 280px;
+  overflow: hidden;
+  cursor: default;
+  background: var(--background);
+}
+.event-card:nth-child(3n) { border-right: none; }
+.event-card:nth-last-child(-n+3) { border-bottom: none; }
+.ec-default, .ec-hover {
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.ec-default { opacity: 1; transform: translateY(0); }
+.ec-hover { position: absolute; inset: 0; padding: 2.5rem; opacity: 0; transform: translateY(8px); background: var(--background); display: flex; flex-direction: column; justify-content: flex-start; }
+.event-card:hover .ec-default { opacity: 0; transform: translateY(-8px); }
+.event-card:hover .ec-hover { opacity: 1; transform: translateY(0); }
+.ec-icon { width: 36px; height: 36px; color: var(--primary); margin-bottom: 1.25rem; stroke: var(--primary); }
+.ec-title { font-family: var(--font-heading); font-size: 0.85rem; font-weight: bold; letter-spacing: 0.01em; color: var(--foreground); margin-bottom: 0.5rem; line-height: 1.3; }
+.ec-sub { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--primary); margin-bottom: 1rem; }
+.ec-pain { font-family: var(--font-sans); font-size: 0.95rem; color: var(--muted-foreground); line-height: 1.6; }
+.ec-hover-bar { width: 32px; height: 2px; background: var(--primary); margin-bottom: 1.25rem; }
+.ec-solution { font-size: 0.88rem; color: var(--foreground); line-height: 1.75; margin-top: 0.5rem; }
+
+/* ── CONSEQUENCE QUOTE ── */
+.consequence-quote {
+  border-left: 3px solid var(--accent);
+  padding: 1.25rem 1.5rem;
+  margin: 1.75rem 0;
+  font-family: var(--font-sans);
+  font-size: clamp(0.9rem, 1.3vw, 1.05rem);
+  line-height: 1.6;
+  background: var(--card);
+  border-radius: 0 1.5rem 1.5rem 0;
+  display: block;
+  max-width: 100%;
+}
+.section-dark .consequence-quote { background: rgba(237,235,230,0.07); }
+.consequence-quote .cq-text { color: var(--foreground); }
+.section-dark .consequence-quote .cq-text { color: rgba(237,235,230,0.7); }
+.consequence-quote .cq-bad  { font-weight: 600; color: var(--accent); }
+.section-dark .consequence-quote .cq-bad { color: #c87080; }
+.consequence-quote .cq-good { font-weight: 600; color: var(--primary); }
+
+/* ── STACK ANIMATION ── */
+.stack-anim-wrap {
+  display: flex; flex-direction: column; gap: 0;
+  width: 100%; max-width: 360px;
+}
+.stack-anim-block {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border: 1px solid var(--border); border-bottom: none;
+  position: relative; background: var(--card);
+}
+.stack-anim-block:last-child { border-bottom: 1px solid var(--border); }
+.stack-anim-label {
+  font-size: 0.72rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.section-dark .stack-anim-block { border-color: rgba(237,235,230,0.15); background: rgba(237,235,230,0.05); }
+.section-dark .stack-anim-label { color: rgba(237,235,230,0.5); }
+.stack-anim-block.existing { opacity: 1; }
+.stack-anim-intro { overflow: hidden; animation: openGap 8s linear infinite; }
+@keyframes openGap {
+  0%     { max-height: 0; }
+  37.5%  { max-height: 0; }
+  43.75% { max-height: 70px; }
+  87.5%  { max-height: 70px; }
+  93.75% { max-height: 0; }
+  100%   { max-height: 0; }
+}
+.intro-block {
+  border: 1.5px solid var(--primary) !important;
+  background: rgba(114,165,87,0.08);
+  animation: introSlide 8s ease infinite;
+}
+@keyframes introSlide {
+  0%     { opacity: 0; transform: translateX(30px); }
+  37.5%  { opacity: 0; transform: translateX(30px); }
+  46.875%{ opacity: 1; transform: translateX(0); }
+  87.5%  { opacity: 1; transform: translateX(0); }
+  93.75% { opacity: 0; transform: translateX(30px); }
+  100%   { opacity: 0; transform: translateX(30px); }
+}
+.intro-label { color: var(--primary) !important; }
+.stack-anim-tag {
+  font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--primary); opacity: 0.8;
+}
+
+/* ── STACK VISUAL ── */
+.stack-row { padding: 1.5rem 2rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 1.25rem; }
+.stack-row:last-child { border-bottom: none; }
+.integration-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 3rem; }
+.integration-pill { border: 1px solid var(--border); padding: 0.75rem 1.5rem; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted-foreground); border-radius: var(--radius); background: var(--card); }
+
+/* ── PROCESS CARD ── */
+.process-card { border: 1px solid rgba(237,235,230,0.15); padding: 3rem; background: rgba(237,235,230,0.05); border-radius: 0 2rem 2rem 0; }
+.process-step { display: flex; gap: 1.5rem; align-items: flex-start; padding: 1.5rem 0; border-bottom: 1px solid rgba(237,235,230,0.1); }
+.process-step:last-child { border-bottom: none; }
+.ps-num { font-family: var(--font-heading); font-size: 1rem; font-weight: bold; color: var(--amber); min-width: 32px; line-height: 1; letter-spacing: -0.01em; }
+.ps-text { font-size: 0.88rem; color: rgba(237,235,230,0.65); line-height: 1.7; }
+.ps-text strong { color: rgba(237,235,230,0.95); }
+.att-content h4 { font-family: var(--font-heading); font-size: 0.85rem; font-weight: bold; letter-spacing: 0.01em; margin-bottom: 0.5rem; line-height: 1.3; color: var(--foreground); }
+.att-content p { font-size: 0.9rem; color: var(--muted-foreground); line-height: 1.8; max-width: 500px; }
+
+/* ── SECTION TEXTURES ── */
+.texture-dots::before,
+.texture-lines::before,
+.texture-grid::before,
+.texture-cross::before {
+  content: ''; position: absolute; inset: 0;
+  pointer-events: none; z-index: 0; opacity: 1;
+}
+/* Dot grid — like hero canvas but static */
+.texture-dots::before {
+  background-image: radial-gradient(circle, currentColor 1px, transparent 1px);
+  background-size: 36px 36px;
+  opacity: 0.045;
+}
+/* Diagonal hatching */
+.texture-lines::before {
+  background-image: repeating-linear-gradient(
+    45deg,
+    currentColor 0,
+    currentColor 1px,
+    transparent 0,
+    transparent 50%
+  );
+  background-size: 24px 24px;
+  opacity: 0.035;
+}
+/* Subtle grid */
+.texture-grid::before {
+  background-image:
+    linear-gradient(currentColor 1px, transparent 1px),
+    linear-gradient(90deg, currentColor 1px, transparent 1px);
+  background-size: 56px 56px;
+  opacity: 0.03;
+}
+/* Cross/plus pattern */
+.texture-cross::before {
+  background-image:
+    radial-gradient(circle, currentColor 1px, transparent 1px),
+    radial-gradient(circle, currentColor 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: 0 0, 20px 20px;
+  opacity: 0.04;
+}
+/* Make sure content inside textured sections sits above the pseudo-element */
+.texture-dots > .container,
+.texture-lines > .container,
+.texture-grid > .container,
+.texture-cross > .container { position: relative; z-index: 1; }
+
+/* ── PRICING PRICE DISPLAY ── */
+.plan-price-wrap { margin: 1.25rem 0 1.5rem; }
+.plan-price { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; }
+.price-amount { font-family: var(--font-heading); font-size: 2rem; font-weight: bold; color: var(--foreground); letter-spacing: -0.02em; line-height: 1; }
+.price-unit { font-size: 0.78rem; color: var(--muted-foreground); font-weight: 500; }
+.pricing-card.featured .price-amount { color: var(--primary); }
+
+@media (max-width: 900px) {
+  .container { padding: 0 2rem; }
+  .two-col { grid-template-columns: 1fr; gap: 3rem; }
+  .steps-grid { grid-template-columns: 1fr 1fr; }
+  .before-after-grid { grid-template-columns: 1fr; }
+  .outputs-grid { grid-template-columns: 1fr; }
+  .pricing-grid { grid-template-columns: 1fr; }
+  .footer-inner { padding: 0 2rem; }
+  .footer-top { grid-template-columns: 1fr; gap: 2rem; }
+  .section-pad { padding: 5rem 0; }
+  .hero-section { padding: 8rem 0 5rem; min-height: auto; }
+  .ba-table { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .steps-grid { grid-template-columns: 1fr; }
+  .footer-bottom { flex-direction: column; gap: 1rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ════ NAV ════ -->
+<nav>
+  <div class="nav-inner">
+    <button class="nav-logo" onclick="navigate('home')">Intro</button>
+    <ul class="nav-links">
+      <li><button onclick="navigate('home')" data-page="home">Home</button></li>
+      <li><button onclick="navigate('works')" data-page="works">How It Works</button></li>
+      <li><button onclick="navigate('sponsors')" data-page="sponsors">Your Sponsors</button></li>
+      <li><button onclick="navigate('attendees')" data-page="attendees">Your Attendees</button></li>
+      <li><button onclick="navigate('pricing')" data-page="pricing">Pricing</button></li>
+    </ul>
+    <div class="nav-cta">
+      <button class="nav-btn" onclick="navigate('contact')">Contact →</button>
+    </div>
+    <button class="nav-hamburger" id="hamburger" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+<div class="nav-drawer" id="nav-drawer">
+  <button onclick="navigate('home');closeDrawer()" data-page="home">Home</button>
+  <button onclick="navigate('works');closeDrawer()" data-page="works">How It Works</button>
+  <button onclick="navigate('sponsors');closeDrawer()" data-page="sponsors">Your Sponsors</button>
+  <button onclick="navigate('attendees');closeDrawer()" data-page="attendees">Your Attendees</button>
+  <button onclick="navigate('pricing');closeDrawer()" data-page="pricing">Pricing</button>
+  <button class="drawer-cta" onclick="navigate('contact');closeDrawer()">Contact →</button>
+</div>
+
+<!-- ════════════════════════════════════
+     PAGE: HOME
+════════════════════════════════════ -->
+<div class="page active" id="page-home">
+
+  <section class="hero-section section-light section-pad" style="padding-top:8rem;">
+    <canvas id="hero-canvas"></canvas>
+    <div class="container">
+      <div class="hero-content">
+        <div class="eyebrow" style="color:var(--primary);">
+          <div class="eyebrow-line"></div>
+          <span class="eyebrow-text" data-text="FOR EVENT DIRECTORS"></span>
+        </div>
+        <h1 class="hero-headline reveal">
+          Match every attendee or sponsor to the <em class="accent-amber italic">right person in the room.</em>
+        </h1>
+        <p class="body-text reveal reveal-delay-1" style="color:var(--foreground);">Intro matches your attendees and sponsors to the right people, records who they meet, and <strong>syncs follow-ups directly to their CRM</strong> so the pipeline your event created is finally visible. Add it to your existing stack and prove ROI without rebuilding a thing.</p>
+        <div class="consequence-quote reveal reveal-delay-2"><span class="cq-text">"Sponsors stopped asking if it worked." </span><span class="cq-good">Intro proved the event ROI.</span></div>
+        <div class="reveal reveal-delay-3">
+          <button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button>
+          <p style="margin-top:0.85rem; font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; color:rgba(58,56,53,0.35);">100% satisfaction guarantee</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-dark section-pad texture-dots" style="border-top:1px solid var(--border-dark);">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);">
+            <div class="eyebrow-line"></div>
+            <span class="eyebrow-text" data-text="THE COST OF NOT KNOWING"></span>
+          </div>
+          <h2 class="section-headline reveal">
+            <em class="accent-amber italic">Don't lose a renewal</em>
+            <span style="color:var(--background);">because you couldn't show the results.</span>
+          </h2>
+      <div class="two-col" style="align-items:flex-start; gap:5rem; margin-top:2rem;">
+        <div>
+          <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.7);">You know your event was valuable. But when renewal conversations start, <strong style="color:var(--background);">all you have is attendance numbers and a photo recap. That's not enough anymore.</strong> Intro captures every connection, every introduction, every follow-up and gives it back to you as proof.</p>
+          <div class="reveal reveal-delay-2" style="margin-top:2rem;"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+        </div>
+        <div style="padding-top:0.5rem;">
+          <div class="stat-block reveal reveal-delay-1">
+            <div class="stat-number" data-target="71">0</div>
+            <div class="stat-label" style="color:rgba(237,235,230,0.85);">of event organizers struggle to prove ROI to stakeholders.<sup style="font-size:0.6em;">4</sup></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Without / With Intro cards -->
+      <div class="reveal" style="margin-top:4rem; display:grid; grid-template-columns:1fr 1fr; border:1px solid rgba(237,235,230,0.1);">
+        <div style="padding:2.5rem; border-right:1px solid rgba(237,235,230,0.1); background:rgba(153,66,78,0.18);">
+          <div style="font-size:.65rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:1.5rem;">Without Intro</div>
+          <h3 style="font-family:var(--font-heading);font-size:0.85rem;font-weight:bold;letter-spacing:0.01em;color:rgba(237,235,230,0.55);margin-bottom:1rem;line-height:1.1;">You hope sponsors come back.</h3>
+          <p style="font-size:.88rem;color:rgba(237,235,230,0.4);line-height:1.75;">You send a PDF with attendance numbers and a logo recap. The sponsor has no way to measure what they got. They don't renew. You start from scratch every year.</p>
+        </div>
+        <div style="padding:2.5rem; background:rgba(114,165,87,0.12);">
+          <div style="font-size:.65rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--primary);margin-bottom:1.5rem;">With Intro</div>
+          <h3 style="font-family:var(--font-heading);font-size:1.1rem;font-weight:bold;letter-spacing:0.01em;color:var(--background);margin-bottom:1rem;line-height:1.1;">Sponsors ask to upgrade.</h3>
+          <p style="font-size:.88rem;color:rgba(237,235,230,0.8);line-height:1.75;">You send a report showing real connections made and business outcomes recorded. The sponsor sees ROI in black and white. They upgrade and tell other sponsors about your event.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="section-light section-pad">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="FOR EVENT DIRECTORS"></span></div>
+      <h2 class="section-headline reveal">Add it in with your other tools <em class="accent-wine italic">and finally prove ROI.</em></h2>
+
+      <div class="two-col" style="align-items:flex-start; gap:4rem; margin-top:2rem;">
+        <div>
+          <p class="body-text reveal" style="color:var(--foreground);">Intro matches your attendees and sponsors to the right people, records who they meet, and <strong>syncs follow-ups directly to their CRM</strong> so the pipeline your event created is finally visible. Add it to your existing stack and prove ROI without rebuilding a thing.</p>
+          <div class="consequence-quote reveal reveal-delay-1"><span class="cq-text">"We had 47 badge scans. Not one converted." </span><span class="cq-bad">And we can't explain why.</span></div>
+          <div class="consequence-quote reveal reveal-delay-2"><span class="cq-text">"We sponsored that conference. Hopefully it was worth it." </span><span class="cq-bad">And the budget gets cut.</span></div>
+          <div style="margin-top:2rem;" class="reveal reveal-delay-3"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+        </div>
+        <div style="padding-top:1rem;">
+          <div class="stack-anim-wrap">
+            <div class="stack-anim-block existing" style="--i:0;">
+              <span class="stack-anim-label">Ticketing</span>
+            </div>
+            <div class="stack-anim-block existing" style="--i:1;">
+              <span class="stack-anim-label">Event App</span>
+            </div>
+            <div class="stack-anim-intro">
+              <div class="stack-anim-block intro-block">
+                <span class="stack-anim-label intro-label">Intro</span>
+                <span class="stack-anim-tag">fits here</span>
+              </div>
+            </div>
+            <div class="stack-anim-block existing" style="--i:2;">
+              <span class="stack-anim-label">CRM</span>
+            </div>
+            <div class="stack-anim-block existing" style="--i:3;">
+              <span class="stack-anim-label">Reporting</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="section-dark section-pad texture-lines">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="FOUR STEPS, ONE REPORT"></span></div>
+      <h2 class="section-headline reveal">Here's how <em class="accent-sage italic">Intro works.</em></h2>
+      <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.75); margin-bottom:4rem; max-width:680px;">Send your attendees one link. Intro gives them a reason to connect, records interactions, and <strong>hands you a report your sponsors can't argue with.</strong></p>
+      <div class="steps-grid">
+        <div class="step-card reveal"><div class="step-number">01</div><div class="step-title">Send Intro Link</div><p class="step-body">Attendees answer a few questions about what they're looking for. <strong>60 seconds. No app download required.</strong></p></div>
+        <div class="step-card reveal reveal-delay-1"><div class="step-number">02</div><div class="step-title">Get Matches</div><p class="step-body">Intro matches them to the right sponsors, partners, and peers. <strong>Everyone arrives knowing who to find and why.</strong></p></div>
+        <div class="step-card reveal reveal-delay-2"><div class="step-number">03</div><div class="step-title">Attendees Meet</div><p class="step-body">Introductions happen. <strong>Every interaction is recorded automatically by Intro.</strong> Not by you.</p></div>
+        <div class="step-card reveal reveal-delay-3"><div class="step-number">04</div><div class="step-title">Show Proof</div><p class="step-body">You get the report. Your sponsors get their CRM entries. <strong>You walk into renewal with data.</strong></p></div>
+      </div>
+      <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+    </div>
+  </section>
+
+  <section class="section-light section-pad">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="DATA YOUR COMPETITORS DON'T HAVE"></span></div>
+      <div class="two-col" style="margin-bottom:4rem; align-items:flex-start;">
+        <div>
+          <h2 class="section-headline reveal">What Intro gives you <em class="accent-wine italic">that nothing else does.</em></h2>
+          <p class="body-text reveal reveal-delay-1" style="color:var(--foreground);">Intro doesn't just prove your event's worth. <strong>It increases it.</strong></p>
+        </div>
+        <div>
+          <div class="stat-block reveal reveal-delay-2"><div class="stat-number" data-target="60" style="color:var(--primary);">0</div><div class="stat-label" style="color:var(--foreground);">higher sponsor renewal when organizers share real ROI data.<sup style="font-size:0.6em;">3</sup></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="feature-row reveal"><svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><path d="M4 26h24M4 20h16M4 14h20M4 8h12"/><circle cx="26" cy="8" r="4" stroke="var(--primary)"/></svg><div class="feature-content"><h4>The Sponsor Report</h4><p>ROI documented by sponsor, by interaction, by outcome. Your easiest renewal conversation yet.</p></div></div>
+        <div class="feature-row reveal reveal-delay-1"><svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><circle cx="8" cy="16" r="3"/><circle cx="16" cy="8" r="3"/><circle cx="24" cy="16" r="3"/><circle cx="16" cy="24" r="3"/><path d="M11 16h6M16 11v6"/></svg><div class="feature-content"><h4>The Attendee Connection Map</h4><p>Who met who, why it matched, what happened next. The data that makes next year's event better before it starts.</p></div></div>
+        <div class="feature-row reveal reveal-delay-2"><svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><rect x="4" y="8" width="24" height="18"/><path d="M4 14h24M10 8V6M22 8V6"/></svg><div class="feature-content"><h4>CRM Sync</h4><p>Every connection flows into your sponsors' sales tools automatically. No manual entry. No lost cards. This is what turns a $25,000 sponsorship into a $50,000 one.</p></div></div>
+        <div class="feature-row reveal reveal-delay-3"><svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><path d="M16 4l3 9h9l-7 5 3 9-8-6-8 6 3-9-7-5h9z"/></svg><div class="feature-content"><h4>Upsell Infrastructure</h4><p>Higher-value packages, justified by data. You're not guessing at what's worth more. You're showing sponsors the data and letting them choose.</p></div></div>
+      </div>
+      <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+    </div>
+  </section>
+
+  <section class="section-dark section-pad">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="WHY IT MATTERS AT YOUR EVENT"></span></div>
+      <div class="two-col" style="margin-bottom:4rem;">
+        <div>
+          <h2 class="section-headline reveal"><em class="accent-sage italic">The best events</em> don't leave connections to chance.</h2>
+          <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.75);margin-top:1rem;">Attendees show up ready to meet the right people. But without structure, those moments never happen. <strong>Intro makes meaningful connection the default, not the exception,</strong> so every event delivers on its promise.</p>
+        </div>
+        <div>
+          <div class="consequence-quote reveal"><span class="cq-text">"I'm sure the right person was in that room." </span><span class="cq-bad">Never found them.</span></div>
+          <div class="consequence-quote reveal reveal-delay-1"><span class="cq-text">"I talked to a bunch of people. Gave out a lot of cards." </span><span class="cq-bad">No idea if they were the right connections.</span></div>
+        </div>
+      </div>
+      <div class="eyebrow" style="color:var(--primary);margin-top:4rem;"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="BEFORE AND AFTER INTRO"></span></div>
+      <div class="before-after-grid reveal reveal-delay-1">
+        <div class="ba-col before"><div class="ba-header">Before Intro</div><div class="ba-item"><span class="ba-mark">✕</span><div><div class="ba-label">Sponsor Conversation</div><div class="ba-value">"Thanks for coming, hope you got value"</div></div></div><div class="ba-item"><span class="ba-mark">✕</span><div><div class="ba-label">Follow-up</div><div class="ba-value">Business cards in a drawer</div></div></div><div class="ba-item"><span class="ba-mark">✕</span><div><div class="ba-label">Renewal</div><div class="ba-value">Awkward ask</div></div></div><div class="ba-item"><span class="ba-mark">✕</span><div><div class="ba-label">Attendee Fit</div><div class="ba-value">Whoever showed up</div></div></div></div>
+        <div class="ba-col after"><div class="ba-header">After Intro</div><div class="ba-item"><span class="ba-mark">✓</span><div><div class="ba-label">Sponsor Conversation</div><div class="ba-value">"Here's your report. Same time next year?"</div></div></div><div class="ba-item"><span class="ba-mark">✓</span><div><div class="ba-label">Follow-up</div><div class="ba-value">Meetings already booked</div></div></div><div class="ba-item"><span class="ba-mark">✓</span><div><div class="ba-label">Renewal</div><div class="ba-value">They reach out first</div></div></div><div class="ba-item"><span class="ba-mark">✓</span><div><div class="ba-label">Attendee Fit</div><div class="ba-value">Matched to their exact ICP</div></div></div></div>
+      </div>
+      <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+    </div>
+  </section>
+
+  <!-- ── FOR ALL EVENT TYPES ── -->
+  <section class="section-light section-pad texture-grid" style="position:relative;overflow:hidden;">
+    <div class="container" style="position:relative;z-index:1;">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="ENHANCE EVERY EVENT"></span></div>
+      <h2 class="section-headline reveal">For All <em class="accent-sage italic">Event Types</em></h2>
+      <p class="body-text reveal reveal-delay-1" style="color:var(--foreground);margin-bottom:3rem;">No matter the format, size, or audience. Intro works for you.</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--border);">
+
+        <!-- Card 1: Chambers of Commerce -->
+        <div class="event-card reveal" style="--card-delay:0s;">
+          <div class="ec-default">
+            <svg class="ec-icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 28h24M6 28V14M26 28V14M12 28v-7h8v7M2 14l14-10 14 10"/></svg>
+            <h4 class="ec-title">Chambers of Commerce</h4>
+            <div class="ec-sub">Galas. Mixers. Member Events.</div>
+            <p class="ec-pain">"Members are networking with the same people they've known for years."</p>
+          </div>
+          <div class="ec-hover">
+            <div class="ec-hover-bar"></div>
+            <h4 class="ec-title">Chambers of Commerce</h4>
+            <p class="ec-solution">When members break new circles, membership feels valuable and they stay active. Intro records it. You prove it.</p>
+          </div>
+        </div>
+
+        <!-- Card 2: Universities -->
+        <div class="event-card reveal" style="--card-delay:0.1s;">
+          <div class="ec-default">
+            <svg class="ec-icon" style="stroke:#C4782A;color:#C4782A;" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 4l12 6-12 6L4 10l12-6z"/><path d="M4 10v10M28 10v10M8 12v10c0 0 3 4 8 4s8-4 8-4V12"/></svg>
+            <h4 class="ec-title">Universities</h4>
+            <div class="ec-sub">Orientations. Campus Events.</div>
+            <p class="ec-pain">"Students show up with their roommate and leave with their roommate."</p>
+          </div>
+          <div class="ec-hover">
+            <div class="ec-hover-bar"></div>
+            <h4 class="ec-title">Universities</h4>
+            <p class="ec-solution">Connection is the greatest predictor of retention. Intro helps students branch out early, when it matters most.</p>
+          </div>
+        </div>
+
+        <!-- Card 3: Business Conferences -->
+        <div class="event-card reveal" style="--card-delay:0.2s;">
+          <div class="ec-default">
+            <svg class="ec-icon" style="stroke:#1B3A6B;color:#1B3A6B;" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="10" width="24" height="18"/><path d="M12 10V7a4 4 0 018 0v3M4 18h24"/></svg>
+            <h4 class="ec-title">Business Conferences</h4>
+            <div class="ec-sub">Industry Conferences. Summits.</div>
+            <p class="ec-pain">"Most attendees talk to six people. Of 400."</p>
+          </div>
+          <div class="ec-hover">
+            <div class="ec-hover-bar"></div>
+            <h4 class="ec-title">Business Conferences</h4>
+            <p class="ec-solution">Intro surfaces the right connections before the session ends. Your event gets credit for the relationship that changed their year.</p>
+          </div>
+        </div>
+
+        <!-- Card 4: Networking Events -->
+        <div class="event-card reveal" style="--card-delay:0.3s;">
+          <div class="ec-default">
+            <svg class="ec-icon" style="stroke:#99424E;color:#99424E;" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="16" r="4"/><circle cx="26" cy="16" r="4"/><circle cx="16" cy="6" r="4"/><path d="M10 16h6M22 16h-6M13 9l-4 4M19 9l4 4"/></svg>
+            <h4 class="ec-title">Networking Events</h4>
+            <div class="ec-sub">Professional Networking. Meetups.</div>
+            <p class="ec-pain">"Everyone shows up with good intentions and leaves with the same people."</p>
+          </div>
+          <div class="ec-hover">
+            <div class="ec-hover-bar"></div>
+            <h4 class="ec-title">Networking Events</h4>
+            <p class="ec-solution">Intro breaks the friend-group cluster pattern. New conversations happen. Satisfaction scores rise. Turnout grows.</p>
+          </div>
+        </div>
+
+        <!-- Card 5: Company Events -->
+        <div class="event-card reveal" style="--card-delay:0.4s;">
+          <div class="ec-default">
+            <svg class="ec-icon" style="stroke:#3D1F6D;color:#3D1F6D;" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="10" height="10"/><rect x="18" y="4" width="10" height="10"/><rect x="4" y="18" width="10" height="10"/><rect x="18" y="18" width="10" height="10"/></svg>
+            <h4 class="ec-title">Company Events</h4>
+            <div class="ec-sub">Kickoffs. Internal Events. Offsites.</div>
+            <p class="ec-pain">"Sales sits with sales. Engineering sits with engineering. Every time."</p>
+          </div>
+          <div class="ec-hover">
+            <div class="ec-hover-bar"></div>
+            <h4 class="ec-title">Company Events</h4>
+            <p class="ec-solution">Intro creates cross-functional connections naturally. No forced activities. No awkward icebreakers.</p>
+          </div>
+        </div>
+
+        <!-- Card 6: Trade Shows -->
+        <div class="event-card reveal" style="--card-delay:0.5s;">
+          <div class="ec-default">
+            <svg class="ec-icon" style="stroke:#7B2335;color:#7B2335;" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="8" width="28" height="18"/><path d="M2 16h28M11 8v18M21 8v18"/></svg>
+            <h4 class="ec-title">Trade Shows</h4>
+            <div class="ec-sub">Expos. Trade Shows. Exhibitions.</div>
+            <p class="ec-pain">"Exhibitors and buyers miss each other constantly."</p>
+          </div>
+          <div class="ec-hover">
+            <div class="ec-hover-bar"></div>
+            <h4 class="ec-title">Trade Shows</h4>
+            <p class="ec-solution">Intro matches buyer intent to exhibitor presence. More value for exhibitors means higher booth fees and repeat participation.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section class="section-dark texture-dots" style="padding:10rem 0;border-top:1px solid var(--border-dark);">
+    <div class="container" style="text-align:center;">
+      <div class="eyebrow" style="color:var(--primary);justify-content:center;"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="PROVE YOUR EVENT'S WORTH"></span><div class="eyebrow-line"></div></div>
+      <h2 class="section-headline reveal" style="max-width:700px;margin:0 auto 1.5rem;text-align:center;">Your next renewal conversation <em class="accent-amber italic">should be the easiest one yet.</em></h2>
+      <p class="body-text reveal reveal-delay-1" style="margin:0 auto 3rem;text-align:center;color:rgba(237,235,230,0.6);"><strong>Higher sponsor renewals.</strong> Stronger attendee retention. Upsell opportunities built in.</p>
+      <div class="reveal reveal-delay-2" style="display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /page-home -->
+
+<!-- ════════════════════════════════════
+     PAGE: HOW IT WORKS
+════════════════════════════════════ -->
+<div class="page" id="page-works">
+
+  <section class="section-dark section-pad texture-dots" style="padding-top:12rem;">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="SIMPLE TO SET UP. POWERFUL ON THE BACK END."></span></div>
+      <h1 class="hero-headline reveal" style="max-width:900px;"><span style="color:var(--background);">You run the event.</span> <em class="accent-amber italic">Intro handles the proof.</em></h1>
+      <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.65);margin-top:2rem;">Send your attendees one link. Intro gives them a reason to connect, records interactions, and <strong>hands you a report your sponsors can't argue with.</strong></p>
+      <div class="consequence-quote reveal reveal-delay-2" style="display:inline-block;max-width:600px;"><span class="cq-text">"I sent one link." </span><span class="cq-good">Intro recorded the rest, weeks after the event closed.</span></div>
+      <div style="margin-top:2rem;" class="reveal reveal-delay-3"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+    </div>
+  </section>
+
+  <section class="section-light section-pad texture-cross">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="THE INVISIBLE DATA PROBLEM"></span></div>
+      <h2 class="section-headline reveal" style="max-width:100%;margin-bottom:3rem;">Everything valuable at your event flows into tools <em class="accent-wine italic">you never see.</em></h2>
+      <div class="two-col" style="align-items:flex-start;">
+        <div>
+          <p class="body-text reveal">Some of your attendees are syncing contacts to their CRM right now. Some sponsors are already logging conversations in Salesforce. Your speakers are probably connecting on LinkedIn. <strong>You have no way of knowing. Because none of it flows back to you. Intro is the only platform that changes that.</strong></p>
+          <div style="margin-top:2rem;" class="reveal reveal-delay-1"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+        </div>
+        <div class="reveal reveal-delay-1" style="padding-top:0.25rem;">
+          <div class="stat-block"><div class="stat-number" data-target="95">0</div><div class="stat-label" style="color:var(--foreground);">of event professionals say in-person events are essential for building business relationships.<sup style="font-size:0.6em;">2</sup></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-dark section-pad texture-lines">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="FROM REGISTRATION TO RENEWAL"></span></div>
+      <h2 class="section-headline reveal">Intro is <em class="accent-amber italic">easy to set up.</em></h2>
+      <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.75);margin-bottom:4rem;">Four steps. One link. A report your sponsors will actually read.</p>
+      <div class="steps-timeline">
+        <div class="step-row reveal"><div class="step-num">01</div><div class="step-content"><h4>Registration</h4><p>Intro is added to your registration flow. Attendees answer a few questions about what they're looking for. <strong>60 seconds. No app download required.</strong></p></div></div>
+        <div class="step-row reveal reveal-delay-1"><div class="step-num">02</div><div class="step-content"><h4>Before the Event</h4><p>Intro's matching engine connects attendees to sponsors, partners, and peers most relevant to them. Everyone arrives knowing who they should find and why.</p></div></div>
+        <div class="step-row reveal reveal-delay-2"><div class="step-num">03</div><div class="step-content"><h4>During the Event</h4><p>Introductions happen. Conversations start. Every interaction is recorded automatically by Intro. Not by you.</p></div></div>
+        <div class="step-row reveal reveal-delay-3"><div class="step-num">04</div><div class="step-content"><h4>After the Event</h4><p>You get the report. Your sponsors get their CRM entries. Your attendees keep their connections. You walk into renewal with data.</p></div></div>
+      </div>
+      <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+    </div>
+  </section>
+
+  <section class="section-light section-pad texture-grid">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="FOUR WAYS TO PROVE. ONE PLATFORM."></span></div>
+      <h2 class="section-headline reveal">Here's what Intro produces. <em class="accent-wine italic">For every event.</em></h2>
+      <div class="outputs-grid">
+        <div class="output-card reveal"><div class="output-card-num">Output 01</div><h4>The Sponsor Report</h4><p style="font-size:.88rem;color:var(--muted-foreground);line-height:1.7;margin-top:.5rem;">It's not only a summary. It's undeniable data.</p><div class="before">Before Intro</div><div class="quote-mini">"We think it went well. We had a lot of booth traffic."</div><div class="after">After Intro</div><div class="quote-mini">"34 matched attendees. 12 follow-up calls booked. 6 active in pipeline."</div></div>
+        <div class="output-card reveal reveal-delay-1"><div class="output-card-num">Output 02</div><h4>The Attendee Connection Map</h4><p style="font-size:.88rem;color:var(--foreground);line-height:1.7;margin-top:.5rem;">Who met who. Why Intro matched them. Whether they followed up. The data that makes next year's event better before it starts.</p><div class="stat-block" style="margin-top:1.5rem;"><div class="stat-number" style="font-size:3rem;color:var(--primary);" data-target="51">0</div><div class="stat-label" style="color:var(--foreground);font-size:0.9rem;">of attendees say effective networking is reason enough to return.<sup style="font-size:0.6em;">1</sup></div></div></div>
+        <div class="output-card reveal reveal-delay-2"><div class="output-card-num">Output 03</div><h4>CRM Sync</h4><p style="font-size:.88rem;color:var(--muted-foreground);line-height:1.7;margin-top:.5rem;">Every connection flows directly into your sponsors' CRMs. No manual entry. No lost cards. <strong>This is what turns a $25,000 sponsorship into a $50,000 one.</strong></p></div>
+        <div class="output-card reveal reveal-delay-3"><div class="output-card-num">Output 04</div><h4>Upsell Infrastructure</h4><p style="font-size:.88rem;color:var(--muted-foreground);line-height:1.7;margin-top:.5rem;">Premium matching tiers. Sponsored introduction slots. Featured visibility. You're not guessing at what's worth more.</p></div>
+      </div>
+      <div class="consequence-quote reveal"><span class="cq-text">"Last year I handed my sponsor a PDF. This year I handed them a pipeline report." </span><span class="cq-good">We closed the renewal in the same meeting.</span></div>
+      <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+    </div>
+  </section>
+
+  <section class="section-dark section-pad texture-dots">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="INTRO FITS WHAT YOU ALREADY USE"></span></div>
+      <div class="two-col">
+        <div><h2 class="section-headline reveal">You already have tools. <em class="accent-amber italic">Intro completes them.</em></h2><p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.65);">Intro doesn't replace your stack. <strong>It's the layer your stack was missing.</strong> The one that captures what actually happened between people.</p></div>
+        <div class="reveal reveal-delay-2">
+          <div class="stack-anim-wrap">
+            <div class="stack-anim-block existing" style="--i:0;">
+              <span class="stack-anim-label">Ticketing</span>
+            </div>
+            <div class="stack-anim-block existing" style="--i:1;">
+              <span class="stack-anim-label">Event App</span>
+            </div>
+            <div class="stack-anim-intro">
+              <div class="stack-anim-block intro-block">
+                <span class="stack-anim-label intro-label">Intro</span>
+                <span class="stack-anim-tag">fits here</span>
+              </div>
+            </div>
+            <div class="stack-anim-block existing" style="--i:2;">
+              <span class="stack-anim-label">CRM</span>
+            </div>
+            <div class="stack-anim-block existing" style="--i:3;">
+              <span class="stack-anim-label">Reporting</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-light section-pad texture-cross" style="text-align:center;">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);justify-content:center;"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="YOUR NEXT STEP"></span><div class="eyebrow-line"></div></div>
+      <h2 class="section-headline reveal" style="max-width:700px;margin:0 auto 1.5rem;">Walk into your next renewal <em class="accent-wine italic">with data.</em></h2>
+      <p class="body-text reveal reveal-delay-1" style="margin:0 auto 3rem;">Your next sponsor conversation is already forming.</p>
+      <div class="reveal reveal-delay-2" style="display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button>
+        <button class="btn btn-ghost-light" onclick="navigate('pricing')">See Pricing</button>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /page-works -->
+
+<!-- ════════════════════════════════════
+     PAGE: PRICING
+════════════════════════════════════ -->
+<div class="page" id="page-pricing">
+
+  <section class="section-dark section-pad texture-dots" style="padding-top:12rem;">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="BUILT AROUND WHAT YOU GET BACK"></span></div>
+      <h1 class="hero-headline reveal">Pricing that <em class="accent-sage italic">pays for itself.</em></h1>
+      <div class="two-col" style="align-items:flex-start; gap:5rem; margin-top:3rem;">
+        <div>
+          <p class="body-text reveal" style="color:rgba(237,235,230,0.75);">This isn't a software purchase. <strong style="color:var(--background);">You're buying proof,</strong> and the platform that lets you charge more for it.</p>
+          <div class="consequence-quote reveal reveal-delay-1"><span class="cq-text">"Last year I handed my sponsor a PDF. This year I handed them a pipeline report." </span><span class="cq-good">We closed the renewal in the same meeting.</span></div>
+        </div>
+        <div>
+          <div class="stat-block reveal reveal-delay-1">
+            <div class="stat-number" data-target="60">0</div>
+            <div class="stat-label" style="color:rgba(237,235,230,0.85);">higher sponsor renewal when organizers share real ROI data.<sup style="font-size:0.6em;">3</sup></div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+    </div>
+  </section>
+
+  <section class="section-light section-pad">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="PICK WHAT FITS YOUR EVENT"></span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1.5rem;margin-bottom:3rem;">
+        <h2 class="section-headline reveal" style="margin-bottom:0;">Choose your plan.</h2>
+        <!-- Toggle -->
+        <div class="reveal" style="display:flex;align-items:center;gap:0;border:1.5px solid var(--border);border-radius:3rem;overflow:hidden;background:var(--background);">
+          <button id="toggle-person" onclick="setPricingView('person')" style="padding:.55rem 1.25rem;font-family:var(--font-sans);font-size:.68rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border:none;cursor:pointer;border-radius:3rem;background:var(--primary);color:#fff;transition:all .2s;">Per person</button>
+          <button id="toggle-event" onclick="setPricingView('event')" style="padding:.55rem 1.25rem;font-family:var(--font-sans);font-size:.68rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border:none;cursor:pointer;border-radius:3rem;background:transparent;color:var(--muted-foreground);transition:all .2s;">Per event</button>
+        </div>
+      </div>
+
+      <div class="pricing-grid">
+
+        <!-- STARTER -->
+        <div class="pricing-card reveal">
+          <div class="plan-name">Starter</div>
+          <p class="plan-tagline">Up to 150 attendees. One event at a time.</p>
+          <div class="plan-price-wrap">
+            <div class="plan-price" id="starter-price">
+              <span class="price-person"><span class="price-amount">$3.50</span><span class="price-unit"> avg. per person</span></span>
+              <span class="price-event" style="display:none;"><span class="price-amount">$525</span><span class="price-unit"> per event</span></span>
+            </div>
+          </div>
+          <button class="btn btn-ghost-light plan-cta" onclick="navigate('contact')">Get started →</button>
+          <div class="plan-divider"></div>
+          <ul class="plan-features">
+            <li>Up to 150 attendees</li>
+            <li>1 match per attendee</li>
+            <li>CRM integration</li>
+            <li>Attendee directory</li>
+            <li>Infographic recap</li>
+            <li>Standard post-event survey</li>
+          </ul>
+        </div>
+
+        <!-- GROWTH -->
+        <div class="pricing-card featured reveal reveal-delay-1">
+          <div class="featured-badge">Most Popular</div>
+          <div class="plan-name">Growth</div>
+          <p class="plan-tagline">Up to 500 attendees. Full sponsor ROI suite.</p>
+          <div class="plan-price-wrap">
+            <div class="plan-price" id="growth-price">
+              <span class="price-person"><span class="price-amount">$5.00</span><span class="price-unit"> avg. per person</span></span>
+              <span class="price-event" style="display:none;"><span class="price-amount">$2,500</span><span class="price-unit"> per event</span></span>
+            </div>
+          </div>
+          <button class="btn btn-primary plan-cta" onclick="navigate('contact')">Get started →</button>
+          <div class="plan-divider"></div>
+          <ul class="plan-features">
+            <li>Up to 500 attendees</li>
+            <li>3 matches per attendee</li>
+            <li>Sponsor integration</li>
+            <li>CRM integration</li>
+            <li>Attendee directory</li>
+            <li>Analytics and reporting</li>
+            <li>Infographic recap</li>
+            <li>Standard post-event survey</li>
+            <li>Digital business cards</li>
+            <li>Sponsor report</li>
+            <li>Upsell infrastructure</li>
+            <li>3 sponsor tiers included</li>
+          </ul>
+        </div>
+
+        <!-- ENTERPRISE -->
+        <div class="pricing-card reveal reveal-delay-2">
+          <div class="plan-name">Enterprise</div>
+          <p class="plan-tagline">Unlimited attendees. Custom everything.</p>
+          <div class="plan-price-wrap">
+            <div class="plan-price">
+              <span class="price-amount" style="font-size:1.4rem;letter-spacing:0;">Custom pricing</span>
+            </div>
+          </div>
+          <button class="btn btn-ghost-light plan-cta" onclick="navigate('contact')">Talk to us →</button>
+          <div class="plan-divider"></div>
+          <ul class="plan-features">
+            <li>Unlimited attendees</li>
+            <li>Unlimited matches</li>
+            <li>Everything in Growth, plus:</li>
+            <li>Conference map</li>
+            <li>Breakout session matching</li>
+            <li>Customizable post-event survey</li>
+            <li>Full sponsor report suite + dedicated sponsor login</li>
+            <li>Calendar and meeting integration</li>
+            <li>Multi-level sponsorship support</li>
+          </ul>
+        </div>
+
+      </div>
+      <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+    </div>
+  </section>
+
+  <section class="section-dark section-pad">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--accent);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="QUESTIONS WORTH ANSWERING"></span></div>
+      <h2 class="section-headline reveal">FAQ</h2>
+      <div class="faq-list">
+        <div class="faq-item reveal faq-accordion">
+          <button class="faq-toggle" onclick="toggleFaq(this)">
+            <span class="faq-q">Does Intro charge per attendee?</span>
+            <span class="faq-icon">+</span>
+          </button>
+          <div class="faq-answer"><p class="faq-a">Yes — Intro is priced per attendee. Starter is <strong>$3.50/person</strong> (up to 150 attendees) and Growth is <strong>$5.00/person</strong> (up to 500 attendees). Enterprise is custom.</p></div>
+        </div>
+        <div class="faq-item reveal reveal-delay-1 faq-accordion">
+          <button class="faq-toggle" onclick="toggleFaq(this)">
+            <span class="faq-q">What if I run multiple events a year?</span>
+            <span class="faq-icon">+</span>
+          </button>
+          <div class="faq-answer"><p class="faq-a">The Growth plan is built for that. <strong>Consistent reporting across events compounds your sponsor renewal story over time.</strong></p></div>
+        </div>
+        <div class="faq-item reveal reveal-delay-2 faq-accordion">
+          <button class="faq-toggle" onclick="toggleFaq(this)">
+            <span class="faq-q">Can I show this to my sponsors to justify the cost?</span>
+            <span class="faq-icon">+</span>
+          </button>
+          <div class="faq-answer"><p class="faq-a">Yes. <strong>Most event directors find sponsors are happy to co-invest</strong> once they see what the report delivers.</p></div>
+        </div>
+        <div class="faq-item reveal reveal-delay-3 faq-accordion">
+          <button class="faq-toggle" onclick="toggleFaq(this)">
+            <span class="faq-q">What does setup look like?</span>
+            <span class="faq-icon">+</span>
+          </button>
+          <div class="faq-answer"><p class="faq-a">Intro integrates at registration. <strong>Most event directors are live within a few hours.</strong></p></div>
+        </div>
+      </div>
+      <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+    </div>
+  </section>
+
+  <section class="section-light section-pad" style="text-align:center;">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);justify-content:center;"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="PROVE YOUR EVENT'S WORTH"></span><div class="eyebrow-line"></div></div>
+      <h2 class="section-headline reveal" style="max-width:700px;margin:0 auto 1.5rem;">Your next renewal conversation <em class="accent-wine italic">should be the easiest one yet.</em></h2>
+      <p class="body-text reveal reveal-delay-1" style="margin:0 auto 3rem;">Higher sponsor renewals. Stronger attendee retention. Upsell opportunities built in.</p>
+      <div class="reveal reveal-delay-2"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+    </div>
+  </section>
+
+</div><!-- /page-pricing -->
+
+<!-- ════════════════════════════════════
+     PAGE: SPONSORS
+════════════════════════════════════ -->
+<div class="page" id="page-sponsors">
+
+  <section class="section-dark section-pad texture-dots" style="padding-top:12rem;">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="WHAT'S AT STAKE"></span></div>
+      <h1 class="hero-headline reveal"><span style="color:var(--background);">Your sponsors are paying.</span> <em class="accent-amber italic">They deserve to know what they got.</em></h1>
+      <div class="two-col" style="align-items:flex-start; gap:5rem; margin-top:3rem;">
+        <div>
+          <p class="body-text reveal" style="color:rgba(237,235,230,0.8);">The ROI conversation is painful because neither of you can prove the event worked. That's not a perception problem. It's a data problem.</p>
+          <div class="consequence-quote reveal reveal-delay-1"><span class="cq-text">"My boss asked what we got from the sponsorship. I said brand awareness." </span><span class="cq-bad">The sponsorship didn't make the budget next year.</span></div>
+        </div>
+        <div>
+          <div class="stat-block reveal reveal-delay-1">
+            <div class="stat-number" data-target="71" style="color:var(--accent);">0</div>
+            <div class="stat-label" style="color:rgba(237,235,230,0.8);">of event organizers can't prove ROI to their stakeholders.<sup style="font-size:0.6em;">4</sup></div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+    </div>
+  </section>
+
+  <section class="section-light section-pad">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--accent);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="WHAT PROOF LOOKS LIKE"></span></div>
+      <div class="two-col" style="align-items:flex-start;">
+        <div>
+          <h2 class="section-headline reveal">Stop guessing. <em class="accent-wine italic">Start showing the numbers.</em></h2>
+          <p class="body-text reveal reveal-delay-1">With Intro, sponsors get matched to the right attendees before the event. Every conversation recorded. Every follow-up triggered. Synced to their CRM automatically.</p>
+          <div class="consequence-quote reveal reveal-delay-2"><span class="cq-text">"I finally had something real to show my CFO." </span><span class="cq-good">We renewed the same day.</span></div>
+          <div class="stat-block reveal reveal-delay-3" style="margin-top:1rem;">
+            <div class="stat-number" data-target="60" style="color:var(--primary);">0</div>
+            <div class="stat-label" style="color:var(--foreground);">higher sponsor renewal when organizers share real ROI data.<sup style="font-size:0.6em;">3</sup></div>
+          </div>
+          <div style="margin-top:2rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+        </div>
+        <div class="reveal reveal-delay-2">
+          <div class="results-card">
+            <div style="font-size:.68rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--muted-foreground);margin-bottom:2rem;">Example sponsor report</div>
+            <div class="results-metric">
+              <div class="results-num">34</div>
+              <div class="results-desc"><strong>Matched introductions</strong> to target-profile attendees</div>
+            </div>
+            <div class="results-metric">
+              <div class="results-num">12</div>
+              <div class="results-desc"><strong>Follow-up calls booked</strong> within 48 hours</div>
+            </div>
+            <div class="results-metric" style="border-bottom:none;">
+              <div class="results-num">6</div>
+              <div class="results-desc"><strong>Active in pipeline</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-dark section-pad">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--accent);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="BEFORE AND AFTER"></span></div>
+      <h2 class="section-headline reveal">Here's what changes for your sponsors <em class="accent-wine italic">when you run Intro.</em></h2>
+      <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.65);margin-bottom:3rem;">When their sponsorship looks like a sales tool instead of a marketing expense, <strong style="color:var(--background);">it stops being the first thing cut.</strong></p>
+      <div class="ba-table reveal reveal-delay-2">
+        <div class="ba-col-head before">Before Intro</div><div class="ba-col-head after">After Intro</div>
+        <div class="ba-row-item before-cell"><div class="ba-row-label">Sponsor Conversation</div><div class="ba-row-val bad">✕ "Thanks for coming, hope you got value"</div></div><div class="ba-row-item"><div class="ba-row-label">Sponsor Conversation</div><div class="ba-row-val good">✓ "Here's your report. Same time next year?"</div></div>
+        <div class="ba-row-item before-cell"><div class="ba-row-label">Follow-up</div><div class="ba-row-val bad">✕ Business cards in a drawer</div></div><div class="ba-row-item"><div class="ba-row-label">Follow-up</div><div class="ba-row-val good">✓ Meetings already booked</div></div>
+        <div class="ba-row-item before-cell"><div class="ba-row-label">Renewal</div><div class="ba-row-val bad">✕ Awkward ask</div></div><div class="ba-row-item"><div class="ba-row-label">Renewal</div><div class="ba-row-val good">✓ They reach out first</div></div>
+        <div class="ba-row-item before-cell"><div class="ba-row-label">Attendee Fit</div><div class="ba-row-val bad">✕ Whoever showed up</div></div><div class="ba-row-item"><div class="ba-row-label">Attendee Fit</div><div class="ba-row-val good">✓ Matched to their exact ICP</div></div>
+      </div>
+      <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+    </div>
+  </section>
+
+  <section class="section-light section-pad">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--accent);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="TWO WAYS TO MAKE THIS HAPPEN"></span></div>
+      <div class="two-col">
+        <div>
+          <h2 class="section-headline reveal">Get Intro in front of <em class="accent-wine italic">your sponsors.</em></h2>
+          <p class="body-text reveal reveal-delay-1">Stop leaving next year's renewals to chance. Get Intro today and <strong>we'll make sure you have all the data to show your sponsors the success of the event.</strong></p>
+          <div class="reveal reveal-delay-2" style="margin-top:2.5rem;display:flex;gap:1.25rem;flex-wrap:wrap;align-items:center;">
+            <button class="btn btn-primary" id="share-sponsor-btn" onclick="navigate('contact')">Request access →</button>
+            <span id="share-confirm" style="font-size:.75rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--primary);opacity:0;transition:opacity .3s;">Copied website URL ✓</span>
+          </div>
+        </div>
+        <div class="reveal reveal-delay-2">
+          <div class="pst-block">
+            <div class="pst-label" style="color:var(--accent);">P.S. — Are You a Sponsor?</div>
+            <h3 style="font-family:var(--font-heading);font-size:1.2rem;font-weight:bold;letter-spacing:0.01em;color:var(--foreground);margin-bottom:1rem;line-height:1.1;">Don't waste your money sponsoring an event that doesn't use Intro.</h3>
+            <p style="font-size:.88rem;color:var(--muted-foreground);line-height:1.8;margin-bottom:1.5rem;">Ask your organizer about Intro before you commit. <strong>You have the leverage. Use it.</strong></p>
+            <p style="font-size:.85rem;color:var(--muted-foreground);line-height:1.7;border-left:3px solid var(--accent);padding-left:1rem;margin-bottom:1.5rem;">"We'll sponsor at the Pro tier if the event uses Intro." That's a conversation your organizer will take seriously.</p>
+            <button class="btn btn-wine" onclick="navigate('contact','sponsor')">Tell My Organizer →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /page-sponsors -->
+
+<!-- ════════════════════════════════════
+     PAGE: ATTENDEES
+════════════════════════════════════ -->
+<div class="page" id="page-attendees">
+
+  <section class="section-dark section-pad texture-dots" style="padding-top:12rem;">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="WHAT THEY CAME FOR"></span></div>
+      <h1 class="hero-headline reveal">They cleared their calendars for this. <em class="accent-amber italic">Make it worth it.</em></h1>
+      <div class="two-col" style="align-items:flex-start; gap:5rem; margin-top:3rem;">
+        <div>
+          <p class="body-text reveal" style="color:rgba(237,235,230,0.75);">Your attendees paid to be there. They took the flight, blocked the days. <strong style="color:var(--background);">Give them the one thing a schedule and a venue can't: the right person, at the right time, with a reason to connect.</strong></p>
+          <div class="consequence-quote reveal reveal-delay-1"><span class="cq-text">"I'm sure the right person was in that room." </span><span class="cq-bad">Never found them.</span></div>
+        </div>
+        <div>
+          <div class="stat-block reveal reveal-delay-1">
+            <div class="stat-number" data-target="51" style="color:var(--primary);">0</div>
+            <div class="stat-label" style="color:rgba(237,235,230,0.85);">of attendees say effective networking is reason enough to return.<sup style="font-size:0.6em;">1</sup></div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+    </div>
+  </section>
+
+  <section class="section-light section-pad">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--accent);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="THE PROBLEM WITH EVERY EVENT"></span></div>
+      <div class="two-col">
+        <div>
+          <h2 class="section-headline reveal">There's no system for finding the right person. <em class="accent-wine italic">So they do their best.</em></h2>
+          <p class="body-text reveal reveal-delay-1">They go home. Their boss asks how it went. They say: "Good. I talked to a lot of people." <strong>That's not a win. That's a missed opportunity your event produced.</strong></p>
+        </div>
+        <div>
+          <div class="consequence-quote reveal"><span class="cq-text">"There were so many people. I just didn't know where to start." </span><span class="cq-bad">So I talked to whoever was nearby.</span></div>
+          <div class="consequence-quote reveal reveal-delay-1"><span class="cq-text">"I'm sure the right person was in that room." </span><span class="cq-bad">Never found them.</span></div>
+          <div class="consequence-quote reveal reveal-delay-2"><span class="cq-text">"I talked to a bunch of people. I gave out my card a lot." </span><span class="cq-bad">And next year the company skips it.</span></div>
+        </div>
+      </div>
+      <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+    </div>
+  </section>
+
+  <section class="section-dark section-pad">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="MATCHED BEFORE THEY WALK IN"></span></div>
+      <div class="two-col" style="align-items:flex-start;">
+        <div>
+          <h2 class="section-headline reveal">Intro makes networking <em class="accent-amber italic">useful.</em></h2>
+          <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.75);margin-top:1.5rem;">At registration, Intro asks what they're looking for. <strong style="color:var(--background);">60 seconds.</strong> Before the event starts, they have a shortlist of the people who actually care about what they do, with a reason why each one matters.</p>
+          <p class="body-text reveal reveal-delay-2" style="color:var(--background);margin-top:1rem;font-weight:600;">Not a directory to sort through. A shortlist that's already done the work.</p>
+          <div style="margin-top:2rem;" class="reveal reveal-delay-3"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+        </div>
+        <div class="reveal reveal-delay-2">
+          <div class="process-card">
+            <div style="font-size:.68rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:rgba(237,235,230,0.45);margin-bottom:2rem;">How Matching Works</div>
+            <div class="process-step"><div class="ps-num">1</div><p class="ps-text"><strong>Registration (60 sec)</strong> Attendee shares what they're looking for and what they offer.</p></div>
+            <div class="process-step"><div class="ps-num">2</div><p class="ps-text"><strong>Matching engine runs</strong> Intro maps them to sponsors, partners, and peers who match their goals.</p></div>
+            <div class="process-step"><div class="ps-num">3</div><p class="ps-text"><strong>Shortlist delivered</strong> They receive a curated list before the doors open, with specific context for each match.</p></div>
+            <div class="process-step"><div class="ps-num">4</div><p class="ps-text"><strong>Follow-up built in</strong> Connections don't disappear after the event. Intro keeps the thread alive.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-light section-pad">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--accent);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="WHAT THEY GET WITH EVERY EVENT"></span></div>
+      <h2 class="section-headline reveal">You don't need a list of 400 people. <em class="accent-wine italic">You need the few who actually matter.</em></h2>
+      <div style="margin-top:3rem;">
+        <div class="att-row reveal"><svg width="48" height="48" viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><circle cx="16" cy="16" r="12"/><path d="M12 16l3 3 6-6"/></svg><div class="att-content"><h4>Their Matched Shortlist</h4><p>The people worth talking to, with specific reasons for each one. <strong>No sorting, no guessing.</strong> Done before they walk in.</p></div></div>
+        <div class="att-row reveal reveal-delay-1"><svg width="48" height="48" viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><circle cx="10" cy="16" r="5"/><circle cx="22" cy="10" r="5"/><circle cx="22" cy="22" r="5"/><path d="M15 14l4-3M15 18l4 3"/></svg><div class="att-content"><h4>The Attendee Directory</h4><p>Browse on purpose. Search by industry, goal, or what someone is working on. <strong>Find who they want to meet before the doors open.</strong></p></div></div>
+        <div class="att-row reveal reveal-delay-2"><svg width="48" height="48" viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><rect x="4" y="8" width="24" height="16"/><path d="M4 14l12 7 12-7"/></svg><div class="att-content"><h4>Built-in Follow-up</h4><p>The connection doesn't disappear after the event. <strong>Intro keeps the thread going so the card they collected actually becomes something.</strong></p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-dark section-pad">
+    <div class="container">
+      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="THEY'LL COME BACK FOR THIS"></span></div>
+      <div class="two-col">
+        <div>
+          <h2 class="section-headline reveal">Deliver introductions <em class="accent-amber italic">that have impact.</em></h2>
+          <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.65);">Your attendees deserve better than small talk and a pile of cards they'll never sort through. <strong>Intro gives them the one thing a schedule and a venue can't.</strong></p>
+          <p class="body-text reveal reveal-delay-2" style="color:rgba(237,235,230,0.65);margin-top:1rem;"><strong style="color:var(--background);">That's what makes your event worth going back to.</strong></p>
+          <div class="reveal reveal-delay-3" style="margin-top:2.5rem;"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+        </div>
+        <div class="reveal reveal-delay-2">
+          <div class="pst-block" style="border-color:var(--primary)">
+            <div class="pst-label" style="color:var(--primary);">P.S. — Are You an Attendee?</div>
+            <h3 style="font-family:var(--font-heading);font-size:1.3rem;font-weight:bold;letter-spacing:0.01em;color:var(--background);margin-bottom:1rem;line-height:1.1;">You deserve better than small talk.</h3>
+            <p style="font-size:.9rem;color:rgba(237,235,230,0.65);line-height:1.8;margin-bottom:1.5rem;">Tell your organizer you want Intro at this event. <strong style="color:var(--background);">It takes 30 seconds and they'll actually listen.</strong></p>
+            <p style="font-size:.82rem;color:rgba(237,235,230,0.5);line-height:1.7;border-left:3px solid var(--primary);padding-left:1rem;margin-bottom:1.5rem;">It's anonymous. Your name is never shared.</p>
+            <button class="btn btn-sage" onclick="navigate('contact','attendee')">Tell My Organizer →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /page-attendees -->
+
+<!-- ════════════════════════════════════
+     PAGE: CONTACT
+════════════════════════════════════ -->
+<div class="page" id="page-contact">
+  <section class="section-light section-pad texture-dots" style="padding-top:10rem; min-height:100vh;">
+    <div class="container" style="max-width:680px;">
+
+      <!-- Back -->
+      <button onclick="history.go(-1) || navigate('home')" style="background:none;border:none;cursor:pointer;font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted-foreground);margin-bottom:3rem;padding:0;display:flex;align-items:center;gap:.5rem;">← Back</button>
+
+      <!-- Header -->
+      <div class="eyebrow" style="color:var(--amber);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="GET STARTED"></span></div>
+      <h1 class="hero-headline reveal" style="font-size:clamp(2rem,4vw,3.5rem);margin-bottom:.75rem;">Request early access</h1>
+      <p class="body-text reveal reveal-delay-1" style="margin-bottom:3rem;">We'll get back to you within one business day.</p>
+
+      <!-- Form card -->
+      <div id="contact-form-wrap" class="reveal reveal-delay-1" style="background:var(--card);border:1.5px solid var(--border);border-radius:0 2rem 2rem 0;padding:3rem;">
+
+        <!-- Role selector -->
+        <div style="margin-bottom:2rem;">
+          <label style="font-size:.68rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--muted-foreground);display:block;margin-bottom:.5rem;">I am a…</label>
+          <select id="contact-role" onchange="updateContactForm()" style="width:100%;padding:.85rem 1rem;border:1.5px solid var(--border);border-radius:1rem;background:var(--background);font-family:var(--font-sans);font-size:.95rem;color:var(--foreground);outline:none;cursor:pointer;appearance:none;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237D7A73' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 1rem center;padding-right:2.5rem;">
+            <option value="director">Event Director — I run events and want to set up Intro</option>
+            <option value="sponsor">Sponsor — I sponsor events and want my organizer to use Intro</option>
+            <option value="attendee">Attendee — I attend events and want Intro at my next one</option>
+          </select>
+        </div>
+
+        <!-- Shared fields -->
+        <div style="display:flex;flex-direction:column;gap:1.25rem;">
+          <div id="cf-name-wrap">
+            <label style="font-size:.68rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--muted-foreground);display:block;margin-bottom:.5rem;">Your name</label>
+            <input type="text" id="cf-name" placeholder="Jane Smith" style="width:100%;padding:.85rem 1rem;border:1.5px solid var(--border);border-radius:1rem;background:var(--background);font-family:var(--font-sans);font-size:.95rem;color:var(--foreground);outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'">
+          </div>
+          <div id="cf-email-wrap">
+            <label style="font-size:.68rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--muted-foreground);display:block;margin-bottom:.5rem;" id="cf-email-label">Work email</label>
+            <input type="email" id="cf-email" placeholder="you@company.com" style="width:100%;padding:.85rem 1rem;border:1.5px solid var(--border);border-radius:1rem;background:var(--background);font-family:var(--font-sans);font-size:.95rem;color:var(--foreground);outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'">
+          </div>
+          <div>
+            <label style="font-size:.68rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--muted-foreground);display:block;margin-bottom:.5rem;" id="cf-event-label">Event name</label>
+            <input type="text" id="cf-event" placeholder="SaaStr Annual, FinTech Summit…" style="width:100%;padding:.85rem 1rem;border:1.5px solid var(--border);border-radius:1rem;background:var(--background);font-family:var(--font-sans);font-size:.95rem;color:var(--foreground);outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'">
+          </div>
+
+          <!-- Director-only field -->
+          <div id="cf-attendees-wrap">
+            <label style="font-size:.68rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--muted-foreground);display:block;margin-bottom:.5rem;">Expected attendees</label>
+            <select id="cf-attendees" style="width:100%;padding:.85rem 1rem;border:1.5px solid var(--border);border-radius:1rem;background:var(--background);font-family:var(--font-sans);font-size:.95rem;color:var(--foreground);outline:none;cursor:pointer;appearance:none;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237D7A73' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 1rem center;padding-right:2.5rem;">
+              <option value="">Select…</option>
+              <option>Under 250</option><option>250–1,000</option><option>1,000–5,000</option><option>5,000+</option>
+            </select>
+          </div>
+
+          <!-- Sponsor/Attendee-only field -->
+          <div id="cf-organizer-wrap" style="display:none;">
+            <label style="font-size:.68rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--muted-foreground);display:block;margin-bottom:.5rem;">Organizer's email</label>
+            <input type="email" id="cf-organizer" placeholder="If you know it, we'll reach out directly" style="width:100%;padding:.85rem 1rem;border:1.5px solid var(--border);border-radius:1rem;background:var(--background);font-family:var(--font-sans);font-size:.95rem;color:var(--foreground);outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'">
+          </div>
+
+          <!-- Optional BCC email -->
+          <div id="cf-bcc-wrap" style="display:none;">
+            <label style="font-size:.68rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--muted-foreground);display:block;margin-bottom:.5rem;">Your email <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:.75rem;">(optional)</span></label>
+            <input type="email" id="cf-bcc" placeholder="We'll BCC you when we send it" style="width:100%;padding:.85rem 1rem;border:1.5px solid var(--border);border-radius:1rem;background:var(--background);font-family:var(--font-sans);font-size:.95rem;color:var(--foreground);outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'">
+          </div>
+
+          <!-- Attendee anonymous note -->
+          <div id="cf-anon-note" style="display:none;border-left:3px solid var(--primary);padding-left:1rem;">
+            <p style="font-size:.82rem;color:var(--muted-foreground);line-height:1.7;">It's anonymous — your name is never shared with the organizer.</p>
+          </div>
+
+          <!-- Submit -->
+          <button id="cf-submit" onclick="submitContactForm()" style="margin-top:.5rem;padding:.9rem 2rem;background:var(--primary);color:var(--primary-fg);border:none;cursor:pointer;font-family:var(--font-sans);font-size:.72rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;border-radius:3rem;box-shadow:0 1.5px 1.5px #95928C;transition:filter .15s;align-self:flex-start;">
+            Request early access →
+          </button>
+        </div>
+      </div>
+
+      <!-- Confirmation (hidden until submit) -->
+      <div id="contact-confirm" style="display:none;text-align:center;padding:5rem 2rem;">
+        <div style="font-size:3rem;margin-bottom:1.5rem;color:var(--primary);">✓</div>
+        <h2 style="font-family:var(--font-heading);font-size:1.6rem;font-weight:bold;letter-spacing:0.01em;color:var(--foreground);margin-bottom:1rem;" id="cf-confirm-headline">You're on the list.</h2>
+        <p style="font-size:.95rem;color:var(--muted-foreground);line-height:1.8;max-width:400px;margin:0 auto 2rem;" id="cf-confirm-body">We'll be in touch shortly.</p>
+        <button onclick="navigate('home')" class="btn btn-primary">Back to home →</button>
+      </div>
+
+    </div>
+  </section>
+</div><!-- /page-contact -->
+
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div>
+        <div class="footer-logo"><span>I</span>ntro</div>
+        <div class="footer-tagline">Prove Event ROI.</div>
+      </div>
+      <div class="footer-links">
+        <button onclick="navigate('home')">Home</button>
+        <button onclick="navigate('works')">How It Works</button>
+        <button onclick="navigate('pricing')">Pricing</button>
+        <button onclick="navigate('sponsors')">Your Sponsors</button>
+        <button onclick="navigate('attendees')">Your Attendees</button>
+        <button onclick="navigate('contact')">Contact</button>
+      </div>
+    </div>
+    <div class="footer-builder">
+      <div class="footer-builder-label">Who Built This</div>
+      <p class="footer-builder-text">I've had event budgets cut because sponsors wanted an ROI. It stings, because events are one of the most powerful ways attendees and sponsors can connect and grow their businesses. So I built Intro to fix that. <span class="footer-builder-name">— Brant Johnson, Creator of Intro</span></p>
+    </div>
+    <div class="footer-bottom">
+      <div>© 2026 Intro. All rights reserved. &nbsp;·&nbsp; <span class="footer-guarantee">Satisfaction 100% guaranteed. Or your money back. (Yeah, we know we're not a breakfast cereal.)</span></div>
+      <ul class="footnotes">
+        <li><sup>1</sup> Freeman Trends Report 2025 &nbsp;·&nbsp; <sup>2</sup> Freeman Trust Report 2025 (via Harris Poll) &nbsp;·&nbsp; <sup>3</sup> Guidebook, "Sponsor ROI Defined & Measured" &nbsp;·&nbsp; <sup>4</sup> Bizzabo — Event ROI & Measurement Research</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+
+
+
+<script>
+/* ════ FAQ ACCORDION ════ */
+function toggleFaq(btn) {
+  const item = btn.closest('.faq-accordion');
+  const isOpen = item.classList.contains('open');
+  document.querySelectorAll('.faq-accordion.open').forEach(el => el.classList.remove('open'));
+  if (!isOpen) item.classList.add('open');
+}
+
+/* ════ ROUTER ════ */
+const pages = ['home','works','pricing','sponsors','attendees','contact'];
+
+function navigate(id, role) {
+  // Hide all pages
+  pages.forEach(p => {
+    const el = document.getElementById('page-' + p);
+    if (el) el.classList.remove('active');
+  });
+  // Show target
+  const target = document.getElementById('page-' + id);
+  if (target) target.classList.add('active');
+
+  // Update nav active state
+  document.querySelectorAll('[data-page]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.page === id);
+  });
+
+  // Scroll to top
+  window.scrollTo({ top: 0, behavior: 'auto' });
+
+  // Re-run scroll animations for new page
+  setTimeout(initObserver, 50);
+
+  // Re-init canvas if going home
+  if (id === 'home') setTimeout(initCanvas, 100);
+
+  // Pre-select role on contact page if passed
+  if (id === 'contact' && role) {
+    setTimeout(() => {
+      const sel = document.getElementById('contact-role');
+      if (sel) { sel.value = role; updateContactForm(); }
+    }, 60);
+  }
+}
+
+/* ════ CONTACT FORM ════ */
+function updateContactForm() {
+  const role = document.getElementById('contact-role').value;
+  const attendeesWrap = document.getElementById('cf-attendees-wrap');
+  const organizerWrap = document.getElementById('cf-organizer-wrap');
+  const bccWrap       = document.getElementById('cf-bcc-wrap');
+  const anonNote      = document.getElementById('cf-anon-note');
+  const emailWrap     = document.getElementById('cf-email-wrap');
+  const emailLabel    = document.getElementById('cf-email-label');
+  const eventLabel    = document.getElementById('cf-event-label');
+  const nameWrap      = document.getElementById('cf-name-wrap');
+  const submitBtn     = document.getElementById('cf-submit');
+
+  if (role === 'director') {
+    attendeesWrap.style.display = 'block';
+    organizerWrap.style.display = 'none';
+    bccWrap.style.display       = 'none';
+    anonNote.style.display      = 'none';
+    nameWrap.style.display      = 'block';
+    emailWrap.style.display     = 'block';
+    emailLabel.textContent      = 'Work email';
+    eventLabel.textContent      = 'Event name';
+    submitBtn.textContent       = 'Request early access →';
+    submitBtn.style.background  = 'var(--primary)';
+  } else if (role === 'sponsor') {
+    attendeesWrap.style.display = 'none';
+    organizerWrap.style.display = 'block';
+    bccWrap.style.display       = 'block';
+    anonNote.style.display      = 'none';
+    nameWrap.style.display      = 'block';
+    emailWrap.style.display     = 'none';
+    eventLabel.textContent      = 'Event you are sponsoring';
+    submitBtn.textContent       = 'Tell my organizer →';
+    submitBtn.style.background  = 'var(--accent)';
+  } else if (role === 'attendee') {
+    attendeesWrap.style.display = 'none';
+    organizerWrap.style.display = 'block';
+    bccWrap.style.display       = 'block';
+    anonNote.style.display      = 'block';
+    nameWrap.style.display      = 'none';
+    emailWrap.style.display     = 'none';
+    eventLabel.textContent      = 'Event you want Intro at';
+    submitBtn.textContent       = 'Tell my organizer →';
+    submitBtn.style.background  = 'var(--primary)';
+  }
+}
+
+function submitContactForm() {
+  const role = document.getElementById('contact-role').value;
+  const headlines = {
+    director: "You're on the list.",
+    sponsor:  "We'll reach out to them.",
+    attendee: "We'll reach out to your organizer."
+  };
+  const bodies = {
+    director: "We'll be in touch shortly to get Intro set up for your event.",
+    sponsor:  "We'll contact your organizer on your behalf. You'll hear from us soon.",
+    attendee: "Your organizer will hear from us. Your name stays anonymous."
+  };
+  document.getElementById('cf-confirm-headline').textContent = headlines[role];
+  document.getElementById('cf-confirm-body').textContent     = bodies[role];
+  document.getElementById('contact-form-wrap').style.display = 'none';
+  document.getElementById('contact-confirm').style.display   = 'block';
+}
+
+/* ════ COPY SPONSOR LINK ════ */
+function copySponsorLink(btn) {
+  const url = window.location.href.split('#')[0];
+  const confirm = document.getElementById('share-confirm');
+  const done = () => {
+    if (!confirm) return;
+    confirm.style.opacity = '1';
+    setTimeout(() => { confirm.style.opacity = '0'; }, 2500);
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(url).then(done).catch(() => {
+      window.prompt('Copy this link:', url);
+    });
+  } else {
+    window.prompt('Copy this link:', url);
+  }
+}
+
+/* ════ PRICING TOGGLE ════ */
+function setPricingView(view) {
+  const personSpans = document.querySelectorAll('.price-person');
+  const eventSpans  = document.querySelectorAll('.price-event');
+  const btnPerson   = document.getElementById('toggle-person');
+  const btnEvent    = document.getElementById('toggle-event');
+
+  if (view === 'person') {
+    personSpans.forEach(el => el.style.display = 'inline');
+    eventSpans.forEach(el  => el.style.display = 'none');
+    btnPerson.style.background = 'var(--primary)';
+    btnPerson.style.color = '#fff';
+    btnEvent.style.background = 'transparent';
+    btnEvent.style.color = 'var(--muted-foreground)';
+  } else {
+    personSpans.forEach(el => el.style.display = 'none');
+    eventSpans.forEach(el  => el.style.display = 'inline');
+    btnEvent.style.background = 'var(--primary)';
+    btnEvent.style.color = '#fff';
+    btnPerson.style.background = 'transparent';
+    btnPerson.style.color = 'var(--muted-foreground)';
+  }
+}
+
+/* ════ HAMBURGER ════ */
+const hamburger = document.getElementById('hamburger');
+const drawer = document.getElementById('nav-drawer');
+if (hamburger && drawer) {
+  hamburger.addEventListener('click', () => {
+    hamburger.classList.toggle('open');
+    drawer.classList.toggle('open');
+  });
+}
+function closeDrawer() {
+  const h = document.getElementById('hamburger');
+  const d = document.getElementById('nav-drawer');
+  if (h) h.classList.remove('open');
+  if (d) d.classList.remove('open');
+}
+
+/* ════ HERO CANVAS ════ */
+function initCanvas() {
+  const canvas = document.getElementById('hero-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let mouse = { x: -9999, y: -9999 };
+  let cols, rows, points = [];
+  const SPACING = 48, RADIUS = 180, MAX_SHIFT = 10, LERP = 0.06;
+
+  function resize() {
+    const hero = canvas.closest('section');
+    canvas.width = hero ? hero.offsetWidth : window.innerWidth;
+    canvas.height = hero ? hero.offsetHeight : window.innerHeight;
+    buildGrid();
+  }
+  function buildGrid() {
+    points = [];
+    cols = Math.ceil(canvas.width / SPACING) + 2;
+    rows = Math.ceil(canvas.height / SPACING) + 2;
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++)
+        points.push({ ox:c*SPACING, oy:r*SPACING, cx:c*SPACING, cy:r*SPACING, tx:c*SPACING, ty:r*SPACING });
+  }
+  function lerp(a, b, t) { return a + (b-a)*t; }
+  let animRunning = false;
+  function draw() {
+    const homePage = document.getElementById('page-home');
+    if (!homePage || !homePage.classList.contains('active')) { animRunning = false; return; }
+    animRunning = true;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    points.forEach(p => {
+      const dx = mouse.x-p.ox, dy = mouse.y-p.oy;
+      const dist = Math.sqrt(dx*dx+dy*dy);
+      if (dist < RADIUS && dist > 0) { const s=(1-dist/RADIUS)*MAX_SHIFT; p.tx=p.ox+(dx/dist)*s; p.ty=p.oy+(dy/dist)*s; }
+      else { p.tx=p.ox; p.ty=p.oy; }
+      p.cx=lerp(p.cx,p.tx,LERP); p.cy=lerp(p.cy,p.ty,LERP);
+    });
+    ctx.strokeStyle='rgba(34,32,25,0.08)'; ctx.lineWidth=0.5;
+    for (let r=0;r<rows;r++) for (let c=0;c<cols-1;c++) { const a=points[r*cols+c],b=points[r*cols+c+1]; ctx.beginPath();ctx.moveTo(a.cx,a.cy);ctx.lineTo(b.cx,b.cy);ctx.stroke(); }
+    for (let r=0;r<rows-1;r++) for (let c=0;c<cols;c++) { const a=points[r*cols+c],b=points[(r+1)*cols+c]; ctx.beginPath();ctx.moveTo(a.cx,a.cy);ctx.lineTo(b.cx,b.cy);ctx.stroke(); }
+    requestAnimationFrame(draw);
+  }
+  const heroSection = canvas.closest('section');
+  if (heroSection) {
+    heroSection.addEventListener('mousemove', e => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left; mouse.y = e.clientY - rect.top;
+    });
+  }
+  window.addEventListener('resize', resize);
+  resize();
+  if (!animRunning) draw();
+}
+
+/* ════ TYPEWRITER ════ */
+function typewrite(el, text, delay) {
+  if (el.dataset.typed) return;
+  el.dataset.typed = '1';
+  let i = 0;
+  const cursor = document.createElement('span');
+  cursor.className = 'eyebrow-cursor';
+  setTimeout(() => {
+    function tick() {
+      el.textContent = text.slice(0, i);
+      if (i === 0) el.after(cursor);
+      if (i <= text.length) { i++; setTimeout(tick, 72); }
+      else setTimeout(() => cursor.remove(), 900);
+    }
+    tick();
+  }, delay);
+}
+
+/* ════ SCROLL OBSERVER ════ */
+let observer;
+function initObserver() {
+  if (observer) observer.disconnect();
+  observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      const el = e.target;
+      if (el.classList.contains('eyebrow')) {
+        el.classList.add('visible');
+        const span = el.querySelector('.eyebrow-text');
+        if (span && span.dataset.text) typewrite(span, span.dataset.text, 420);
+      }
+      if (el.classList.contains('reveal')) el.classList.add('visible');
+      // Replay stack animation when it enters view
+      el.querySelectorAll && el.querySelectorAll('.stack-anim-block, .stack-anim-intro').forEach(b => {
+        b.style.animation = 'none';
+        b.offsetHeight; // reflow
+        b.style.animation = '';
+      });
+      if (el.classList.contains('stat-block')) {
+        const numEl = el.querySelector('.stat-number');
+        if (numEl && !numEl.dataset.counted) {
+          numEl.dataset.counted = '1';
+          const target = parseInt(numEl.dataset.target);
+          const start = performance.now();
+          (function tick(now) {
+            const t = Math.min((now-start)/1600, 1);
+            numEl.textContent = Math.round((1-Math.pow(1-t,3))*target)+'%';
+            if (t < 1) requestAnimationFrame(tick);
+          })(performance.now());
+        }
+      }
+    });
+  }, { threshold: 0.15 });
+
+  // Observe only elements in the active page
+  const activePage = document.querySelector('.page.active');
+  if (activePage) activePage.querySelectorAll('.reveal, .eyebrow, .stat-block').forEach(el => observer.observe(el));
+}
+
+/* ════ INIT ════ */
+initObserver();
+initCanvas();
+</script>
+</body>
+</html>
