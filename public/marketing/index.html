@@ -1716,6 +1716,14 @@ function setupClickTracking() {
       label: text || '(no label)',
       destination_page: pageTarget || 'none'
     });
+
+    /* First-class event for GA4 key events (Create-without-code only offers page_view / form_submit). */
+    if (intent === 'request_early_access') {
+      trackEvent('request_early_access_click', {
+        label: text || '(no label)',
+        destination_page: pageTarget || 'none'
+      });
+    }
   });
 }
 
