@@ -1850,6 +1850,11 @@ async function submitContactForm() {
     return;
   }
 
+  trackEvent('generate_lead', {
+    lead_role: role,
+    lead_source: 'marketing_contact_form'
+  });
+
   /* Show confirmation after successful API send */
   document.getElementById('cf-confirm-headline').textContent = headline;
   document.getElementById('cf-confirm-body').textContent = body;
