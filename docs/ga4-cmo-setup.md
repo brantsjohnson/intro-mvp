@@ -2,6 +2,54 @@
 
 Use **[analytics.google.com](https://analytics.google.com)** → select the **property** that uses measurement ID **`G-LT17QF6CBE`** (your Web data stream should match your live site, e.g. eventintroductions.com).
 
+---
+
+## Start here — where traffic came from (only this until it works)
+
+Do these in order. Stop when you see numbers in the table.
+
+### Step 1 — Open the right report
+
+1. Go to [analytics.google.com](https://analytics.google.com) and sign in.
+2. Top center: click the **property** dropdown and pick the one for **Intro** / your live site (the same property where you set up **`G-LT17QF6CBE`**).
+3. Left sidebar: click **Reports** (bar-chart icon).
+4. Under **Life cycle** → **Acquisition**, click **Traffic acquisition**.  
+   *(If you don’t see it: click **Acquisition** once to expand the list.)*
+
+### Step 2 — Fix the date range (this fixes most “empty” screens)
+
+1. Top right of the chart: click the **date** (e.g. “Mar 10 – Apr 6”).
+2. Choose **Last 28 days** (or **Last 7 days**).
+3. Make sure the **end** date is **today** (not yesterday). Apply.
+
+### Step 3 — Read the table
+
+Scroll below the chart. You want columns like **Sessions** (or similar) and a dimension like **Session default channel grouping** or **Session primary channel group**.
+
+- **Organic Search** = Google / Bing search  
+- **Direct** = typed URL, bookmarks, some chat apps, or missing campaign tags  
+- **Referral** = clicked from another website  
+- **Paid Search / Paid Social** = usually only after you run ads with proper tagging  
+
+**Nothing to “turn on”** for this basic breakdown — if the tag is sending data, channels appear here after GA4 processes sessions (often same day, sometimes **up to 24–48 hours** for a new property).
+
+### Step 4 — If the table is still all zeros
+
+1. Open **Reports → Realtime** (left sidebar).
+2. Open your live site in another tab and click a page.
+3. If **Realtime** shows **0** users: the property or stream is wrong, or the tag isn’t on that site — fix that first.  
+4. If **Realtime** shows **you** but **Traffic acquisition** is still **0**: wait until tomorrow, set the date range again to include **today**, and look again. Standard acquisition reports are slower than Realtime.
+
+### Step 5 — See *which* link or campaign (optional, when you’re ready)
+
+Out of the box, a lot of traffic looks like **Direct**. To see “Newsletter April” vs “LinkedIn post”, put **UTMs** on links you share:
+
+`https://www.eventintroductions.com/?utm_source=newsletter&utm_medium=email&utm_campaign=april_launch`
+
+After people use those links, come back to **Traffic acquisition** and try changing the **primary dimension** (dropdown above the table) to **Session source / medium** or **Session campaign** if your UI offers it.
+
+---
+
 GA4 moves labels occasionally (“Key events” vs “Conversions”). If wording differs, search the **Admin** search bar for the term in parentheses below.
 
 ---
