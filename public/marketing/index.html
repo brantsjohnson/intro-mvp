@@ -8,13 +8,19 @@
 <meta property="og:title" content="Intro — Prove Event ROI">
 <meta property="og:description" content="Match every attendee or sponsor to the right person in the room. Prove event ROI and sync follow-ups to CRM.">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://www.intro.events/">
+<meta property="og:image" content="https://www.intro.events/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Intro — Prove Event ROI">
 <meta name="twitter:description" content="Match every attendee or sponsor to the right person in the room. Prove event ROI.">
+<meta name="twitter:image" content="https://www.intro.events/og-image.png">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<link rel="canonical" href="https://www.intro.events/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Changa+One&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Avenir+Next:wght@400;500&display=swap" rel="stylesheet">
+<script defer src="/_vercel/insights/script.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -1514,7 +1520,7 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
       <!-- Confirmation (hidden until submit) -->
       <div id="contact-confirm" style="display:none;text-align:center;padding:5rem 2rem;">
         <div style="font-size:3rem;margin-bottom:1.5rem;color:var(--primary);">✓</div>
-        <h2 style="font-family:var(--font-heading);font-size:1.6rem;font-weight:bold;letter-spacing:0.01em;color:var(--foreground);margin-bottom:1rem;" id="cf-confirm-headline">You're on the list.</h2>
+        <h2 style="font-family:var(--font-heading);font-size:1.6rem;font-weight:bold;letter-spacing:0.01em;color:var(--foreground);margin-bottom:1rem;" id="cf-confirm-headline">Thanks! We'll be in touch soon!</h2>
         <p style="font-size:.95rem;color:var(--muted-foreground);line-height:1.8;max-width:400px;margin:0 auto 2rem;" id="cf-confirm-body">We'll be in touch shortly.</p>
         <button onclick="navigate('home')" class="btn btn-primary">Back to home →</button>
       </div>
@@ -1567,6 +1573,150 @@ function toggleFaq(btn) {
 
 /* ════ ROUTER ════ */
 const pages = ['home','works','pricing','sponsors','attendees','contact'];
+const pageNames = {
+  home: 'Home',
+  works: 'How It Works',
+  sponsors: 'Your Sponsors',
+  attendees: 'Your Attendees',
+  pricing: 'Pricing',
+  contact: 'Contact'
+};
+
+const analyticsState = {
+  currentPage: 'home',
+  visibleSections: new Set(),
+  sectionStartTimes: new Map(),
+  sectionTotals: new Map(),
+  sectionObserver: null,
+  heartbeatTimer: null
+};
+
+// Set this in production (or inject via build):
+// window.INTRO_GA_MEASUREMENT_ID = 'G-XXXXXXXXXX';
+const GA_MEASUREMENT_ID = window.INTRO_GA_MEASUREMENT_ID || '';
+
+function initGoogleAnalytics() {
+  if (!GA_MEASUREMENT_ID) return;
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){ window.dataLayer.push(arguments); }
+  window.gtag = gtag;
+  gtag('js', new Date());
+  gtag('config', GA_MEASUREMENT_ID, { send_page_view: false });
+
+  const script = document.createElement('script');
+  script.async = true;
+  script.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(GA_MEASUREMENT_ID);
+  document.head.appendChild(script);
+}
+
+function trackEvent(name, params) {
+  const payload = Object.assign({ page: analyticsState.currentPage }, params || {});
+
+  // Google Analytics event (if configured)
+  if (typeof window.gtag === 'function') {
+    window.gtag('event', name, payload);
+  }
+
+  // Vercel custom event hook (if available in runtime)
+  if (typeof window.va === 'function') {
+    window.va('event', { name, data: payload });
+  }
+}
+
+function trackPageView(id) {
+  const pageTitle = pageNames[id] || id;
+  analyticsState.currentPage = id;
+  document.title = pageTitle === 'Home' ? 'Intro — Prove Event ROI' : 'Intro — ' + pageTitle;
+  trackEvent('page_view', { page_id: id, page_title: pageTitle });
+}
+
+function setupClickTracking() {
+  document.addEventListener('click', (event) => {
+    const target = event.target.closest('button, a');
+    if (!target) return;
+
+    const text = (target.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+    const pageTarget = target.dataset.page || '';
+    const intent =
+      text.includes('Request Early Access') ? 'request_early_access' :
+      text.includes('Contact') ? 'contact' :
+      text.includes('Get started') ? 'get_started' :
+      text.includes('Tell My Organizer') ? 'tell_my_organizer' : 'general_click';
+
+    trackEvent('button_click', {
+      intent,
+      label: text || '(no label)',
+      destination_page: pageTarget || 'none'
+    });
+  });
+}
+
+function flushSectionTimers() {
+  const now = performance.now();
+  analyticsState.visibleSections.forEach((key) => {
+    const startedAt = analyticsState.sectionStartTimes.get(key);
+    if (typeof startedAt !== 'number') return;
+    const elapsed = Math.max(0, now - startedAt);
+    analyticsState.sectionTotals.set(key, (analyticsState.sectionTotals.get(key) || 0) + elapsed);
+    analyticsState.sectionStartTimes.set(key, now);
+  });
+}
+
+function startSectionTimer(sectionKey) {
+  if (analyticsState.visibleSections.has(sectionKey)) return;
+  analyticsState.visibleSections.add(sectionKey);
+  analyticsState.sectionStartTimes.set(sectionKey, performance.now());
+}
+
+function stopSectionTimer(sectionKey) {
+  if (!analyticsState.visibleSections.has(sectionKey)) return;
+  const startedAt = analyticsState.sectionStartTimes.get(sectionKey);
+  const elapsed = typeof startedAt === 'number' ? Math.max(0, performance.now() - startedAt) : 0;
+  analyticsState.visibleSections.delete(sectionKey);
+  analyticsState.sectionStartTimes.delete(sectionKey);
+  analyticsState.sectionTotals.set(sectionKey, (analyticsState.sectionTotals.get(sectionKey) || 0) + elapsed);
+}
+
+function sendSectionEngagement(reason) {
+  flushSectionTimers();
+  analyticsState.sectionTotals.forEach((ms, sectionKey) => {
+    if (ms < 2000) return; // ignore tiny accidental views
+    trackEvent('section_engagement', {
+      section: sectionKey,
+      seconds_visible: Math.round(ms / 1000),
+      flush_reason: reason
+    });
+  });
+}
+
+function observeSectionsForActivePage() {
+  if (analyticsState.sectionObserver) analyticsState.sectionObserver.disconnect();
+  analyticsState.visibleSections.clear();
+  analyticsState.sectionStartTimes.clear();
+  analyticsState.sectionObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      const section = entry.target;
+      const index = section.dataset.sectionIndex || '0';
+      const pageId = section.dataset.pageId || analyticsState.currentPage;
+      const sectionKey = pageId + ':section_' + index;
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+        startSectionTimer(sectionKey);
+      } else {
+        stopSectionTimer(sectionKey);
+      }
+    });
+  }, { threshold: [0, 0.6, 1] });
+
+  const activePage = document.querySelector('.page.active');
+  if (!activePage) return;
+  const pageId = (activePage.id || '').replace('page-', '') || analyticsState.currentPage;
+  const sections = activePage.querySelectorAll('section');
+  sections.forEach((section, idx) => {
+    section.dataset.sectionIndex = String(idx + 1);
+    section.dataset.pageId = pageId;
+    analyticsState.sectionObserver.observe(section);
+  });
+}
 
 function navigate(id, role) {
   // Hide all pages
@@ -1588,6 +1738,7 @@ function navigate(id, role) {
 
   // Re-run scroll animations for new page
   setTimeout(initObserver, 50);
+  setTimeout(observeSectionsForActivePage, 60);
 
   // Re-init canvas if going home
   if (id === 'home') setTimeout(initCanvas, 100);
@@ -1599,6 +1750,8 @@ function navigate(id, role) {
       if (sel) { sel.value = role; updateContactForm(); }
     }, 60);
   }
+
+  trackPageView(id);
 }
 
 /* ════ CONTACT FORM ════ */
@@ -1657,16 +1810,12 @@ async function submitContactForm() {
   const organizer = (document.getElementById('cf-organizer')?.value || '').trim();
   const bcc       = (document.getElementById('cf-bcc')?.value       || '').trim();
 
-  const headlines = {
-    director: "You're on the list.",
-    sponsor:  "We'll reach out to them.",
-    attendee: "We'll reach out to your organizer."
-  };
-  const bodies = {
-    director: "We'll be in touch shortly to get Intro set up for your event.",
-    sponsor:  "We'll contact your organizer on your behalf. You'll hear from us soon.",
-    attendee: "Your organizer will hear from us. Your name stays anonymous."
-  };
+  const headline = "Thanks! We'll be in touch soon!";
+  const body = role === 'attendee'
+    ? "Your organizer will hear from us. Your name stays anonymous."
+    : role === 'sponsor'
+      ? "We'll contact your organizer on your behalf. You'll hear from us soon."
+      : "We'll be in touch shortly to get Intro set up for your event.";
 
   /* Show loading state on button */
   const btn = document.getElementById('cf-submit');
@@ -1688,8 +1837,8 @@ async function submitContactForm() {
   }
 
   /* Show confirmation regardless (form still works even if email fails) */
-  document.getElementById('cf-confirm-headline').textContent = headlines[role];
-  document.getElementById('cf-confirm-body').textContent     = bodies[role];
+  document.getElementById('cf-confirm-headline').textContent = headline;
+  document.getElementById('cf-confirm-body').textContent = body;
   document.getElementById('contact-form-wrap').style.display = 'none';
   document.getElementById('contact-confirm').style.display   = 'block';
 }
@@ -1866,8 +2015,28 @@ function initObserver() {
 }
 
 /* ════ INIT ════ */
+initGoogleAnalytics();
+setupClickTracking();
 initObserver();
 initCanvas();
+observeSectionsForActivePage();
+trackPageView('home');
+
+analyticsState.heartbeatTimer = window.setInterval(() => {
+  sendSectionEngagement('heartbeat');
+}, 30000);
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    sendSectionEngagement('visibility_hidden');
+  } else {
+    observeSectionsForActivePage();
+  }
+});
+
+window.addEventListener('beforeunload', () => {
+  sendSectionEngagement('beforeunload');
+});
 
 /* ════ EVENT-TYPES CAROUSEL (mobile only) ════ */
 (function () {
