@@ -1823,12 +1823,19 @@ async function submitContactForm() {
   btn.textContent = 'Sending…';
   btn.disabled = true;
 
+  let sendOk = false;
   try {
-    await fetch('/api/contact-form', {
+    const res = await fetch('/api/contact-form', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role, name, email, event, attendees, organizer, bcc })
     });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('Contact form API failed:', res.status, errText);
+    } else {
+      sendOk = true;
+    }
   } catch (e) {
     console.error('Contact form error:', e);
   } finally {
@@ -1836,7 +1843,12 @@ async function submitContactForm() {
     btn.disabled = false;
   }
 
-  /* Show confirmation regardless (form still works even if email fails) */
+  if (!sendOk) {
+    alert('We could not send your request right now. Please try again in a minute.');
+    return;
+  }
+
+  /* Show confirmation after successful API send */
   document.getElementById('cf-confirm-headline').textContent = headline;
   document.getElementById('cf-confirm-body').textContent = body;
   document.getElementById('contact-form-wrap').style.display = 'none';
