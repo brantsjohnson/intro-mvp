@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Hides the dev-only pill (e.g. "Rendering…") in `next dev`. Not included in `next start` / production.
+  devIndicators: false,
   typescript: {
     // !! WARN !!
     // Dangerously allow production builds to successfully complete even if
