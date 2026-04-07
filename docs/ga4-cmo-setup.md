@@ -55,6 +55,34 @@ Add later if needed: `destination_page`, `lead_source`, `http_status` (on `conta
 
 **Important:** **Event parameter** must match the **snake_case** names your site sends — copy them exactly from the table.
 
+Custom definitions only apply to **new** data from the moment you save them (historic hits won’t backfill those dimensions).
+
+### 3a. Add `intent` and `intro_page` (copy into each field)
+
+Do this **twice** — one custom dimension per parameter.
+
+**First dimension — `intent`**
+
+1. **Admin** (gear, bottom left) → **Data display** → **Custom definitions**.
+2. Click **Create custom dimension** (or **Create**).
+3. Fill in:
+   - **Dimension name:** `Click intent` (any label you like)
+   - **Scope:** **Event**
+   - **Description:** (optional) *Used on button_click events.*
+   - **Event parameter:** `intent` ← must be exactly this, lowercase
+4. **Save**.
+
+**Second dimension — `intro_page`**
+
+1. **Create custom dimension** again.
+2. Fill in:
+   - **Dimension name:** `Intro screen`
+   - **Scope:** **Event**
+   - **Event parameter:** `intro_page` ← exactly this
+3. **Save**.
+
+**Use them in Explore:** open an exploration → in **Variables**, click **+** next to **Dimensions** → search **Click intent** / **Intro screen** → check them → **Import**. They appear in the list only **after** they exist in Admin and **after** new events have been collected (sometimes the next day for some reports).
+
 ---
 
 ## 4. Standard reports: events and traffic
@@ -68,6 +96,20 @@ Add later if needed: `destination_page`, `lead_source`, `http_status` (on `conta
 
 1. **Reports** → **Acquisition** → **Traffic acquisition** (or **User acquisition**).
 2. Use **Session primary channel group** / **Session source** once links use `utm_source`, `utm_medium`, `utm_campaign`.
+
+### 4a. “Traffic acquisition” is empty but Realtime works
+
+That usually means one of the following:
+
+| Check | What to do |
+|--------|------------|
+| **Date range** | Top of report: set range to **Last 7 days** or **Last 28 days** and make sure the **end date includes today** (drag the right edge to today). If all your visits were **today** and the range ended **yesterday**, sessions will show **0**. |
+| **Processing delay** | **Realtime** is fast; **Traffic acquisition** can lag **24–48 hours** for a new property. Check again tomorrow. |
+| **Wrong property** | Confirm the site uses **`G-LT17QF6CBE`** and you’re viewing that same property in GA4. |
+| **Data filter** | **Admin** → **Data filters**: if you added a filter that excludes all traffic, turn it off or fix the rule. |
+| **Almost all “Direct”** | Without UTMs, most traffic often looks **Direct** / **Unassigned**. That still counts as sessions — you should see **non-zero** rows once data has processed. |
+
+**Campaign clarity:** add `utm_source`, `utm_medium`, `utm_campaign` to paid/email/social links (see **§9 Campaign links** below) so **Session source / medium** breaks out by campaign instead of everything looking direct.
 
 ---
 
@@ -83,6 +125,26 @@ Add later if needed: `destination_page`, `lead_source`, `http_status` (on `conta
 Second exploration: filter **Event name** = **`generate_lead`**, rows = **Lead role**.
 
 **Save** the exploration (name it e.g. “Intro – weekly funnel”) via the top **Save** / file menu.
+
+### 5a. Explore shows “No data” — common fixes
+
+1. **Rows need a dimension**  
+   In **Settings**, drag something into **Rows** (e.g. **`page_id`** or **`Event name`**). An empty Rows section always produces an empty table.
+
+2. **Values need a metric**  
+   Drag **`Event count`** into **Values**. Rows + Values together are required for a basic table.
+
+3. **Do not combine impossible filters**  
+   If you add **two** filters both on **Event name**, GA4 usually applies **AND**.  
+   **Bad:** *Event name = page_view* **and** *Event name = generate_lead* (no single event has both names → **no data**).  
+   **Good:** **Tab A** — only filter `page_view`, rows = `page_id`. **Tab B** — only filter `generate_lead`, rows = `lead_role`. Or delete one filter.
+
+4. **`intent` / `intro_page` missing in Variables**  
+   Create them in **Admin → Custom definitions** (see [§3a](#3a-add-intent-and-intro_page-copy-into-each-field)), then in Explore **Variables → Dimensions → +** → search and **Import** them.
+
+5. **“Where traffic came from” inside Explore**  
+   Those are **not** your custom params. In **Variables → Dimensions → +**, search and import e.g. **`Session source`**, **`Session medium`**, or **`Session default channel grouping`**, then use them in **Rows** or **Columns** (still add **Event count** or **Sessions** to **Values**).  
+   **Note:** Built-in **Sessions** metrics in Explore align to session-scoped dimensions; event-scoped custom dimensions pair naturally with **Event count**.
 
 ---
 
