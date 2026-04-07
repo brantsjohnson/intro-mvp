@@ -1661,14 +1661,13 @@ function initGoogleAnalytics() {
 }
 
 function trackEvent(name, params) {
-  const payload = Object.assign({ page: analyticsState.currentPage }, params || {});
+  /* Avoid parameter name `page` — it can interfere with GA4 page_view / page context. */
+  const payload = Object.assign({ intro_page: analyticsState.currentPage }, params || {});
 
-  // Google Analytics event (if configured)
   if (typeof window.gtag === 'function') {
     window.gtag('event', name, payload);
   }
 
-  // Vercel custom event hook (if available in runtime)
   if (typeof window.va === 'function') {
     window.va('event', { name, data: payload });
   }
@@ -1678,12 +1677,25 @@ function trackPageView(id) {
   const pageTitle = pageNames[id] || id;
   analyticsState.currentPage = id;
   document.title = pageTitle === 'Home' ? 'Intro — Prove Event ROI' : 'Intro — ' + pageTitle;
-  trackEvent('page_view', {
-    page_id: id,
-    page_title: pageTitle,
-    page_path: window.location.pathname + window.location.search,
-    page_location: window.location.href
-  });
+  const page_path = window.location.pathname + window.location.search;
+  const page_location = window.location.href;
+
+  /* Manual page_view only (no merged `page` key) so GA4 Pages / Realtime path updates reliably. */
+  if (typeof window.gtag === 'function' && GA_MEASUREMENT_ID) {
+    window.gtag('event', 'page_view', {
+      page_title: document.title,
+      page_location: page_location,
+      page_path: page_path,
+      page_id: id
+    });
+  }
+
+  if (typeof window.va === 'function') {
+    window.va('event', {
+      name: 'page_view',
+      data: { intro_page: id, page_id: id, page_title: pageTitle, page_path: page_path, page_location: page_location }
+    });
+  }
 }
 
 function setupClickTracking() {
@@ -1891,11 +1903,13 @@ async function submitContactForm() {
     if (!res.ok) {
       const errText = await res.text();
       console.error('Contact form API failed:', res.status, errText);
+      trackEvent('contact_submit_failed', { lead_role: role, http_status: res.status });
     } else {
       sendOk = true;
     }
   } catch (e) {
     console.error('Contact form error:', e);
+    trackEvent('contact_submit_failed', { lead_role: role, http_status: 0, error: 'network' });
   } finally {
     btn.textContent = originalText;
     btn.disabled = false;
