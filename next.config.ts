@@ -19,6 +19,15 @@ const nextConfig: NextConfig = {
   },
   // Mark puppeteer packages as external to avoid bundling issues in serverless
   serverExternalPackages: ['puppeteer-core', '@sparticuz/chromium'],
+  async rewrites() {
+    return {
+      // Serve the marketing HTML directly at / before Next.js routing kicks in.
+      // This avoids an iframe and lets the static file render without any wrapper.
+      beforeFiles: [
+        { source: '/', destination: '/marketing/index.html' },
+      ],
+    }
+  },
 };
 
 export default nextConfig;
