@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GradientButton } from "@/components/ui/gradient-button"
-import { createClientComponentClient } from "@/lib/supabase"
 import { toast } from "sonner"
 import { ArrowLeft, Plus, Calendar, MapPin, Edit } from "lucide-react"
 
@@ -19,7 +18,6 @@ interface Event {
 
 export default function AdminEventListPage() {
   const router = useRouter()
-  const supabase = createClientComponentClient()
   const [events, setEvents] = useState<Event[]>([])
   const [loadingEvents, setLoadingEvents] = useState(true)
 
@@ -30,18 +28,14 @@ export default function AdminEventListPage() {
   const loadEvents = async () => {
     setLoadingEvents(true)
     try {
-      const { data, error } = await supabase
-        .from("events")
-        .select("event_id, event_code, event_name, event_location, event_starts_at, event_ends_at")
-        .order("event_starts_at", { ascending: false, nullsFirst: false })
-
-      if (error) {
-        console.error("Error loading events:", error)
-        toast.error("Failed to load events")
+      const res = await fetch("/api/create-event")
+      const json = await res.json()
+      if (!res.ok) {
+        console.error("Error loading events:", json)
+        toast.error(json.error || "Failed to load events")
         return
       }
-
-      setEvents(data || [])
+      setEvents(json.events || [])
     } catch (error) {
       console.error("Error loading events:", error)
       toast.error("An error occurred")

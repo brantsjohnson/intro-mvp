@@ -8,8 +8,16 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { EventQRCodeService } from "@/lib/event-qr-service"
+import type { EventHealthMetrics } from "@/lib/platform-admin-metrics"
 import { createClientComponentClient } from "@/lib/supabase"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { toast } from "sonner"
 import {
   ArrowLeft,
@@ -20,6 +28,8 @@ import {
   QrCode,
   Link as LinkIcon,
   Mail,
+  Activity,
+  ShieldCheck,
 } from "lucide-react"
 import Image from "next/image"
 
@@ -32,6 +42,12 @@ interface Event {
   event_ends_at: string | null
   onboarding_question_schema: any
   matching_config: any
+}
+
+interface PortalOrganizerPerson {
+  user_id: string
+  display: string
+  email: string | null
 }
 
 export default function AdminEventEditPage() {
@@ -57,6 +73,14 @@ export default function AdminEventEditPage() {
   const [showRefreshButton, setShowRefreshButton] = useState<boolean>(false)
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
   const [isSendingCards, setIsSendingCards] = useState(false)
+  const [eventHealth, setEventHealth] = useState<EventHealthMetrics | null>(null)
+  const [healthLoading, setHealthLoading] = useState(false)
+
+  const [portalOrganizers, setPortalOrganizers] = useState<PortalOrganizerPerson[]>([])
+  const [portalEligible, setPortalEligible] = useState<PortalOrganizerPerson[]>([])
+  const [portalSelectedUserId, setPortalSelectedUserId] = useState<string>("")
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [portalSaving, setPortalSaving] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -66,6 +90,7 @@ export default function AdminEventEditPage() {
   useEffect(() => {
     if (eventId) {
       loadEvent()
+      loadPortalOrganizers()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
@@ -73,6 +98,7 @@ export default function AdminEventEditPage() {
   useEffect(() => {
     if (event) {
       loadMatchCount()
+      loadEventHealth()
       generateQRCodeAndUrl()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -203,6 +229,94 @@ export default function AdminEventEditPage() {
     }
   }
 
+  const loadEventHealth = async () => {
+    if (!eventId) return
+    setHealthLoading(true)
+    try {
+      const res = await fetch(
+        `/api/platform-admin/event-health?eventId=${encodeURIComponent(eventId)}`,
+      )
+      if (!res.ok) return
+      const data = (await res.json()) as EventHealthMetrics
+      setEventHealth(data)
+    } catch (e) {
+      console.error("Error loading event health:", e)
+    } finally {
+      setHealthLoading(false)
+    }
+  }
+
+  const loadPortalOrganizers = async () => {
+    if (!eventId) return
+    setPortalLoading(true)
+    try {
+      const res = await fetch(
+        `/api/platform-admin/event-organizers?eventId=${encodeURIComponent(eventId)}`,
+      )
+      const data = await res.json()
+      if (!res.ok) {
+        if (res.status === 503) {
+          toast.error(data.error || "event_organizers table missing — run Phase B migration")
+        }
+        return
+      }
+      setPortalOrganizers(data.organizers ?? [])
+      setPortalEligible(data.eligible_attendees ?? [])
+      setPortalSelectedUserId("")
+    } catch (e) {
+      console.error("Error loading organizers:", e)
+    } finally {
+      setPortalLoading(false)
+    }
+  }
+
+  const handleAddPortalOrganizer = async () => {
+    if (!eventId || !portalSelectedUserId) return
+    setPortalSaving(true)
+    try {
+      const res = await fetch("/api/platform-admin/event-organizers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId, userId: portalSelectedUserId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || "Failed to add organizer")
+        return
+      }
+      toast.success("Organizer added — they can use /organizer when signed in")
+      await loadPortalOrganizers()
+    } catch (e) {
+      console.error(e)
+      toast.error("Failed to add organizer")
+    } finally {
+      setPortalSaving(false)
+    }
+  }
+
+  const handleRemovePortalOrganizer = async (userId: string) => {
+    if (!eventId) return
+    setPortalSaving(true)
+    try {
+      const q = new URLSearchParams({ eventId, userId })
+      const res = await fetch(`/api/platform-admin/event-organizers?${q}`, {
+        method: "DELETE",
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || "Failed to remove")
+        return
+      }
+      toast.success("Removed organizer access")
+      await loadPortalOrganizers()
+    } catch (e) {
+      console.error(e)
+      toast.error("Failed to remove")
+    } finally {
+      setPortalSaving(false)
+    }
+  }
+
   const handleStartMatching = async () => {
     if (!event) return
 
@@ -224,6 +338,7 @@ export default function AdminEventEditPage() {
       if (response.ok) {
         setTimeout(() => {
           loadMatchCount()
+          loadEventHealth()
         }, 2000)
       } else {
         console.error("Matching error:", result)
@@ -737,6 +852,185 @@ export default function AdminEventEditPage() {
                     Download QR Code
                   </GradientButton>
                 </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Event health (category-correct metrics — see docs/supabase-categories-reference.md) */}
+          <Card className="bg-card border-border shadow-elevation">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Activity className="h-5 w-5" />
+                Event health
+              </CardTitle>
+              <GradientButton variant="outline" size="sm" onClick={loadEventHealth} disabled={healthLoading}>
+                {healthLoading ? "Refreshing..." : "Refresh"}
+              </GradientButton>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              {!eventHealth && healthLoading ? (
+                <p className="text-muted-foreground">Loading metrics…</p>
+              ) : !eventHealth ? (
+                <p className="text-muted-foreground">No metrics loaded.</p>
+              ) : (
+                <>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Attendees (attendance rows)</p>
+                      <p className="text-lg font-semibold">{eventHealth.attendance_count}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">
+                        AI matches (connection_kind = system_match)
+                      </p>
+                      <p className="text-lg font-semibold">{eventHealth.system_match_count}</p>
+                    </div>
+                  </div>
+                  {Object.keys(eventHealth.connections_by_kind).length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">
+                        Connections by kind
+                      </p>
+                      <ul className="text-xs space-y-0.5 font-mono">
+                        {Object.entries(eventHealth.connections_by_kind)
+                          .sort((a, b) => b[1] - a[1])
+                          .map(([k, v]) => (
+                            <li key={k}>
+                              {k}: {v}
+                            </li>
+                          ))}
+                      </ul>
+                    </div>
+                  )}
+                  {Object.keys(eventHealth.connections_by_user_add_method).length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">
+                        User add methods (non-null user_add_method)
+                      </p>
+                      <ul className="text-xs space-y-0.5 font-mono">
+                        {Object.entries(eventHealth.connections_by_user_add_method)
+                          .sort((a, b) => b[1] - a[1])
+                          .map(([k, v]) => (
+                            <li key={k}>
+                              {k}: {v}
+                            </li>
+                          ))}
+                      </ul>
+                    </div>
+                  )}
+                  {Object.keys(eventHealth.connection_types_selected_counts).length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">
+                        Attendee intent (connection_types_selected, DB values)
+                      </p>
+                      <ul className="text-xs space-y-0.5 font-mono max-h-40 overflow-y-auto">
+                        {Object.entries(eventHealth.connection_types_selected_counts)
+                          .sort((a, b) => b[1] - a[1])
+                          .map(([k, v]) => (
+                            <li key={k}>
+                              {k}: {v}
+                            </li>
+                          ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Organizer portal access (Phase B) — pick from attendees */}
+          <Card className="bg-card border-border shadow-elevation">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ShieldCheck className="h-5 w-5" />
+                Organizer portal (/organizer)
+              </CardTitle>
+              <GradientButton
+                variant="outline"
+                size="sm"
+                onClick={loadPortalOrganizers}
+                disabled={portalLoading}
+              >
+                {portalLoading ? "Loading…" : "Refresh"}
+              </GradientButton>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <p className="text-xs text-muted-foreground">
+                People listed here can open the read-only organizer dashboard for this event after
+                they sign in. Choices are{" "}
+                <strong>attendees only</strong> (so they already have a profile row). To grant
+                access to someone who has not joined yet, use Supabase SQL or Table Editor on{" "}
+                <code className="rounded bg-muted px-1">event_organizers</code>.
+              </p>
+              {portalOrganizers.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Current organizers</p>
+                  <ul className="space-y-2">
+                    {portalOrganizers.map((p) => (
+                      <li
+                        key={p.user_id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
+                      >
+                        <div>
+                          <span className="font-medium">{p.display}</span>
+                          {p.email && (
+                            <span className="text-muted-foreground text-xs ml-2">{p.email}</span>
+                          )}
+                        </div>
+                        <GradientButton
+                          variant="outline"
+                          size="sm"
+                          disabled={portalSaving}
+                          onClick={() => handleRemovePortalOrganizer(p.user_id)}
+                        >
+                          Remove
+                        </GradientButton>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {portalEligible.length > 0 ? (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="flex-1 space-y-2">
+                    <Label>Add from attendees</Label>
+                    <Select
+                      value={portalSelectedUserId || undefined}
+                      onValueChange={setPortalSelectedUserId}
+                    >
+                      <SelectTrigger className="w-full max-w-md">
+                        <SelectValue placeholder="Select attendee…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {portalEligible.map((p) => (
+                          <SelectItem key={p.user_id} value={p.user_id}>
+                            {p.display}
+                            {p.email ? ` (${p.email})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <GradientButton
+                    onClick={handleAddPortalOrganizer}
+                    disabled={!portalSelectedUserId || portalSaving}
+                  >
+                    Add organizer
+                  </GradientButton>
+                </div>
+              ) : (
+                portalOrganizers.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No attendees yet (or migration not applied). Organizers can be added once
+                    people join this event.
+                  </p>
+                )
+              )}
+              {portalOrganizers.length > 0 && portalEligible.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Every attendee is already an organizer, or there are no other attendees to add.
+                </p>
               )}
             </CardContent>
           </Card>

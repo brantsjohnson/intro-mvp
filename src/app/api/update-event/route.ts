@@ -1,8 +1,14 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import {
+  createServiceRoleClient,
+  requirePlatformAdminForRoute,
+} from '@/lib/platform-admin'
 
 export async function PUT(request: NextRequest) {
   try {
+    const gate = await requirePlatformAdminForRoute()
+    if (!gate.ok) return gate.response
+
     const { eventId, eventName, eventLocation, eventStartsAt, eventEndsAt } = await request.json()
     
     if (!eventId) {
@@ -12,17 +18,15 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !supabaseServiceKey) {
+    let supabase
+    try {
+      supabase = createServiceRoleClient()
+    } catch {
       return NextResponse.json(
         { error: 'Missing Supabase configuration' },
         { status: 500 }
       )
     }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Build update object - only include fields that are provided
     const updateData: any = {}

@@ -71,13 +71,113 @@ export type Database = {
           event_ends_at: string | null
           onboarding_question_schema: Json | null
           matching_config: Json | null
+          organization_id: string | null
         }
         Insert: Partial<Database["public"]["Tables"]["events"]["Row"]> & {
           event_code: string
           event_name: string
         }
         Update: Partial<Database["public"]["Tables"]["events"]["Row"]>
+        Relationships: [
+          {
+            foreignKeyName: "events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["organization_id"]
+          }
+        ]
+      }
+      event_organizers: {
+        Row: {
+          event_id: string
+          user_id: string
+          created_at: string | null
+        }
+        Insert: {
+          event_id: string
+          user_id: string
+          created_at?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["event_organizers"]["Row"]>
+        Relationships: [
+          {
+            foreignKeyName: "event_organizers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "event_organizers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          }
+        ]
+      }
+      organizations: {
+        Row: {
+          organization_id: string
+          name: string | null
+          plan_key: string | null
+          created_at: string | null
+        }
+        Insert: Partial<Database["public"]["Tables"]["organizations"]["Row"]> & {
+          organization_id?: string
+        }
+        Update: Partial<Database["public"]["Tables"]["organizations"]["Row"]>
         Relationships: []
+      }
+      organizer_memberships: {
+        Row: {
+          user_id: string
+          organization_id: string
+          role: string
+          created_at: string | null
+        }
+        Insert: {
+          user_id: string
+          organization_id: string
+          role?: string
+          created_at?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["organizer_memberships"]["Row"]>
+        Relationships: [
+          {
+            foreignKeyName: "organizer_memberships_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "organizer_memberships_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          }
+        ]
+      }
+      platform_admins: {
+        Row: {
+          user_id: string
+        }
+        Insert: {
+          user_id: string
+        }
+        Update: Partial<Database["public"]["Tables"]["platform_admins"]["Row"]>
+        Relationships: [
+          {
+            foreignKeyName: "platform_admins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          }
+        ]
       }
       attendance: {
         Row: {

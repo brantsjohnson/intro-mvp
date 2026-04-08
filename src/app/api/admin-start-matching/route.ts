@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import {
+  createServiceRoleClient,
+  requirePlatformAdminForRoute,
+} from '@/lib/platform-admin'
 
 export async function POST(request: NextRequest) {
   try {
-    const { eventCode, priority = 0, force = false } = await request.json()
+    const gate = await requirePlatformAdminForRoute()
+    if (!gate.ok) return gate.response
+
+    const { eventCode } = await request.json()
     
     if (!eventCode) {
       return NextResponse.json({ error: 'eventCode is required' }, { status: 400 })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const supabase = createServiceRoleClient()
 
     // Get event ID
     const { data: eventData, error: eventError } = await supabase
@@ -63,13 +67,13 @@ export async function POST(request: NextRequest) {
 // GET endpoint to check event status
 export async function GET(request: NextRequest) {
   try {
+    const gate = await requirePlatformAdminForRoute()
+    if (!gate.ok) return gate.response
+
     const { searchParams } = new URL(request.url)
     const eventCode = searchParams.get('eventCode')
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const supabase = createServiceRoleClient()
 
     if (eventCode) {
       // Get event details and match count

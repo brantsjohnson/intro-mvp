@@ -14,7 +14,35 @@ This document is the **source of truth** for what URL shows **marketing** vs the
 | `/home` | App: main event experience | Matches, QR, directory. |
 | `/join/[encrypted]` | App: encrypted event link router | Sends unauthenticated users to `/auth?code=…`. |
 | `/event/join` | App: legacy 6-digit join UI | |
-| `/messages`, `/profile/…`, `/settings`, `/survey/…`, `/admin/…` | App | See `ROUTE_AUDIT.md` for detail. |
+| `/messages`, `/profile/…`, `/settings`, `/survey/…`, `/admin/…`, `/organizer/…` | App | See `ROUTE_AUDIT.md` for detail. |
+
+### Organizer (`/organizer`) — Phase B, read-only
+
+**Who can access:** Signed-in users who appear in **`event_organizers`** for that event, or in **`organizer_memberships`** for an **`organizations.organization_id`** that matches the event’s **`events.organization_id`**. Migration: [`supabase/migrations/20260408_phase_b_organizer_access.sql`](supabase/migrations/20260408_phase_b_organizer_access.sql). Logic: [`src/lib/organizer-auth.ts`](src/lib/organizer-auth.ts).
+
+**URLs:** [`/organizer`](src/app/organizer/page.tsx) lists allowed events; [`/organizer/event/[eventId]`](src/app/organizer/event/[eventId]/page.tsx) shows attendee roster, match summaries, and `system_match` pairs (no writes, no CRM).
+
+**APIs:** [`src/app/api/organizer/`](src/app/api/organizer/) — all `GET`, session required, service role only after an event-scoped check.
+
+**Assigning access (SQL examples):**
+
+```sql
+-- Per-event organizer (user must exist in public.users)
+insert into public.event_organizers (event_id, user_id)
+values ('<event_uuid>', '<user_uuid>');
+
+-- Or org-wide: link user to org, and set events.organization_id to that org
+insert into public.organizer_memberships (user_id, organization_id, role)
+values ('<user_uuid>', '<organization_uuid>', 'owner');
+```
+
+### Platform admin (`/admin`)
+
+**Who can access:** Only users allowed by **`PLATFORM_ADMIN_USER_IDS`** (comma-separated Supabase auth UUIDs in env) or a row in the **`platform_admins`** table (see migration `supabase/migrations/20260407_phase_a_platform_admin.sql`). [`src/app/admin/layout.tsx`](src/app/admin/layout.tsx) redirects everyone else to `/home`; unauthenticated users go to `/auth`.
+
+**APIs gated the same way:** [`/api/create-event`](src/app/api/create-event/route.ts), [`/api/update-event`](src/app/api/update-event/route.ts), [`/api/admin-start-matching`](src/app/api/admin-start-matching/route.ts), [`/api/admin-send-networking-cards`](src/app/api/admin-send-networking-cards/route.ts), read-only [`/api/platform-admin/event-health`](src/app/api/platform-admin/event-health/route.ts), and [`/api/platform-admin/event-organizers`](src/app/api/platform-admin/event-organizers/route.ts) (assign **portal organizers** for `/organizer`) require a logged-in platform admin session before using the service role.
+
+From **`/admin/event/[eventId]`**, use the **Organizer portal** card to pick an **attendee** and grant access (writes `event_organizers`). People who have never joined the event still need a manual SQL/Table Editor row.
 
 ## Intended flow after “Sign in”
 

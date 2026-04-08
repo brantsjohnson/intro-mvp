@@ -6,7 +6,7 @@ import { AnalyticsScripts } from "@/components/analytics-scripts";
 
 const site =
   process.env.NEXT_PUBLIC_SITE_URL ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:1000");
 
 export const metadata: Metadata = {
   metadataBase: new URL(site),

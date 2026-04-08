@@ -1,8 +1,14 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import {
+  createServiceRoleClient,
+  requirePlatformAdminForRoute,
+} from '@/lib/platform-admin'
 
 export async function POST(request: NextRequest) {
   try {
+    const gate = await requirePlatformAdminForRoute()
+    if (!gate.ok) return gate.response
+
     const { eventCode, eventName, eventLocation, eventStartsAt, eventEndsAt } = await request.json()
     
     if (!eventCode || !eventName) {
@@ -12,17 +18,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !supabaseServiceKey) {
+    let supabase
+    try {
+      supabase = createServiceRoleClient()
+    } catch {
       return NextResponse.json(
         { error: 'Missing Supabase configuration' },
         { status: 500 }
       )
     }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Validate event code is 6 characters (as per PRD)
     const cleanCode = eventCode.toUpperCase().trim()
@@ -82,17 +86,18 @@ export async function POST(request: NextRequest) {
 // GET endpoint to list all events
 export async function GET() {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const gate = await requirePlatformAdminForRoute()
+    if (!gate.ok) return gate.response
 
-    if (!supabaseUrl || !supabaseServiceKey) {
+    let supabase
+    try {
+      supabase = createServiceRoleClient()
+    } catch {
       return NextResponse.json(
         { error: 'Missing Supabase configuration' },
         { status: 500 }
       )
     }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const { data: events, error } = await supabase
       .from('events')

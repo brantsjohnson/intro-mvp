@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import {
+  createServiceRoleClient,
+  requirePlatformAdminForRoute,
+} from '@/lib/platform-admin'
 
 export async function POST(request: NextRequest) {
   try {
+    const gate = await requirePlatformAdminForRoute()
+    if (!gate.ok) return gate.response
+
     const { eventId } = await request.json()
 
     if (!eventId) {
@@ -12,10 +18,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = createServiceRoleClient()
 
     // Get all users who attended the event
     const { data: attendees, error: attendeesError } = await supabase
@@ -42,7 +45,7 @@ export async function POST(request: NextRequest) {
     // Send networking cards to all attendees
     // Use environment variable or construct from request
     const protocol = request.headers.get('x-forwarded-proto') || 'https'
-    const host = request.headers.get('host') || 'localhost:3000'
+    const host = request.headers.get('host') || 'localhost:1000'
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || `${protocol}://${host}`
     
     console.log(`Sending networking cards to ${attendees.length} attendees for event ${eventId}`)

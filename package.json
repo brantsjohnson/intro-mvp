@@ -12,7 +12,8 @@
     "seed:users": "tsx scripts/seed-users.ts",
     "wipe:all": "tsx scripts/seed-users.ts wipe",
     "deploy:all": "tsx scripts/deploy-all.ts",
-    "test:email": "tsx scripts/test-email.ts"
+    "test:email": "tsx scripts/test-email.ts",
+    "platform-admin:sync": "tsx scripts/sync-platform-admins.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -52,6 +53,7 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-hook-form": "^7.63.0",
+    "recharts": "^3.0.2",
     "resend": "^6.1.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",

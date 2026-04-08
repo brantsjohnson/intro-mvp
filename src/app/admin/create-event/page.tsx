@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { EventQRCodeService } from "@/lib/event-qr-service"
-import { createClientComponentClient } from "@/lib/supabase"
 import { ArrowLeft, Plus, Edit, QrCode, Calendar, MapPin, Copy, Link as LinkIcon } from "lucide-react"
 import Image from "next/image"
 
@@ -22,7 +21,6 @@ interface Event {
 
 export default function CreateEventPage() {
   const router = useRouter()
-  const supabase = createClientComponentClient()
   const [isLoading, setIsLoading] = useState(false)
   const [events, setEvents] = useState<Event[]>([])
   const [loadingEvents, setLoadingEvents] = useState(true)
@@ -77,17 +75,13 @@ export default function CreateEventPage() {
   const loadEvents = async () => {
     setLoadingEvents(true)
     try {
-      const { data, error } = await supabase
-        .from("events")
-        .select("event_id, event_code, event_name, event_location, event_starts_at, event_ends_at")
-        .order("event_starts_at", { ascending: false, nullsFirst: false })
-
-      if (error) {
-        console.error("Error loading events:", error)
+      const res = await fetch("/api/create-event")
+      const json = await res.json()
+      if (!res.ok) {
+        console.error("Error loading events:", json)
         return
       }
-
-      setEvents(data || [])
+      setEvents(json.events || [])
     } catch (error) {
       console.error("Error loading events:", error)
     } finally {

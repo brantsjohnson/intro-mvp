@@ -129,6 +129,8 @@
 
 ## Admin Routes
 
+**Access control (Phase A):** All `/admin/**` pages require a **platform admin** session (`PLATFORM_ADMIN_USER_IDS` env and/or `platform_admins` table). APIs used for event CRUD, matching, networking cards, and `GET /api/platform-admin/event-health` use the same check; see `docs/APP-ROUTING-FLOW.md`.
+
 ### `/admin/create-event`
 **What it does:** Admin page for creating new events and viewing/list managing all events with QR codes and join links.
 
@@ -156,6 +158,24 @@
 
 ---
 
+## Organizer routes (Phase B, read-only)
+
+**Access control:** User must be in `event_organizers` for the event, or in `organizer_memberships` for the event’s `organization_id`. See `docs/APP-ROUTING-FLOW.md`.
+
+### `/organizer`
+**What it does:** Lists events the signed-in user may view as an organizer.
+
+**What it records:** No writes — reads via server helper scoped to `event_organizers` + `organizer_memberships`.
+
+---
+
+### `/organizer/event/[eventId]`
+**What it does:** Read-only dashboard: attendance summary, business-need buckets, connection breakdowns (same category semantics as platform Event health), paginated attendee roster, paginated `system_match` pair table.
+
+**What it records:** No writes — client fetches `GET /api/organizer/*`.
+
+---
+
 ## Duplicate/Similar Paths
 
 ### Event Joining Paths (3 different entry points):
@@ -170,10 +190,20 @@
 ## API Routes (Summary)
 
 ### `/api/create-event`
-**What it records:** Creates entry in `events` table
+**What it records:** Creates entry in `events` table  
+**Auth:** Platform admin only (`GET` lists events; `POST` creates).
 
 ### `/api/update-event`
-**What it records:** Updates `events` table (name, location, dates)
+**What it records:** Updates `events` table (name, location, dates)  
+**Auth:** Platform admin only.
+
+### `/api/platform-admin/event-health`
+**What it does:** Read-only JSON aggregates for one event (attendance count, `system_match` count, `connections_by_kind`, `user_add_method` breakdown, `connection_types_selected` counts). Filters follow `docs/supabase-categories-reference.md` §1–3.  
+**Auth:** Platform admin only.
+
+### `/api/platform-admin/event-organizers`
+**What it does:** `GET` lists organizers + eligible attendees for an event; `POST` inserts `event_organizers`; `DELETE` removes a row. Used by the **Organizer portal** card on `/admin/event/[eventId]`.  
+**Auth:** Platform admin only.
 
 ### `/api/refresh-matches`
 **What it records:** Triggers matching which creates `connections` with `connection_kind: system_match`
@@ -185,10 +215,36 @@
 **What it records:** Updates `attendance` table with AI-generated embeddings, tags, summaries
 
 ### `/api/admin-start-matching`
-**What it records:** Creates `connections` records for all users in event
+**What it records:** Creates `connections` records for all users in event  
+**Auth:** Platform admin only.
 
 ### `/api/admin-send-networking-cards`
-**What it records:** No DB writes - sends emails with networking summaries
+**What it records:** No DB writes - sends emails with networking summaries  
+**Auth:** Platform admin only.
+
+### `/api/organizer/events`
+**What it does:** Lists events the user can access as organizer.  
+**Auth:** Logged-in user with `event_organizers` / `organizer_memberships` scope.
+
+### `/api/organizer/event-health`
+**What it does:** Same aggregates as [`src/lib/platform-admin-metrics.ts`](src/lib/platform-admin-metrics.ts) for one event.  
+**Auth:** Organizer scoped to `eventId`.
+
+### `/api/organizer/attendance-summary`
+**What it does:** Read-only counts and grouped `business_need_text` buckets from `attendance`.  
+**Auth:** Organizer scoped to `eventId`.
+
+### `/api/organizer/attendance-roster`
+**What it does:** Paginated roster: attendee + `users` name/email + onboarding + business need preview.  
+**Auth:** Organizer scoped to `eventId`.
+
+### `/api/organizer/matches-summary`
+**What it does:** `system_match` counts, distinct users touched, `match_algorithm_version` distribution.  
+**Auth:** Organizer scoped to `eventId`.
+
+### `/api/organizer/matches-table`
+**What it does:** Paginated `connections` where `connection_kind = system_match`, with display names for `a_id` / `b_id`.  
+**Auth:** Organizer scoped to `eventId`.
 
 ### `/api/messages/send`
 **What it records:** Creates entry in `messages` table
