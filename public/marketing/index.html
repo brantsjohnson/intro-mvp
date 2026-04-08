@@ -310,7 +310,37 @@ h1, h2, h3 { font-family: var(--font-heading); font-weight: bold; letter-spacing
 .output-card .quote-mini { font-family: var(--font-sans); font-size: 1rem; color: var(--muted-foreground); line-height: 1.5; }
 
 /* ── PRICING CARDS ── */
-.pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 2rem; margin-top: 3rem; }
+.pricing-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2rem; margin-top: 3rem; }
+.pricing-free-trial {
+  margin-top: 2.75rem;
+  border: 1.5px solid var(--border);
+  border-radius: 0 2rem 2rem 0;
+  background: var(--card);
+  padding: 2.5rem 2.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem 3.5rem;
+}
+.pricing-free-trial-main { flex: 1 1 260px; min-width: 0; }
+.pricing-free-trial-main .plan-tagline { min-height: 0; margin-bottom: 1.25rem; }
+.pricing-free-trial-main .plan-cta { width: auto; min-width: 11rem; display: inline-block; margin-top: 1.5rem; }
+.pricing-free-trial-features {
+  flex: 1 1 220px;
+  min-width: min(100%, 18rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pricing-free-trial-features .plan-features {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem 1.5rem;
+  width: 100%;
+  max-width: 22rem;
+}
 .pricing-card { border: 1.5px solid var(--border); padding: 3rem 2.5rem; position: relative; background: var(--card); border-radius: 0 2rem 2rem 0; }
 .pricing-card.featured { border: 2px solid var(--amber); }
 .featured-badge { position: absolute; top: -1px; left: 50%; transform: translateX(-50%); background: var(--amber); color: #fff; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.3rem 1rem; white-space: nowrap; border-radius: 0 0 1rem 1rem; }
@@ -321,31 +351,6 @@ h1, h2, h3 { font-family: var(--font-heading); font-weight: bold; letter-spacing
 .plan-features { list-style: none; display: flex; flex-direction: column; gap: 0.75rem; }
 .plan-features li { font-size: 0.85rem; color: var(--foreground); display: flex; gap: 0.75rem; align-items: flex-start; line-height: 1.5; }
 .plan-features li::before { content: '✓'; color: var(--primary); font-weight: 700; flex-shrink: 0; margin-top: 0.1rem; }
-/* Enterprise — filled amber panel (custom pricing stands apart from beige cards) */
-.pricing-card.pricing-enterprise {
-  background: linear-gradient(165deg, var(--amber) 0%, #a65f1f 52%, #7a4615 100%);
-  border-color: rgba(255, 255, 255, 0.25);
-  box-shadow: 0 10px 36px rgba(196, 120, 42, 0.28);
-}
-.pricing-card.pricing-enterprise .plan-name,
-.pricing-card.pricing-enterprise .plan-features li { color: #fdf9f3; }
-.pricing-card.pricing-enterprise .plan-tagline { color: rgba(253, 249, 243, 0.85); }
-.pricing-card.pricing-enterprise .plan-divider { background: rgba(255, 255, 255, 0.22); }
-.pricing-card.pricing-enterprise .plan-features li::before { color: #f0e6d8; }
-.pricing-card.pricing-enterprise .plan-price .price-amount,
-.pricing-card.pricing-enterprise .plan-price .price-unit { color: #fdf9f3; }
-.pricing-card.pricing-enterprise .plan-price .price-unit { opacity: 0.9; }
-.pricing-card.pricing-enterprise .plan-price .price-amount { letter-spacing: 0; }
-.pricing-card.pricing-enterprise .plan-cta.btn-ghost-light {
-  background: #fdf9f3;
-  color: var(--foreground);
-  border-color: #fdf9f3;
-}
-.pricing-card.pricing-enterprise .plan-cta.btn-ghost-light:hover {
-  background: #fff;
-  filter: none;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.14);
-}
 
 /* ── FAQ ── */
 .faq-list { display: flex; flex-direction: column; margin-top: 3rem; }
@@ -1157,27 +1162,8 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
       <div class="pricing-grid">
 
-        <!-- FREE -->
-        <div class="pricing-card reveal">
-          <div class="plan-name">Free</div>
-          <p class="plan-tagline">Try Intro on a pilot event. Upgrade when you’re ready.</p>
-          <div class="plan-price-wrap">
-            <div class="plan-price">
-              <span class="price-amount">$0</span><span class="price-unit"> to get started</span>
-            </div>
-          </div>
-          <button class="btn btn-ghost-light plan-cta" onclick="navigate('contact')">Get started →</button>
-          <div class="plan-divider"></div>
-          <ul class="plan-features">
-            <li>Up to 50 attendees</li>
-            <li>1 match per attendee</li>
-            <li>Attendee directory</li>
-            <li>Standard post-event survey</li>
-          </ul>
-        </div>
-
         <!-- STARTER -->
-        <div class="pricing-card reveal reveal-delay-1">
+        <div class="pricing-card reveal">
           <div class="plan-name">Starter</div>
           <p class="plan-tagline">Up to 250 attendees. One event at a time.</p>
           <div class="plan-price-wrap">
@@ -1200,7 +1186,7 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
         </div>
 
         <!-- GROWTH -->
-        <div class="pricing-card featured reveal reveal-delay-2">
+        <div class="pricing-card featured reveal reveal-delay-1">
           <div class="featured-badge">Most Popular</div>
           <div class="plan-name">Growth</div>
           <p class="plan-tagline">Up to 500 attendees. Full sponsor ROI suite.</p>
@@ -1229,7 +1215,7 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
         </div>
 
         <!-- ENTERPRISE -->
-        <div class="pricing-card pricing-enterprise reveal reveal-delay-3">
+        <div class="pricing-card reveal reveal-delay-2">
           <div class="plan-name">Enterprise</div>
           <p class="plan-tagline">Unlimited attendees. Custom everything.</p>
           <div class="plan-price-wrap">
@@ -1253,6 +1239,28 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
         </div>
 
       </div>
+
+      <div class="pricing-free-trial reveal reveal-delay-3">
+        <div class="pricing-free-trial-main">
+          <div class="plan-name">Free Trial</div>
+          <p class="plan-tagline">Try Intro on a pilot event. Upgrade when you’re ready.</p>
+          <div class="plan-price-wrap" style="margin-bottom:0;">
+            <div class="plan-price">
+              <span class="price-amount">$0</span><span class="price-unit"> to get started</span>
+            </div>
+          </div>
+          <button class="btn btn-ghost-light plan-cta" onclick="navigate('contact')">Get started →</button>
+        </div>
+        <div class="pricing-free-trial-features">
+          <ul class="plan-features">
+            <li>Up to 50 attendees</li>
+            <li>1 match per attendee</li>
+            <li>Attendee directory</li>
+            <li>Standard post-event survey</li>
+          </ul>
+        </div>
+      </div>
+
       <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
     </div>
   </section>
