@@ -970,7 +970,7 @@ export default function AdminEventEditPage() {
                     {portalOrganizers.map((p) => (
                       <li
                         key={p.user_id}
-                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-[calc(0.75rem+var(--concave-surface-inset))] py-[calc(0.5rem+var(--concave-surface-inset))]"
                       >
                         <div>
                           <span className="font-medium">{p.display}</span>

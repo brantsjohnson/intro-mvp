@@ -263,6 +263,33 @@ const ROLE_INTENT_LABELS: Record<string, string> = {
   mentor: "Mentors",
 }
 
+// Lightweight job-function classifier (mirrors matchmaker personas.ts, runs client-side)
+const CAREER_FUNCTION_MAP: Array<{ label: string; display: string; patterns: RegExp[] }> = [
+  { label: "exec",         display: "Exec / Founder",      patterns: [/\b(ceo|coo|cto|cpo|cmo|cio|cso|cxo|chief|founder|co[-\s]?founder|president|chair|board|owner|partner|managing\s+director|general\s+partner)\b/i] },
+  { label: "engineering",  display: "Engineering",          patterns: [/\bengineer/i, /\bdeveloper/i, /\bdevops\b/i, /\bsre\b/i, /\barchitect\b/i, /\bfull[-\s]?stack\b/i, /\bbackend\b/i, /\bfrontend\b/i] },
+  { label: "product",      display: "Product",              patterns: [/\bproduct\s+manager\b/i, /\bpm\b/i, /\bproduct\s+owner\b/i, /\bproduct\s+lead\b/i] },
+  { label: "design",       display: "Design",               patterns: [/\bux\b/i, /\bui\b/i, /\bdesigner\b/i] },
+  { label: "data",         display: "Data & Analytics",     patterns: [/\banalyst\b/i, /\banalytics\b/i, /\bdata\b/i, /\bbi\b/i, /\binsights\b/i] },
+  { label: "ai_ml",        display: "AI / ML",              patterns: [/\bml\b/i, /\bmachine\s+learning/i, /\bllm\b/i, /\b(applied|research)\s+scientist\b/i] },
+  { label: "marketing",    display: "Marketing",            patterns: [/\bmarketing\b/i, /\bgrowth\b/i, /\bdemand\s+gen/i, /\bbrand\b/i, /\bcontent\b/i, /\bseo\b/i, /\bsem\b/i] },
+  { label: "sales",        display: "Sales",                patterns: [/\baccount\s+executive\b/i, /\bae\b/i, /\bsdr\b/i, /\bbdr\b/i, /\bsales\b/i, /\baccount\s+manager\b/i] },
+  { label: "cs",           display: "Customer Success",     patterns: [/\bcustomer\s+success\b/i, /\bcsm\b/i, /\brenewals?\b/i] },
+  { label: "partnerships", display: "Partnerships & BD",    patterns: [/\bpartnership/i, /\balliances?\b/i, /\bchannel\b/i, /\bbd\b/i, /\bbusiness\s+development\b/i] },
+  { label: "ops",          display: "Operations",           patterns: [/\boperations\b/i, /\bprogram\s+manager\b/i, /\bproject\s+manager\b/i, /\bbizops\b/i, /\brevops\b/i] },
+  { label: "finance",      display: "Finance",              patterns: [/\bfinance\b/i, /\bfp&a\b/i, /\baccounting\b/i, /\bcontroller\b/i] },
+  { label: "hr_talent",    display: "HR & Talent",          patterns: [/\brecruiter\b/i, /\btalent\s+acquisition\b/i, /\bpeople\s+ops\b/i, /\bhrbp\b/i, /\bhr\b/i] },
+  { label: "it_sec",       display: "IT & Security",        patterns: [/\bit\s+manager\b/i, /\bsysadmin\b/i, /\bsecurity\b/i, /\bciso\b/i] },
+  { label: "legal",        display: "Legal",                patterns: [/\bcounsel\b/i, /\blawyer\b/i, /\bcompliance\b/i] },
+]
+
+function classifyJobFunction(title: string | null | undefined): { label: string; display: string } {
+  if (!title?.trim()) return { label: "other", display: "Other" }
+  for (const entry of CAREER_FUNCTION_MAP) {
+    if (entry.patterns.some(re => re.test(title))) return { label: entry.label, display: entry.display }
+  }
+  return { label: "other", display: "Other" }
+}
+
 function humanizeSnake(s: string): string {
   return s
     .split("_")
@@ -288,6 +315,10 @@ export type OrganizerAttendeeInsightRow = {
   industry_tags: string[]
   role_intent: string | null
   role_intent_label: string | null
+  /** Bucket from profile job title (engineering, exec, …) */
+  career_role_key: string
+  career_role_label: string
+  career_title: string | null
   connection_degree: number
   had_system_match: boolean
   onboarding_completed: boolean
@@ -295,6 +326,8 @@ export type OrganizerAttendeeInsightRow = {
 
 export type OrganizerEventAnalytics = {
   event_id: string
+  /** 6-character code guests use at join / on signage */
+  event_code: string
   event_name: string | null
   event_starts_at: string | null
   event_ends_at: string | null
@@ -314,6 +347,7 @@ export type OrganizerEventAnalytics = {
   intent_counts: { key: string; label: string; count: number }[]
   industry_top: { tag: string; label: string; count: number }[]
   role_intent_counts: { key: string; label: string; count: number }[]
+  career_role_counts: { key: string; label: string; count: number }[]
   connection_method_counts: { key: string; label: string; count: number }[]
   match_score_histogram: {
     bin_label: string
@@ -321,6 +355,8 @@ export type OrganizerEventAnalytics = {
     bin_end: number
     count: number
   }[]
+  /** Average match score 0–1 for system-suggested connections. Null if none. */
+  avg_match_score: number | null
   connection_depth: { bucket: string; label: string; count: number }[]
   attendee_insights: OrganizerAttendeeInsightRow[]
 }
@@ -372,7 +408,7 @@ export async function fetchOrganizerEventAnalytics(
 ): Promise<OrganizerEventAnalytics | null> {
   const { data: eventRow, error: evErr } = await supabase
     .from("events")
-    .select("event_id, event_name, event_starts_at, event_ends_at")
+    .select("event_id, event_code, event_name, event_starts_at, event_ends_at")
     .eq("event_id", eventId)
     .maybeSingle()
 
@@ -392,7 +428,7 @@ export async function fetchOrganizerEventAnalytics(
   const userIds = [...attendeeSet]
   const { data: userRows } = await supabase
     .from("users")
-    .select("user_id, first_name, last_name, email, industry_tags")
+    .select("user_id, first_name, last_name, email, industry_tags, career_title")
     .in("user_id", userIds)
 
   const userMap = new Map((userRows ?? []).map((u) => [u.user_id, u]))
@@ -539,6 +575,17 @@ export async function fetchOrganizerEventAnalytics(
     }))
     .sort((x, y) => y.count - x.count)
 
+  const careerRoleMap: Record<string, { display: string; count: number }> = {}
+  for (const a of attendanceList) {
+    const u = userMap.get(a.user_id)
+    const { label, display } = classifyJobFunction(u?.career_title)
+    if (!careerRoleMap[label]) careerRoleMap[label] = { display, count: 0 }
+    careerRoleMap[label].count++
+  }
+  const career_role_counts = Object.entries(careerRoleMap)
+    .map(([key, { display, count }]) => ({ key, label: display, count }))
+    .sort((x, y) => y.count - x.count)
+
   const methodCountMap: Record<string, number> = {}
   for (const r of activeConns) {
     const k = classifyConnectionMethod(r)
@@ -554,6 +601,8 @@ export async function fetchOrganizerEventAnalytics(
     .sort((x, y) => y.count - x.count)
 
   const binCount = new Array(10).fill(0)
+  let matchScoreSum = 0
+  let matchScoreCount = 0
   for (const r of connRows) {
     if (r.connection_kind !== "system_match") continue
     if (r.match_score == null) continue
@@ -563,6 +612,8 @@ export async function fetchOrganizerEventAnalytics(
     if (s > 1) s = 1
     const idx = Math.min(9, Math.floor(s * 10))
     binCount[idx]++
+    matchScoreSum += s
+    matchScoreCount++
   }
   const match_score_histogram = binCount.map((count, i) => {
     const bin_start = i / 10
@@ -574,6 +625,11 @@ export async function fetchOrganizerEventAnalytics(
       count,
     }
   })
+  /** Average match score 0–1, null if no system matches exist. */
+  const avg_match_score: number | null =
+    matchScoreCount > 0
+      ? Math.round((matchScoreSum / matchScoreCount) * 100) / 100
+      : null
 
   const depthBuckets = new Map<string, number>()
   const bumpBucket = (label: string) =>
@@ -630,6 +686,7 @@ export async function fetchOrganizerEventAnalytics(
         (k) => ORGANIZER_CONNECTION_INTENT_LABELS[k] ?? humanizeSnake(k),
       )
       const ri = a.event_role_intent?.toLowerCase().trim() || "general"
+      const cr = classifyJobFunction(u?.career_title)
       return {
         user_id: a.user_id,
         display_name,
@@ -639,6 +696,9 @@ export async function fetchOrganizerEventAnalytics(
         industry_tags: industryByUser.get(a.user_id) ?? [],
         role_intent: a.event_role_intent,
         role_intent_label: ROLE_INTENT_LABELS[ri] ?? humanizeSnake(ri),
+        career_role_key: cr.label,
+        career_role_label: cr.display,
+        career_title: u?.career_title?.trim() || null,
         connection_degree: degree.get(a.user_id) ?? 0,
         had_system_match: matchedAttendeeSet.has(a.user_id),
         onboarding_completed: a.onboarding_completed === true,
@@ -665,6 +725,7 @@ export async function fetchOrganizerEventAnalytics(
 
   return {
     event_id: eventId,
+    event_code: eventRow.event_code,
     event_name: eventRow.event_name,
     event_starts_at: eventRow.event_starts_at,
     event_ends_at: eventRow.event_ends_at,
@@ -679,8 +740,10 @@ export async function fetchOrganizerEventAnalytics(
     intent_counts,
     industry_top,
     role_intent_counts,
+    career_role_counts,
     connection_method_counts,
     match_score_histogram,
+    avg_match_score,
     connection_depth,
     attendee_insights,
   }

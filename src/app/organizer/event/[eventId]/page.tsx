@@ -165,7 +165,7 @@ export default function OrganizerEventDashboardPage() {
                 <p className="text-muted-foreground mb-2">
                   Page {rosterPage} — {rosterTotal} total
                 </p>
-                <div className="overflow-x-auto rounded border border-border">
+                <div className="overflow-x-auto rounded border border-border outline-surface-inset">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-border bg-muted/50">
@@ -227,7 +227,7 @@ export default function OrganizerEventDashboardPage() {
                   Suggested introductions — page {matchesPage} of{" "}
                   {matchesTotal}
                 </p>
-                <div className="overflow-x-auto rounded border border-border">
+                <div className="overflow-x-auto rounded border border-border outline-surface-inset">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-border bg-muted/50">

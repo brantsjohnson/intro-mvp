@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 import { X } from "lucide-react"
 
 import { GradientButton } from "@/components/ui/gradient-button"
@@ -30,19 +31,28 @@ export function AnalyticsSlideOver({
     return () => window.removeEventListener("keydown", onKey)
   }, [open, onOpenChange])
 
-  if (!open) return null
+  useEffect(() => {
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [open])
 
-  return (
+  if (!open || typeof document === "undefined") return null
+
+  return createPortal(
     <>
       <button
         type="button"
-        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px]"
+        className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-[1px]"
         aria-label="Close panel"
         onClick={() => onOpenChange(false)}
       />
       <aside
         className={cn(
-          "fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-border bg-background shadow-xl",
+          "fixed inset-y-0 right-0 z-[100] flex h-dvh max-h-dvh w-full max-w-lg flex-col overflow-hidden border-l border-border bg-background shadow-xl",
           "animate-in slide-in-from-right duration-200",
         )}
         role="dialog"
@@ -74,8 +84,11 @@ export function AnalyticsSlideOver({
             <X className="h-4 w-4" />
           </GradientButton>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4">
+          {children}
+        </div>
       </aside>
-    </>
+    </>,
+    document.body,
   )
 }
