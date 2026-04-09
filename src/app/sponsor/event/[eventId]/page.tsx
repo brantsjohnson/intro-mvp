@@ -1,6 +1,6 @@
 "use client"
 
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,6 +27,13 @@ import {
   SPONSOR_PHASE_D_MIGRATION_FILE,
   SPONSOR_PHASE_F_MIGRATION_FILE,
 } from "@/lib/sponsor-schema-guard"
+import {
+  DEMO_CONNECTION_TYPES,
+  DEMO_PROFILE,
+  DEMO_RECOMMENDATIONS,
+  DEMO_ROI,
+  DEMO_TOTAL_ATTENDEES,
+} from "@/lib/sponsor-demo-data"
 import {
   sponsorDisclosureSummaryClassName,
   sponsorKpiCardClassName,
@@ -89,7 +96,9 @@ type MatchSummaryInfo = {
 export default function SponsorEventDashboardPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const eventId = params?.eventId as string
+  const isDemoMode = searchParams?.get("demo") === "1"
 
   const [forbidden, setForbidden] = useState(false)
 
@@ -263,14 +272,44 @@ export default function SponsorEventDashboardPage() {
     setRoiLoading(false)
   }, [eventId])
 
-  useEffect(() => { if (!eventId) return; void loadProfile() }, [eventId, loadProfile])
   useEffect(() => {
-    if (!eventId || forbidden) return
+    if (isDemoMode) {
+      setProfile(DEMO_PROFILE)
+      setCompanyDesc(DEMO_PROFILE.company_description)
+      setProductOffering(DEMO_PROFILE.product_offering)
+      setEventGoals(DEMO_PROFILE.event_goals)
+      setIcpIndustries(DEMO_PROFILE.ideal_customer_json.industries.join(", "))
+      setIcpRoles(DEMO_PROFILE.ideal_customer_json.roles.join(", "))
+      setIcpStages(DEMO_PROFILE.ideal_customer_json.company_stages.join(", "))
+      setRecommendations(DEMO_RECOMMENDATIONS)
+      setRecsLoading(false)
+      setRoi(DEMO_ROI)
+      setRoiLoading(false)
+      setConnectionTypes(DEMO_CONNECTION_TYPES)
+      setTotalAttendees(DEMO_TOTAL_ATTENDEES)
+      setInsightsLoading(false)
+      recsHydratedRef.current = true
+      return
+    }
+    if (!eventId) return
+    void loadProfile()
+  }, [eventId, isDemoMode, loadProfile])
+
+  useEffect(() => {
+    if (isDemoMode || !eventId || forbidden) return
     recsHydratedRef.current = false
     void loadRecommendations()
-  }, [eventId, forbidden, loadRecommendations])
-  useEffect(() => { if (!eventId || forbidden) return; void loadInsights() }, [eventId, forbidden, loadInsights])
-  useEffect(() => { if (!eventId || forbidden) return; void loadRoi() }, [eventId, forbidden, loadRoi])
+  }, [eventId, forbidden, isDemoMode, loadRecommendations])
+
+  useEffect(() => {
+    if (isDemoMode || !eventId || forbidden) return
+    void loadInsights()
+  }, [eventId, forbidden, isDemoMode, loadInsights])
+
+  useEffect(() => {
+    if (isDemoMode || !eventId || forbidden) return
+    void loadRoi()
+  }, [eventId, forbidden, isDemoMode, loadRoi])
 
   const profileReady = useMemo(() => {
     const industries = icpIndustries.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean)
@@ -282,6 +321,7 @@ export default function SponsorEventDashboardPage() {
   const profileSet = profile !== null
 
   const saveProfile = async () => {
+    if (isDemoMode) { toast.info("Demo mode — changes aren't saved."); return }
     setSavingProfile(true)
     try {
       const payload: Record<string, unknown> = {
@@ -325,6 +365,7 @@ export default function SponsorEventDashboardPage() {
   }
 
   const sendMessage = async () => {
+    if (isDemoMode) { toast.info("Demo mode — messages aren't sent."); setMsgOpen(false); return }
     if (!msgTarget || !msgBody.trim()) return
     setMsgSending(true)
     try {
@@ -352,6 +393,11 @@ export default function SponsorEventDashboardPage() {
     attendeeUserId: string,
     opts?: { openLinkedInUrl?: string },
   ) => {
+    if (isDemoMode) {
+      if (opts?.openLinkedInUrl) window.open(opts.openLinkedInUrl, "_blank", "noopener,noreferrer")
+      toast.info("Demo mode — outreach isn't logged.")
+      return
+    }
     if (opts?.openLinkedInUrl) window.open(opts.openLinkedInUrl, "_blank", "noopener,noreferrer")
     const res = await fetch("/api/sponsor/outreach", {
       method: "POST",
@@ -371,6 +417,7 @@ export default function SponsorEventDashboardPage() {
   }
 
   const saveNotes = async (attendeeUserId: string, notes: string) => {
+    if (isDemoMode) { toast.info("Demo mode — notes aren't saved."); return }
     const res = await fetch("/api/sponsor/outreach", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -427,7 +474,14 @@ export default function SponsorEventDashboardPage() {
     <div className="space-y-8 sm:space-y-10">
       {/* Page header */}
       <div>
-        <h1 className="text-xl font-bold sm:text-2xl">Your event dashboard</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-bold sm:text-2xl">Your event dashboard</h1>
+          {isDemoMode && (
+            <span className="inline-flex items-center rounded-full border border-violet-400/40 bg-violet-500/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">
+              Demo
+            </span>
+          )}
+        </div>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
           See who to approach, track your conversations, and measure your results.
         </p>
@@ -564,7 +618,7 @@ export default function SponsorEventDashboardPage() {
           </p>
           <Card className={sponsorSectionCardClassName}>
             <CardContent className="pt-4">
-              <SponsorPipelineBarChart funnel={roi.funnel} />
+              <SponsorPipelineBarChart funnel={roi.funnel} totalAttendees={totalAttendees || undefined} />
             </CardContent>
           </Card>
         </section>

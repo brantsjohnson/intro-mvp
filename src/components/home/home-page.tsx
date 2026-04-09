@@ -42,6 +42,14 @@ import {
 import { haptics } from "@/lib/haptics"
 import { toast } from "sonner"
 import {
+  DEMO_USER,
+  DEMO_SELF_PROFILE,
+  DEMO_EVENT,
+  DEMO_MATCHES,
+  DEMO_MANUAL_CONNECTIONS,
+  DEMO_DIRECTORY,
+} from "@/lib/home-demo-data"
+import {
   Users,
   MessageSquare,
   QrCode,
@@ -188,6 +196,22 @@ export function HomePage() {
   const supabase = createClientComponentClient() as any
   const messageService = useMemo(() => new MessageService(), [])
 
+  const isDemoMode = searchParams?.get("demo") === "1"
+
+  // Seed all state from demo data immediately when ?demo=1 is in the URL
+  useEffect(() => {
+    if (!isDemoMode) return
+    setUser(DEMO_USER as any)
+    setProfile(DEMO_SELF_PROFILE)
+    setCurrentEvent(DEMO_EVENT)
+    setMatches(DEMO_MATCHES as any)
+    setManualConnections(DEMO_MANUAL_CONNECTIONS as any)
+    setDirectory(DEMO_DIRECTORY as any)
+    setIsPresent(true)
+    setIsLoading(false)
+    setUnreadMessageCount(2)
+  }, [isDemoMode])
+
   // 6-digit code input state for home page (no QR scanner)
   const [eventCodeInput, setEventCodeInput] = useState<string[]>(["", "", "", "", "", ""])
   const eventCodeInputRefs = useRef<(HTMLInputElement | null)[]>([])
@@ -202,6 +226,7 @@ export function HomePage() {
 
   // Get user + listen for auth changes
   useEffect(() => {
+    if (isDemoMode) return
     const getUser = async () => {
       const {
         data: { user },
@@ -1062,10 +1087,11 @@ export function HomePage() {
   )
 
   useEffect(() => {
+    if (isDemoMode) return
     if (user) {
       loadUserData("user-changed")
     }
-  }, [user, loadUserData])
+  }, [user, loadUserData, isDemoMode])
 
   // Load all events user is part of (for event switching)
   const loadUserEvents = useCallback(async () => {
@@ -1120,10 +1146,11 @@ export function HomePage() {
   }, [user, supabase])
 
   useEffect(() => {
+    if (isDemoMode) return
     if (user) {
       loadUserEvents()
     }
-  }, [user, loadUserEvents])
+  }, [user, loadUserEvents, isDemoMode])
 
   const handleEventSwitch = async (eventId: string) => {
     if (!user || !eventId) return
@@ -1281,6 +1308,7 @@ export function HomePage() {
 
   // Refresh when tab regains focus
   useEffect(() => {
+    if (isDemoMode) return
     const handleFocus = () => {
       if (user) {
         loadUserData("focus")
@@ -1289,7 +1317,7 @@ export function HomePage() {
 
     window.addEventListener("focus", handleFocus)
     return () => window.removeEventListener("focus", handleFocus)
-  }, [user, loadUserData])
+  }, [user, loadUserData, isDemoMode])
 
   const togglePresence = async () => {
     if (!currentEvent || !user) return
@@ -1671,13 +1699,22 @@ export function HomePage() {
   if (!profile) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-muted-foreground mb-4">
+        <div className="text-center space-y-4">
+          <p className="text-muted-foreground">
             Please complete your profile setup
           </p>
           <GradientButton onClick={() => router.push("/onboarding")}>
             Complete Setup
           </GradientButton>
+          <div>
+            <button
+              type="button"
+              onClick={() => router.push("/home?demo=1")}
+              className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
+            >
+              Preview demo
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -1724,17 +1761,16 @@ export function HomePage() {
                   </SelectContent>
                 </Select>
               ) : (
-                <div className="flex flex-col items-center">
                 <h1
-                  className="text-2xl font-bold text-accent"
+                  className="text-2xl text-accent"
                   style={{
                     fontFamily: "Changa One, cursive",
+                    fontWeight: 400,
+                    letterSpacing: "0.02em",
                   }}
                 >
                   INTRO
                 </h1>
-                  <p className="text-xs text-muted-foreground mt-0.5">Beta Test</p>
-                </div>
               )}
             </div>
 
@@ -1890,7 +1926,7 @@ export function HomePage() {
                     />
                   </div>
                 ) : (
-                <h2 className="text-2xl font-semibold text-foreground">
+                <h2 className="text-base font-semibold text-foreground">
                   {currentEvent.name}
                 </h2>
                 )}

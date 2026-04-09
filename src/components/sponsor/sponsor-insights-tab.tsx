@@ -5,6 +5,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -54,9 +55,11 @@ function chartTooltipProps() {
 /** Pipeline / lead-status funnel — vertical bars (used on Event insights and My outreach). */
 export function SponsorPipelineBarChart({
   funnel,
+  totalAttendees,
   className,
 }: {
   funnel: { id: string; label: string; count: number }[]
+  totalAttendees?: number
   className?: string
 }) {
   const data = funnel.map((f) => ({
@@ -69,23 +72,35 @@ export function SponsorPipelineBarChart({
     )
   }
   return (
-    <div className={cn("h-[280px] w-full min-h-[200px]", className)}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={data}
-          margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border/60" />
-          <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-25} textAnchor="end" height={72} />
-          <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-          <Tooltip formatter={(v: number) => [v, "Count"]} labelFormatter={(l) => String(l)} {...chartTooltipProps()} />
-          <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-            {data.map((_, i) => (
-              <Cell key={i} fill={CHART_FILLS[i % CHART_FILLS.length]!} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+    <div className={cn("w-full", className)}>
+      <div className="h-[280px] min-h-[200px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={data}
+            margin={{ top: 24, right: 8, left: 0, bottom: 8 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border/60" />
+            <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-25} textAnchor="end" height={72} />
+            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+            <Tooltip formatter={(v: number) => [v, "Count"]} labelFormatter={(l) => String(l)} {...chartTooltipProps()} />
+            <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+              {data.map((_, i) => (
+                <Cell key={i} fill={CHART_FILLS[i % CHART_FILLS.length]!} />
+              ))}
+              <LabelList
+                dataKey="count"
+                position="top"
+                style={{ fontSize: 11, fontWeight: 600, fill: "hsl(var(--foreground))" }}
+              />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      {totalAttendees != null && (
+        <p className="mt-1 text-center text-[11px] text-muted-foreground">
+          Out of {totalAttendees.toLocaleString()} attendees
+        </p>
+      )}
     </div>
   )
 }
@@ -107,12 +122,19 @@ export function SponsorOutreachByDayChart({
   return (
     <div className={cn("h-[260px] w-full min-h-[180px]", className)}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+        <BarChart data={data} margin={{ top: 24, right: 8, left: 0, bottom: 8 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border/60" />
           <XAxis dataKey="name" tick={{ fontSize: 10 }} />
           <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
           <Tooltip formatter={(v: number) => [v, "Actions"]} {...chartTooltipProps()} />
-          <Bar dataKey="count" fill={C_AMBER} radius={[4, 4, 0, 0]} />
+          <Bar dataKey="count" fill={C_AMBER} radius={[4, 4, 0, 0]}>
+            <LabelList
+              dataKey="count"
+              position="top"
+              formatter={(v: number) => (v === 0 ? "" : v)}
+              style={{ fontSize: 11, fontWeight: 600, fill: "hsl(var(--foreground))" }}
+            />
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>

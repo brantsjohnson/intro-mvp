@@ -209,7 +209,8 @@ section { position: relative; overflow: hidden; }
 
 /* ── TYPOGRAPHY ── */
 h1, h2, h3 { font-family: var(--font-heading); font-weight: bold; letter-spacing: 0.01em; line-height: 1; }
-.hero-headline { font-size: clamp(2.5rem, 5.5vw, 4.75rem); font-weight: bold; letter-spacing: 0.01em; line-height: 1.05; margin-bottom: 1.5rem; }
+.hero-headline { font-size: clamp(2.2rem, 4.9vw, 4.25rem); font-weight: bold; letter-spacing: 0.01em; line-height: 1.02; margin-bottom: 1.5rem; }
+.hero-nowrap { white-space: nowrap; }
 .section-headline { font-size: clamp(1.9rem, 4vw, 4rem); font-weight: bold; letter-spacing: 0.01em; line-height: 1.05; margin-bottom: 1.5rem; }
 /* Accent colors */
 .accent-amber { color: var(--amber) !important; }
@@ -225,8 +226,106 @@ h1, h2, h3 { font-family: var(--font-heading); font-weight: bold; letter-spacing
 /* ── HERO ── */
 .hero-section { position: relative; overflow: hidden; }
 #hero-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 1; pointer-events: none; }
-.hero-content { position: relative; z-index: 2; max-width: 820px; }
+.hero-two-col { display: grid; grid-template-columns: 2fr 1fr; gap: 3rem; align-items: center; position: relative; z-index: 2; }
+.hero-content { position: relative; }
 .hero-content .body-text { color: var(--muted-foreground); margin-bottom: 2.5rem; }
+
+/* ── IPHONE MOCKUP ── */
+.hero-phone-wrap { display: flex; justify-content: flex-end; align-items: center; padding-right: 0.75rem; }
+.iphone-mockup {
+  position: relative;
+  width: 268px;
+  height: 546px;
+  background: #1d2029;
+  border-radius: 3.25rem;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.25),
+    0 32px 80px rgba(0,0,0,0.25),
+    0 8px 24px rgba(0,0,0,0.12);
+  transform-origin: center center;
+  will-change: transform;
+}
+/* Side buttons */
+.iphone-mockup::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 90px;
+  width: 2px;
+  height: 22px;
+  background: #2a2a2c;
+  border-radius: 2px 0 0 2px;
+  box-shadow: 0 36px 0 #2a2a2c, 0 66px 0 #2a2a2c;
+}
+.iphone-mockup::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  top: 120px;
+  width: 2px;
+  height: 42px;
+  background: #2a2a2c;
+  border-radius: 0 2px 2px 0;
+}
+.iphone-screen {
+  position: absolute;
+  inset: 6px;
+  border-radius: 3rem;
+  overflow: hidden;
+  background: #EDEBE6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.iphone-screen video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.iphone-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,0.18) 0%,
+    rgba(255,255,255,0.06) 30%,
+    rgba(255,255,255,0.0) 60%,
+    rgba(255,255,255,0.04) 100%
+  );
+  z-index: 10;
+}
+/* Dynamic island */
+.iphone-island {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 72px;
+  height: 20px;
+  background: #101010;
+  border-radius: 12px;
+  z-index: 10;
+}
+/* Home indicator */
+.iphone-home {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 4px;
+  background: rgba(255,255,255,0.35);
+  border-radius: 2px;
+  z-index: 10;
+}
+@media (max-width: 900px) {
+  .hero-two-col { grid-template-columns: 1fr; }
+  .hero-phone-wrap { display: none; }
+}
 
 /* ── PULL QUOTE ── */
 .pull-quote { border-left: 3px solid var(--accent); padding-left: 1.5rem; margin: 2rem 0; font-family: var(--font-sans); font-size: clamp(1rem, 1.6vw, 1.25rem); font-style: normal; font-weight: 500; line-height: 1.5; color: var(--foreground); }
@@ -443,6 +542,12 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 .event-card:hover .ec-hover { opacity: 1; transform: translateY(0); }
 
 /* ── EVENT TYPES CAROUSEL (mobile only) ── */
+.ec-btn,
+.ec-dots,
+.ec-progress {
+  display: none;
+}
+
 @media (max-width: 599px) {
   /* Wrap the grid in a relative container for controls */
   .ec-carousel-wrap { position: relative; }
@@ -737,19 +842,37 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
   <section class="hero-section section-light section-pad" style="padding-top:8rem;">
     <canvas id="hero-canvas"></canvas>
     <div class="container">
-      <div class="hero-content">
-        <div class="eyebrow" style="color:var(--primary);">
-          <div class="eyebrow-line"></div>
-          <span class="eyebrow-text" data-text="FOR EVENT DIRECTORS"></span>
+      <div class="eyebrow reveal" style="color:var(--primary);">
+        <div class="eyebrow-line"></div>
+        <span class="eyebrow-text" data-text="FOR EVENT DIRECTORS"></span>
+      </div>
+      <div class="hero-two-col">
+        <div class="hero-content">
+          <h1 class="hero-headline reveal">
+            Match every <span class="hero-nowrap">attendee or sponsor</span> to the <em class="accent-amber italic">right person in the room.</em>
+          </h1>
+          <p class="body-text reveal reveal-delay-1" style="color:var(--foreground);">Intro matches your attendees and sponsors to the right people, records who they meet, and <strong>syncs follow-ups directly to their CRM</strong> so the pipeline your event created is finally visible. Add it to your existing stack and prove ROI without rebuilding a thing.</p>
+          <div class="consequence-quote reveal reveal-delay-2"><span class="cq-text">"Sponsors stopped asking if it worked." </span><span class="cq-good">Intro proved the event ROI.</span></div>
+          <div class="reveal reveal-delay-3">
+            <button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button>
+            <p style="margin-top:0.85rem; font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; color:rgba(58,56,53,0.35);">100% satisfaction guarantee</p>
+          </div>
         </div>
-        <h1 class="hero-headline reveal">
-          Match every attendee or sponsor to the <em class="accent-amber italic">right person in the room.</em>
-        </h1>
-        <p class="body-text reveal reveal-delay-1" style="color:var(--foreground);">Intro matches your attendees and sponsors to the right people, records who they meet, and <strong>syncs follow-ups directly to their CRM</strong> so the pipeline your event created is finally visible. Add it to your existing stack and prove ROI without rebuilding a thing.</p>
-        <div class="consequence-quote reveal reveal-delay-2"><span class="cq-text">"Sponsors stopped asking if it worked." </span><span class="cq-good">Intro proved the event ROI.</span></div>
-        <div class="reveal reveal-delay-3">
-          <button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button>
-          <p style="margin-top:0.85rem; font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; color:rgba(58,56,53,0.35);">100% satisfaction guarantee</p>
+        <div class="hero-phone-wrap reveal reveal-delay-2">
+          <div class="iphone-mockup" id="hero-phone">
+            <div class="iphone-screen">
+              <video
+                id="hero-phone-video"
+                src="/marketing/home page.mp4"
+                autoplay
+                loop
+                muted
+                playsinline
+              ></video>
+            </div>
+            <div class="iphone-island"></div>
+            <div class="iphone-home"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -855,10 +978,22 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
       <div class="two-col" style="margin-bottom:4rem; align-items:flex-start;">
         <div>
           <h2 class="section-headline reveal">What Intro gives you <em class="accent-wine italic">that nothing else does.</em></h2>
-          <p class="body-text reveal reveal-delay-1" style="color:var(--foreground);">Intro doesn't just prove your event's worth. <strong>It increases it.</strong></p>
+          <p class="body-text reveal reveal-delay-1" style="color:var(--foreground);">
+            Intro doesn't just prove your event's worth. <strong>It increases it.</strong><br>
+            <span style="display:inline-block;margin-top:0.5rem;"><strong style="color:var(--primary);">60%</strong> higher sponsor renewal when organizers share real ROI data.<sup style="font-size:0.6em;">3</sup></span>
+          </p>
         </div>
-        <div>
-          <div class="stat-block reveal reveal-delay-2"><div class="stat-number" data-target="60" style="color:var(--primary);">0</div><div class="stat-label" style="color:var(--foreground);">higher sponsor renewal when organizers share real ROI data.<sup style="font-size:0.6em;">3</sup></div></div>
+        <div class="reveal reveal-delay-2">
+          <video
+            id="sponsor-demo-video"
+            src="/marketing/Sponsor Page Compress.mov"
+            autoplay
+            loop
+            muted
+            playsinline
+            preload="auto"
+            style="width:100%;border-radius:1.25rem;display:block;box-shadow:0 8px 40px rgba(0,0,0,0.13);margin-bottom:1.5rem;"
+          ></video>
         </div>
       </div>
       <div>
@@ -1354,21 +1489,14 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
           <div style="margin-top:2rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
         </div>
         <div class="reveal reveal-delay-2">
-          <div class="results-card">
-            <div style="font-size:.68rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--muted-foreground);margin-bottom:2rem;">Example sponsor report</div>
-            <div class="results-metric">
-              <div class="results-num">34</div>
-              <div class="results-desc"><strong>Matched introductions</strong> to target-profile attendees</div>
-            </div>
-            <div class="results-metric">
-              <div class="results-num">12</div>
-              <div class="results-desc"><strong>Follow-up calls booked</strong> within 48 hours</div>
-            </div>
-            <div class="results-metric" style="border-bottom:none;">
-              <div class="results-num">6</div>
-              <div class="results-desc"><strong>Active in pipeline</strong></div>
-            </div>
-          </div>
+          <video
+            src="/marketing/Sponsor Page Compress.mov"
+            autoplay
+            loop
+            muted
+            playsinline
+            style="width:100%;border-radius:1.25rem;display:block;box-shadow:0 8px 40px rgba(0,0,0,0.13);transform-origin:center center;will-change:transform;"
+          ></video>
         </div>
       </div>
     </div>
@@ -2309,6 +2437,86 @@ window.addEventListener('beforeunload', () => {
   });
 
   init();
+})();
+
+/* ── Hero phone mockup: scroll-driven tilt ── */
+(function () {
+  const phone = document.getElementById('hero-phone');
+  if (!phone) return;
+  const heroVideo = document.getElementById('hero-phone-video');
+  if (heroVideo) {
+    heroVideo.defaultPlaybackRate = 0.65;
+    heroVideo.playbackRate = 0.65;
+    heroVideo.addEventListener('play', function () {
+      heroVideo.playbackRate = 0.65;
+    });
+  }
+  const MAX_Y = 10;
+  const MAX_X = 5;
+  let ticking = false;
+  function updatePhoneTilt() {
+    const rect = phone.getBoundingClientRect();
+    const viewH = window.innerHeight;
+    const centerY = rect.top + rect.height / 2;
+    const norm = (centerY - viewH / 2) / (viewH / 2);
+    const rotX =  norm * MAX_X;
+    const rotY = -norm * MAX_Y;
+    phone.style.transform = `perspective(1000px) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg)`;
+    ticking = false;
+  }
+  window.addEventListener('scroll', function () {
+    if (!ticking) { requestAnimationFrame(updatePhoneTilt); ticking = true; }
+  }, { passive: true });
+  updatePhoneTilt();
+})();
+
+/* ── Sponsor demo video: slow playback + scroll-driven tilt ── */
+(function () {
+  const video = document.getElementById('sponsor-demo-video');
+  if (!video) return;
+
+  /* Slow the video to 1/2 speed */
+  function setRate() {
+    video.defaultPlaybackRate = 0.5;
+    video.playbackRate = 0.5;
+  }
+  setRate();
+  video.addEventListener('play', setRate);
+  video.addEventListener('loadedmetadata', setRate);
+  const playPromise = video.play();
+  if (playPromise && typeof playPromise.catch === 'function') {
+    playPromise.catch(function () {});
+  }
+
+  /* Scroll-driven perspective tilt */
+  const MAX_ROTATE_Y = 8;   /* degrees left/right */
+  const MAX_ROTATE_X = 4;   /* degrees up/down   */
+
+  let ticking = false;
+  function updateTilt() {
+    const rect = video.getBoundingClientRect();
+    const viewH = window.innerHeight;
+
+    /* How far the element's centre is from the viewport centre, normalised -1 → 1 */
+    const centerY = rect.top + rect.height / 2;
+    const normY = (centerY - viewH / 2) / (viewH / 2);   /* -1 = top, +1 = bottom */
+
+    const rotX =  normY * MAX_ROTATE_X;   /* tilt back when below centre, forward above */
+    const rotY = -normY * MAX_ROTATE_Y;   /* slight left/right twist opposite direction  */
+
+    video.style.transform =
+      `perspective(900px) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg)`;
+    ticking = false;
+  }
+
+  window.addEventListener('scroll', function () {
+    if (!ticking) {
+      requestAnimationFrame(updateTilt);
+      ticking = true;
+    }
+  }, { passive: true });
+
+  updateTilt();
 })();
 </script>
 </body>
