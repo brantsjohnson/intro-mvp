@@ -30,6 +30,7 @@ import {
   Mail,
   Activity,
   ShieldCheck,
+  Sparkles,
 } from "lucide-react"
 import Image from "next/image"
 
@@ -82,6 +83,12 @@ export default function AdminEventEditPage() {
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalSaving, setPortalSaving] = useState(false)
 
+  const [sponsorsList, setSponsorsList] = useState<PortalOrganizerPerson[]>([])
+  const [sponsorEligible, setSponsorEligible] = useState<PortalOrganizerPerson[]>([])
+  const [sponsorSelectedUserId, setSponsorSelectedUserId] = useState<string>("")
+  const [sponsorLoading, setSponsorLoading] = useState(false)
+  const [sponsorSaving, setSponsorSaving] = useState(false)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const supabase = createClientComponentClient()
@@ -91,6 +98,7 @@ export default function AdminEventEditPage() {
     if (eventId) {
       loadEvent()
       loadPortalOrganizers()
+      loadSponsors()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
@@ -314,6 +322,75 @@ export default function AdminEventEditPage() {
       toast.error("Failed to remove")
     } finally {
       setPortalSaving(false)
+    }
+  }
+
+  const loadSponsors = async () => {
+    if (!eventId) return
+    setSponsorLoading(true)
+    try {
+      const res = await fetch(
+        `/api/platform-admin/event-sponsors?eventId=${encodeURIComponent(eventId)}`,
+      )
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || "Failed to load sponsors")
+        return
+      }
+      setSponsorsList(data.sponsors ?? [])
+      setSponsorEligible(data.eligible_attendees ?? [])
+      setSponsorSelectedUserId("")
+    } catch (e) {
+      console.error("Error loading sponsors:", e)
+    } finally {
+      setSponsorLoading(false)
+    }
+  }
+
+  const handleAddSponsor = async () => {
+    if (!eventId || !sponsorSelectedUserId) return
+    setSponsorSaving(true)
+    try {
+      const res = await fetch("/api/platform-admin/event-sponsors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId, userId: sponsorSelectedUserId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || "Failed to add sponsor")
+        return
+      }
+      toast.success("Sponsor added — they can use /sponsor when signed in")
+      await loadSponsors()
+    } catch (e) {
+      console.error(e)
+      toast.error("Failed to add sponsor")
+    } finally {
+      setSponsorSaving(false)
+    }
+  }
+
+  const handleRemoveSponsor = async (userId: string) => {
+    if (!eventId) return
+    setSponsorSaving(true)
+    try {
+      const q = new URLSearchParams({ eventId, userId })
+      const res = await fetch(`/api/platform-admin/event-sponsors?${q}`, {
+        method: "DELETE",
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || "Failed to remove sponsor")
+        return
+      }
+      toast.success("Removed sponsor access")
+      await loadSponsors()
+    } catch (e) {
+      console.error(e)
+      toast.error("Failed to remove sponsor")
+    } finally {
+      setSponsorSaving(false)
     }
   }
 
@@ -1030,6 +1107,101 @@ export default function AdminEventEditPage() {
               {portalOrganizers.length > 0 && portalEligible.length === 0 && (
                 <p className="text-xs text-muted-foreground">
                   Every attendee is already an organizer, or there are no other attendees to add.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Sponsor portal access (Phase C) */}
+          <Card className="bg-card border-border shadow-elevation">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="h-5 w-5" />
+                Sponsor portal (/sponsor)
+              </CardTitle>
+              <GradientButton
+                variant="outline"
+                size="sm"
+                onClick={loadSponsors}
+                disabled={sponsorLoading}
+              >
+                {sponsorLoading ? "Loading…" : "Refresh"}
+              </GradientButton>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <p className="text-xs text-muted-foreground">
+                Sponsors get a read-only dashboard with aggregated attendee need/want signals and
+                their own <strong>system_match</strong> rows. Only people who already have an{" "}
+                <code className="rounded bg-muted px-1">attendance</code> row can be marked.
+              </p>
+              {sponsorsList.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">
+                    Current sponsors
+                  </p>
+                  <ul className="space-y-2">
+                    {sponsorsList.map((p) => (
+                      <li
+                        key={p.user_id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-[calc(0.75rem+var(--concave-surface-inset))] py-[calc(0.5rem+var(--concave-surface-inset))]"
+                      >
+                        <div>
+                          <span className="font-medium">{p.display}</span>
+                          {p.email && (
+                            <span className="ml-2 text-xs text-muted-foreground">{p.email}</span>
+                          )}
+                        </div>
+                        <GradientButton
+                          variant="outline"
+                          size="sm"
+                          disabled={sponsorSaving}
+                          onClick={() => handleRemoveSponsor(p.user_id)}
+                        >
+                          Remove
+                        </GradientButton>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {sponsorEligible.length > 0 ? (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="flex-1 space-y-2">
+                    <Label>Add from attendees</Label>
+                    <Select
+                      value={sponsorSelectedUserId || undefined}
+                      onValueChange={setSponsorSelectedUserId}
+                    >
+                      <SelectTrigger className="w-full max-w-md">
+                        <SelectValue placeholder="Select attendee…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sponsorEligible.map((p) => (
+                          <SelectItem key={p.user_id} value={p.user_id}>
+                            {p.display}
+                            {p.email ? ` (${p.email})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <GradientButton
+                    onClick={handleAddSponsor}
+                    disabled={!sponsorSelectedUserId || sponsorSaving}
+                  >
+                    Add sponsor
+                  </GradientButton>
+                </div>
+              ) : (
+                sponsorsList.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No attendees yet. Sponsors can be added once people join this event.
+                  </p>
+                )
+              )}
+              {sponsorsList.length > 0 && sponsorEligible.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Every attendee is already a sponsor, or there are no other attendees to add.
                 </p>
               )}
             </CardContent>

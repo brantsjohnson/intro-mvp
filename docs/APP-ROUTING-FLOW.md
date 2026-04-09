@@ -14,7 +14,7 @@ This document is the **source of truth** for what URL shows **marketing** vs the
 | `/home` | App: main event experience | Matches, QR, directory. |
 | `/join/[encrypted]` | App: encrypted event link router | Sends unauthenticated users to `/auth?code=…`. |
 | `/event/join` | App: legacy 6-digit join UI | |
-| `/messages`, `/profile/…`, `/settings`, `/survey/…`, `/admin/…`, `/organizer/…` | App | See `ROUTE_AUDIT.md` for detail. |
+| `/messages`, `/profile/…`, `/settings`, `/survey/…`, `/admin/…`, `/organizer/…`, `/sponsor/…` | App | See `ROUTE_AUDIT.md` for detail. |
 
 ### Organizer (`/organizer`) — Phase B, read-only
 
@@ -36,13 +36,25 @@ insert into public.organizer_memberships (user_id, organization_id, role)
 values ('<user_uuid>', '<organization_uuid>', 'owner');
 ```
 
+### Sponsor (`/sponsor`) — Phase C gate + Phase D intelligence
+
+**Who can access:** Signed-in users with **`attendance.is_sponsor = true`** for that event. Logic: [`src/lib/sponsor-auth.ts`](src/lib/sponsor-auth.ts).
+
+**URLs:** [`/sponsor`](src/app/sponsor/page.tsx) lists sponsored events; [`/sponsor/event/[eventId]`](src/app/sponsor/event/[eventId]/page.tsx) has **Reach out** (ICP profile, ranked recommendations, message / LinkedIn / met logging), **My outreach** (ROI aggregates), and **Event insights** (Phase C tag aggregates + AI matches).
+
+**Data:** Migration [`supabase/migrations/20260409_phase_d_sponsor_intelligence.sql`](supabase/migrations/20260409_phase_d_sponsor_intelligence.sql) — `sponsor_profiles`, `sponsor_leads`, `sponsor_interaction_events`, view `sponsor_signal_outcomes`. Sponsor messages create `connections` with **`connection_kind = sponsor_outreach`** ([`POST /api/sponsor/outreach`](src/app/api/sponsor/outreach/route.ts)).
+
+**APIs:** Read: [`/api/sponsor/events`](src/app/api/sponsor/events/route.ts), [`event-insights`](src/app/api/sponsor/event-insights/route.ts), [`my-matches`](src/app/api/sponsor/my-matches/route.ts), [`profile`](src/app/api/sponsor/profile/route.ts), [`recommendations`](src/app/api/sponsor/recommendations/route.ts), [`roi-summary`](src/app/api/sponsor/roi-summary/route.ts). Write (sponsor-scoped only): [`profile` POST](src/app/api/sponsor/profile/route.ts), [`outreach` POST/PATCH](src/app/api/sponsor/outreach/route.ts). No writes to attendee profile rows.
+
+**Assigning access (platform admin):** From **`/admin/event/[eventId]`**, use the **Sponsor portal** card — updates **`attendance.is_sponsor`**.
+
 ### Platform admin (`/admin`)
 
 **Who can access:** Only users allowed by **`PLATFORM_ADMIN_USER_IDS`** (comma-separated Supabase auth UUIDs in env) or a row in the **`platform_admins`** table (see migration `supabase/migrations/20260407_phase_a_platform_admin.sql`). [`src/app/admin/layout.tsx`](src/app/admin/layout.tsx) redirects everyone else to `/home`; unauthenticated users go to `/auth`.
 
-**APIs gated the same way:** [`/api/create-event`](src/app/api/create-event/route.ts), [`/api/update-event`](src/app/api/update-event/route.ts), [`/api/admin-start-matching`](src/app/api/admin-start-matching/route.ts), [`/api/admin-send-networking-cards`](src/app/api/admin-send-networking-cards/route.ts), read-only [`/api/platform-admin/event-health`](src/app/api/platform-admin/event-health/route.ts), and [`/api/platform-admin/event-organizers`](src/app/api/platform-admin/event-organizers/route.ts) (assign **portal organizers** for `/organizer`) require a logged-in platform admin session before using the service role.
+**APIs gated the same way:** [`/api/create-event`](src/app/api/create-event/route.ts), [`/api/update-event`](src/app/api/update-event/route.ts), [`/api/admin-start-matching`](src/app/api/admin-start-matching/route.ts), [`/api/admin-send-networking-cards`](src/app/api/admin-send-networking-cards/route.ts), read-only [`/api/platform-admin/event-health`](src/app/api/platform-admin/event-health/route.ts), [`/api/platform-admin/event-organizers`](src/app/api/platform-admin/event-organizers/route.ts) (assign **portal organizers** for `/organizer`), and [`/api/platform-admin/event-sponsors`](src/app/api/platform-admin/event-sponsors/route.ts) (set **`attendance.is_sponsor`** for `/sponsor`) require a logged-in platform admin session before using the service role.
 
-From **`/admin/event/[eventId]`**, use the **Organizer portal** card to pick an **attendee** and grant access (writes `event_organizers`). People who have never joined the event still need a manual SQL/Table Editor row.
+From **`/admin/event/[eventId]`**, use the **Organizer portal** card to pick an **attendee** and grant access (writes `event_organizers`). Use the **Sponsor portal** card to mark sponsors (updates `attendance`). People who have never joined the event still need a manual SQL/Table Editor row for organizer-only access (`event_organizers`).
 
 ## Intended flow after “Sign in”
 

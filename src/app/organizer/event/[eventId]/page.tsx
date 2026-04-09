@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { OrganizerEventAnalyticsDashboard } from "@/components/organizer/organizer-event-analytics-dashboard"
 import type { OrganizerAttendanceRosterRow } from "@/lib/organizer-metrics"
-import { ArrowLeft, ChevronDown, ChevronRight, Users } from "lucide-react"
+import { ArrowLeft, ChevronDown, ChevronRight, Sparkles, Users } from "lucide-react"
 
 type MatchRow = {
   connection_id: string
@@ -38,6 +38,23 @@ export default function OrganizerEventDashboardPage() {
   const [matchRows, setMatchRows] = useState<MatchRow[]>([])
 
   const [operationalOpen, setOperationalOpen] = useState(false)
+  const [sponsorsOpen, setSponsorsOpen] = useState(false)
+  const [sponsorsLoading, setSponsorsLoading] = useState(false)
+  const [sponsors, setSponsors] = useState<
+    Array<{
+      user_id: string
+      display_name: string
+      company_name: string | null
+      company_summary: string | null
+      product_offering: string | null
+      event_goals: string | null
+      messages_sent: number
+      replied: number
+      linkedin: number
+      met: number
+      active_recently: boolean
+    }>
+  >([])
 
   const pageSize = 40
 
@@ -76,6 +93,30 @@ export default function OrganizerEventDashboardPage() {
     if (!eventId || forbidden || !operationalOpen) return
     loadMatches()
   }, [eventId, forbidden, operationalOpen, loadMatches])
+
+  const loadSponsors = useCallback(async () => {
+    if (!eventId) return
+    setSponsorsLoading(true)
+    try {
+      const res = await fetch(
+        `/api/organizer/sponsor-activity?eventId=${encodeURIComponent(eventId)}`,
+      )
+      if (res.status === 403) {
+        setForbidden(true)
+        return
+      }
+      if (!res.ok) return
+      const data = await res.json()
+      setSponsors(data.sponsors ?? [])
+    } finally {
+      setSponsorsLoading(false)
+    }
+  }, [eventId])
+
+  useEffect(() => {
+    if (!eventId || forbidden || !sponsorsOpen) return
+    void loadSponsors()
+  }, [eventId, forbidden, sponsorsOpen, loadSponsors])
 
   if (!eventId) return null
 
@@ -260,6 +301,80 @@ export default function OrganizerEventDashboardPage() {
                   </table>
                 </div>
               </div>
+            </CardContent>
+          ) : null}
+        </Card>
+      </div>
+
+      <div id="organizer-sponsors" className="scroll-mt-8">
+        <Card>
+          <CardHeader className="pb-2">
+            <button
+              type="button"
+              onClick={() => setSponsorsOpen((o) => !o)}
+              className="flex w-full items-center justify-between gap-2 text-left rounded-lg -m-2 p-2 hover:bg-muted/50 transition-colors"
+            >
+              <CardTitle className="flex items-center gap-2 text-base">
+                {sponsorsOpen ? (
+                  <ChevronDown className="h-4 w-4 shrink-0" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 shrink-0" />
+                )}
+                <Sparkles className="h-4 w-4" />
+                Sponsors
+              </CardTitle>
+              <span className="text-xs text-muted-foreground shrink-0">
+                Goals and outreach stats (no message content)
+              </span>
+            </button>
+          </CardHeader>
+          {sponsorsOpen ? (
+            <CardContent className="space-y-4 text-xs">
+              {sponsorsLoading ? (
+                <p className="text-muted-foreground">Loading sponsors…</p>
+              ) : sponsors.length === 0 ? (
+                <p className="text-muted-foreground">
+                  No sponsors for this event (mark attendees as sponsors from the admin event
+                  page).
+                </p>
+              ) : (
+                <ul className="space-y-4">
+                  {sponsors.map((s) => (
+                    <li
+                      key={s.user_id}
+                      className="rounded-md border border-border p-3 space-y-2"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium text-sm">{s.display_name}</span>
+                        {s.active_recently && (
+                          <span className="text-[10px] uppercase text-green-600">Active (24h)</span>
+                        )}
+                      </div>
+                      {(s.company_name || s.company_summary) && (
+                        <p className="text-muted-foreground">
+                          {[s.company_name, s.company_summary].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                      {s.product_offering && (
+                        <p>
+                          <span className="font-medium text-foreground">Offering: </span>
+                          {s.product_offering}
+                        </p>
+                      )}
+                      {s.event_goals && (
+                        <p>
+                          <span className="font-medium text-foreground">Event goals: </span>
+                          {s.event_goals}
+                        </p>
+                      )}
+                      <p className="text-muted-foreground font-mono">
+                        Msgs {s.messages_sent} · Replies {s.replied} · LinkedIn {s.linkedin} · Met{" "}
+                        {s.met}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </CardContent>
           ) : null}
         </Card>

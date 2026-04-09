@@ -366,8 +366,162 @@ export type Database = {
           }
         ]
       }
+      sponsor_profiles: {
+        Row: {
+          event_id: string
+          user_id: string
+          company_description: string | null
+          product_offering: string | null
+          ideal_customer_json: Json
+          event_goals: string | null
+          sponsorship_cost: number | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          event_id: string
+          user_id: string
+          company_description?: string | null
+          product_offering?: string | null
+          ideal_customer_json?: Json
+          event_goals?: string | null
+          sponsorship_cost?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["sponsor_profiles"]["Insert"]>
+        Relationships: [
+          {
+            foreignKeyName: "sponsor_profiles_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "sponsor_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      sponsor_leads: {
+        Row: {
+          id: string
+          event_id: string
+          sponsor_user_id: string
+          attendee_user_id: string
+          status: string
+          recommendation_score: number | null
+          recommendation_reason_tags: string[] | null
+          match_explanation_text: string | null
+          notes: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          event_id: string
+          sponsor_user_id: string
+          attendee_user_id: string
+          status?: string
+          recommendation_score?: number | null
+          recommendation_reason_tags?: string[] | null
+          match_explanation_text?: string | null
+          notes?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: Partial<Database["public"]["Tables"]["sponsor_leads"]["Insert"]>
+        Relationships: [
+          {
+            foreignKeyName: "sponsor_leads_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "sponsor_leads_sponsor_user_id_fkey"
+            columns: ["sponsor_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "sponsor_leads_attendee_user_id_fkey"
+            columns: ["attendee_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      sponsor_interaction_events: {
+        Row: {
+          id: string
+          event_id: string
+          sponsor_user_id: string
+          attendee_user_id: string
+          event_type: string
+          occurred_at: string | null
+          metadata_json: Json | null
+        }
+        Insert: {
+          id?: string
+          event_id: string
+          sponsor_user_id: string
+          attendee_user_id: string
+          event_type: string
+          occurred_at?: string | null
+          metadata_json?: Json | null
+        }
+        Update: Partial<Database["public"]["Tables"]["sponsor_interaction_events"]["Insert"]>
+        Relationships: [
+          {
+            foreignKeyName: "sponsor_interaction_events_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "sponsor_interaction_events_sponsor_user_id_fkey"
+            columns: ["sponsor_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "sponsor_interaction_events_attendee_user_id_fkey"
+            columns: ["attendee_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
     }
-    Views: {}
+    Views: {
+      sponsor_signal_outcomes: {
+        Row: {
+          lead_id: string
+          event_id: string | null
+          sponsor_user_id: string | null
+          attendee_user_id: string | null
+          lead_status: string | null
+          recommendation_score: number | null
+          has_met_event: boolean | null
+          has_reply_event: boolean | null
+          has_linkedin_event: boolean | null
+          has_message_event: boolean | null
+          signal_weight: number | null
+        }
+        Relationships: []
+      }
+    }
     Functions: {}
     Enums: {}
     CompositeTypes: {}

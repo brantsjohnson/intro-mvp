@@ -156,6 +156,48 @@ export async function fetchOrganizerMatchesTablePage(
   }
 }
 
+/** Paginated `system_match` rows for an event where the sponsor is `a_id` or `b_id`. */
+export async function fetchSponsorMatchesTablePage(
+  supabase: SupabaseClient<Database>,
+  eventId: string,
+  sponsorUserId: string,
+  page: number,
+  pageSize: number,
+): Promise<{ rows: OrganizerMatchTableRow[]; total: number } | null> {
+  const { data: evt } = await supabase
+    .from("events")
+    .select("event_id")
+    .eq("event_id", eventId)
+    .maybeSingle()
+  if (!evt) return null
+
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+
+  const { count } = await supabase
+    .from("connections")
+    .select("*", { count: "exact", head: true })
+    .eq("event_id", eventId)
+    .eq("connection_kind", "system_match")
+    .or(`a_id.eq.${sponsorUserId},b_id.eq.${sponsorUserId}`)
+
+  const { data } = await supabase
+    .from("connections")
+    .select(
+      "connection_id, a_id, b_id, match_score, match_algorithm_version, created_at",
+    )
+    .eq("event_id", eventId)
+    .eq("connection_kind", "system_match")
+    .or(`a_id.eq.${sponsorUserId},b_id.eq.${sponsorUserId}`)
+    .order("created_at", { ascending: false })
+    .range(from, to)
+
+  return {
+    rows: (data ?? []) as OrganizerMatchTableRow[],
+    total: count ?? 0,
+  }
+}
+
 export type OrganizerAttendanceRosterRow = {
   user_id: string
   first_name: string | null

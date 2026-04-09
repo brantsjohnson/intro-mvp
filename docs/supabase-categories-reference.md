@@ -28,6 +28,8 @@ For generated TypeScript table shapes, see `src/lib/database.types.ts`.
 - File: `src/components/onboarding/new-onboarding-flow.tsx` — `mapConnectionTypeToDB` / `mapConnectionTypeFromDB`
 - `business-opportunities` ↔ `biz_opps`, `find-mentor` ↔ `find_mentor`, etc.; `join-startup` ↔ `join_startup`
 
+**Sponsor portal:** `attendance.is_sponsor` (boolean) gates **`/sponsor`**. Phase D adds **`sponsor_profiles`**, **`sponsor_leads`**, **`sponsor_interaction_events`**, and view **`sponsor_signal_outcomes`** (see migration `supabase/migrations/20260409_phase_d_sponsor_intelligence.sql`). Insights still read §1–§5 fields on non-sponsor attendees via [`GET /api/sponsor/event-insights`](src/app/api/sponsor/event-insights/route.ts). Outreach and ROI use [`/api/sponsor/outreach`](src/app/api/sponsor/outreach/route.ts) and [`/api/sponsor/roi-summary`](src/app/api/sponsor/roi-summary/route.ts).
+
 **Downstream logic (if you rename a DB value, update these):**
 
 | Area | File / location | What it does |
@@ -55,11 +57,13 @@ For generated TypeScript table shapes, see `src/lib/database.types.ts`.
 | `system_match` | Algorithm-suggested match; primary target for rematch/delete-match scripts |
 | `user_added` | Explicit connect (e.g. QR) |
 | `user_request_pending` | Pending connection request (messages / home flow) |
+| `sponsor_outreach` | Sponsor-initiated outreach from `/sponsor` — row created when sponsor sends first message via [`POST /api/sponsor/outreach`](src/app/api/sponsor/outreach/route.ts) (`a_id` = sponsor, `b_id` = attendee) |
 
 **Where used:**
 
 - Match pipelines, notifications, surveys: filter `.eq('connection_kind', 'system_match')` in `src/app/api/*/route.ts`, `scripts/*.ts`, `supabase/functions/matchmaker/index.ts`
 - UI: `src/components/home/home-page.tsx`, `src/components/profile/user-profile.tsx`, `src/components/messages/messages-page.tsx`, `conversation-view.tsx`
+- Sponsor portal: `src/app/api/sponsor/outreach/route.ts` inserts `sponsor_outreach` alongside `conversations` / `messages`
 - Explanation refresh allowlists: `supabase/functions/generate-match-explanations/index.ts`, `src/lib/matching/refresh-explanations.ts`
 
 **If you add or rename a kind:** update every query that assumes only `system_match` vs `user_added`, RLS if any, and the allowlists in the two explanation modules above.
@@ -176,6 +180,8 @@ Used by **`src/lib/platform-admin-metrics.ts`** and the Event health panel on **
 
 The **organizer** read-only dashboard (`/organizer`, `GET /api/organizer/event-health`) reuses the same §1–§3 semantics for connection health; match pair listings filter **`connection_kind = 'system_match'`** and read stable `connections` columns (`a_id`, `b_id`, `match_score`, `match_algorithm_version`, `created_at`).
 
+The **sponsor** read-only dashboard (`/sponsor`, `GET /api/sponsor/event-insights`) aggregates §1 `connection_types_selected` and §5 `event_need_tags` / `event_want_tags` / `business_need_text` over **non-sponsor** attendance rows; **`GET /api/sponsor/my-matches`** filters the same **`system_match`** semantics for rows involving the sponsor user.
+
 ---
 
 ## 10. File index (definitions)
@@ -191,6 +197,7 @@ The **organizer** read-only dashboard (`/organizer`, `GET /api/organizer/event-h
 | Connection kind filters | grep `connection_kind` under `src/`, `scripts/`, `supabase/functions/` |
 | Platform admin Event health aggregates | `src/lib/platform-admin-metrics.ts`, `src/app/api/platform-admin/event-health/route.ts` |
 | Organizer read-only aggregates | `src/lib/organizer-metrics.ts`, `src/app/api/organizer/*` |
+| Sponsor portal (auth + intelligence) | `src/lib/sponsor-auth.ts`, `src/lib/sponsor-intelligence.ts`, `src/lib/sponsor-outreach-db.ts`, `src/app/api/sponsor/*` |
 
 ---
 

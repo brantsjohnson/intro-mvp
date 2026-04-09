@@ -176,6 +176,24 @@
 
 ---
 
+## Sponsor routes (Phase C, read-only)
+
+**Access control:** User must have **`attendance.is_sponsor = true`** for the event. See `docs/APP-ROUTING-FLOW.md`.
+
+### `/sponsor`
+**What it does:** Lists events where the signed-in user is marked as a sponsor on `attendance`.
+
+**What it records:** No writes on this page — reads via [`fetchSponsorEventSummariesForUser`](src/lib/sponsor-auth.ts).
+
+---
+
+### `/sponsor/event/[eventId]`
+**What it does:** Sponsor intelligence UI (tabs): ICP profile and ranked recommendations, outreach actions (message composes and sends via API — creates `sponsor_outreach` connection + `messages`), LinkedIn/met self-report, notes; ROI tab; event insights tab (tag aggregates + system matches).
+
+**What it records:** Writes only via sponsor APIs — `sponsor_profiles`, `sponsor_leads`, `sponsor_interaction_events`, `conversations`, `messages`, `connections` (`sponsor_outreach`). See Phase D migration `20260409_phase_d_sponsor_intelligence.sql`.
+
+---
+
 ## Duplicate/Similar Paths
 
 ### Event Joining Paths (3 different entry points):
@@ -203,6 +221,10 @@
 
 ### `/api/platform-admin/event-organizers`
 **What it does:** `GET` lists organizers + eligible attendees for an event; `POST` inserts `event_organizers`; `DELETE` removes a row. Used by the **Organizer portal** card on `/admin/event/[eventId]`.  
+**Auth:** Platform admin only.
+
+### `/api/platform-admin/event-sponsors`
+**What it does:** `GET` lists current sponsors (`attendance.is_sponsor = true`) + eligible attendees; `POST` sets `is_sponsor` true; `DELETE` clears it. Used by the **Sponsor portal** card on `/admin/event/[eventId]`.  
 **Auth:** Platform admin only.
 
 ### `/api/refresh-matches`
@@ -245,6 +267,38 @@
 ### `/api/organizer/matches-table`
 **What it does:** Paginated `connections` where `connection_kind = system_match`, with display names for `a_id` / `b_id`.  
 **Auth:** Organizer scoped to `eventId`.
+
+### `/api/sponsor/events`
+**What it does:** Lists events where the user has `attendance.is_sponsor = true`.  
+**Auth:** Logged-in user.
+
+### `/api/sponsor/event-insights`
+**What it does:** Aggregates `event_need_tags`, `event_want_tags`, `connection_types_selected`, and paginated `business_need_text` previews from attendees where `is_sponsor` is not true.  
+**Auth:** Sponsor for `eventId` (read-only).
+
+### `/api/sponsor/my-matches`
+**What it does:** Paginated `connections` with `connection_kind = system_match` where the caller is `a_id` or `b_id` for the event, with matched party display name.  
+**Auth:** Sponsor for `eventId` (read-only).
+
+### `/api/sponsor/profile`
+**What it does:** `GET` / `POST` — `sponsor_profiles` for the current user and `eventId`.  
+**Auth:** Sponsor for `eventId`.
+
+### `/api/sponsor/recommendations`
+**What it does:** Scores non-sponsor attendees, upserts top leads at `recommended`, returns ranked list with statuses.  
+**Auth:** Sponsor for `eventId`.
+
+### `/api/sponsor/outreach`
+**What it does:** `POST` body `{ action, eventId, attendeeUserId }` — `message` (optional `messageBody`) creates conversation + message + `sponsor_outreach` connection + interaction log; `linkedin` / `met` log events and advance lead status. `PATCH` updates lead `notes`.  
+**Auth:** Sponsor for `eventId`.
+
+### `/api/sponsor/roi-summary`
+**What it does:** Aggregates interaction events, syncs reply signals from conversations, funnel counts, topics for engaged attendees, outreach table.  
+**Auth:** Sponsor for `eventId`.
+
+### `/api/organizer/sponsor-activity`
+**What it does:** Per-sponsor goals (from `sponsor_profiles`) and outreach counts for an event — no message bodies.  
+**Auth:** Organizer for `eventId`.
 
 ### `/api/messages/send`
 **What it records:** Creates entry in `messages` table
