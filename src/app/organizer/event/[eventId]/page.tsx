@@ -9,6 +9,13 @@ import { OrganizerEventAnalyticsDashboard } from "@/components/organizer/organiz
 import type { OrganizerAttendanceRosterRow } from "@/lib/organizer-metrics"
 import { ArrowLeft, ChevronDown, ChevronRight, Sparkles, Users } from "lucide-react"
 
+type OrganizerEventMeta = {
+  eventName: string | null
+  eventStartsAt: string | null
+  eventEndsAt: string | null
+  eventCode: string | null
+}
+
 type MatchRow = {
   connection_id: string
   a_id: string
@@ -26,6 +33,30 @@ export default function OrganizerEventDashboardPage() {
   const eventId = params?.eventId as string
 
   const [forbidden, setForbidden] = useState(false)
+  const [eventMeta, setEventMeta] = useState<OrganizerEventMeta>({
+    eventName: null,
+    eventStartsAt: null,
+    eventEndsAt: null,
+    eventCode: null,
+  })
+
+  const handleForbidden = useCallback(() => {
+    setForbidden(true)
+  }, [])
+
+  const handleEventMetaChange = useCallback((next: OrganizerEventMeta) => {
+    setEventMeta((prev) => {
+      if (
+        prev.eventName === next.eventName &&
+        prev.eventStartsAt === next.eventStartsAt &&
+        prev.eventEndsAt === next.eventEndsAt &&
+        prev.eventCode === next.eventCode
+      ) {
+        return prev
+      }
+      return next
+    })
+  }, [])
 
   const [rosterPage, setRosterPage] = useState(1)
   const [rosterTotal, setRosterTotal] = useState(0)
@@ -145,16 +176,31 @@ export default function OrganizerEventDashboardPage() {
           </GradientButton>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold">Your event</h1>
-          <p className="text-sm text-muted-foreground font-mono mt-0.5">
-            {eventId}
-          </p>
+          <h1 className="text-2xl font-bold">
+            {eventMeta.eventName?.trim() || "Event"}
+          </h1>
+          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            {eventMeta.eventStartsAt ? (
+              <span>Starts {new Date(eventMeta.eventStartsAt).toLocaleString()}</span>
+            ) : null}
+            {eventMeta.eventEndsAt ? (
+              <span>Ends {new Date(eventMeta.eventEndsAt).toLocaleString()}</span>
+            ) : null}
+            <span className="min-w-0 text-[11px]">
+              <span className="text-muted-foreground">Join code </span>
+              <span className="font-mono font-semibold tracking-wide text-foreground/90">
+                {eventMeta.eventCode?.trim() || "—"}
+              </span>
+            </span>
+          </div>
         </div>
       </div>
 
       <OrganizerEventAnalyticsDashboard
         eventId={eventId}
-        onForbidden={() => setForbidden(true)}
+        onForbidden={handleForbidden}
+        showEventHeader={false}
+        onEventMetaChange={handleEventMetaChange}
       />
 
       <div id="organizer-operational-data" className="scroll-mt-8">

@@ -439,9 +439,18 @@ function InsightsTable({
 export function OrganizerEventAnalyticsDashboard({
   eventId,
   onForbidden,
+  showEventHeader = true,
+  onEventMetaChange,
 }: {
   eventId: string
   onForbidden: () => void
+  showEventHeader?: boolean
+  onEventMetaChange?: (meta: {
+    eventName: string | null
+    eventStartsAt: string | null
+    eventEndsAt: string | null
+    eventCode: string | null
+  }) => void
 }) {
   const [analytics, setAnalytics] = useState<OrganizerEventAnalytics | null>(
     null,
@@ -472,6 +481,24 @@ export function OrganizerEventAnalyticsDashboard({
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    onEventMetaChange?.(
+      analytics
+        ? {
+            eventName: analytics.event_name ?? null,
+            eventStartsAt: analytics.event_starts_at ?? null,
+            eventEndsAt: analytics.event_ends_at ?? null,
+            eventCode: analytics.event_code ?? null,
+          }
+        : {
+            eventName: null,
+            eventStartsAt: null,
+            eventEndsAt: null,
+            eventCode: null,
+          },
+    )
+  }, [analytics, onEventMetaChange])
 
   const openDrilldown = useCallback((next: DrilldownState) => {
     setDrilldown(next)
@@ -671,28 +698,30 @@ export function OrganizerEventAnalyticsDashboard({
   return (
     <>
       <div className="space-y-6">
-        <div className="rounded-xl border border-border bg-card/40 shadow-sm outline-surface-inset-comfortable">
-          <h2 className="text-xl font-bold tracking-tight">
-            {analytics.event_name?.trim() || "Event"}
-          </h2>
-          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            {formatEventWhen(analytics.event_starts_at) ? (
-              <span>Starts {formatEventWhen(analytics.event_starts_at)}</span>
-            ) : null}
-            {formatEventWhen(analytics.event_ends_at) ? (
-              <span>Ends {formatEventWhen(analytics.event_ends_at)}</span>
-            ) : null}
-            <span className="min-w-0 text-[11px]">
-              <span className="text-muted-foreground">Join code </span>
-              <span className="font-mono font-semibold tracking-wide text-foreground/90">
-                {analytics.event_code?.trim() || "—"}
+        {showEventHeader ? (
+          <div className="rounded-xl border border-border bg-card/40 shadow-sm outline-surface-inset-comfortable">
+            <h2 className="text-xl font-bold tracking-tight">
+              {analytics.event_name?.trim() || "Event"}
+            </h2>
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              {formatEventWhen(analytics.event_starts_at) ? (
+                <span>Starts {formatEventWhen(analytics.event_starts_at)}</span>
+              ) : null}
+              {formatEventWhen(analytics.event_ends_at) ? (
+                <span>Ends {formatEventWhen(analytics.event_ends_at)}</span>
+              ) : null}
+              <span className="min-w-0 text-[11px]">
+                <span className="text-muted-foreground">Join code </span>
+                <span className="font-mono font-semibold tracking-wide text-foreground/90">
+                  {analytics.event_code?.trim() || "—"}
+                </span>
               </span>
-            </span>
+            </div>
+            <p className="mt-3 text-[11px] text-muted-foreground border-t border-border/60 pt-3">
+              Totals follow your guest list and connections.
+            </p>
           </div>
-          <p className="mt-3 text-[11px] text-muted-foreground border-t border-border/60 pt-3">
-            Totals follow your guest list and connections.
-          </p>
-        </div>
+        ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
