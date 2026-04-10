@@ -21,6 +21,30 @@ const nextConfig: NextConfig = {
   },
   // Mark puppeteer packages as external to avoid bundling issues in serverless
   serverExternalPackages: ['puppeteer-core', '@sparticuz/chromium'],
+  async headers() {
+    return [
+      {
+        source: "/marketing/home-page.mp4",
+        headers: [
+          { key: "Content-Type", value: "video/mp4" },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=604800, stale-while-revalidate=86400",
+          },
+        ],
+      },
+      {
+        source: "/marketing/sponsor-page-compress.mov",
+        headers: [
+          { key: "Content-Type", value: "video/quicktime" },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=604800, stale-while-revalidate=86400",
+          },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     return {
       // Serve the marketing HTML directly at / before Next.js routing kicks in.
