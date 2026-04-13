@@ -38,6 +38,15 @@ export default async function OrganizerHomePage() {
               </code>
               , insert rows via Supabase SQL or Table Editor.
             </p>
+            <p className="text-xs pt-2">
+              <Link
+                href="/organizer-demo"
+                className="font-medium text-foreground underline underline-offset-2 hover:no-underline"
+              >
+                Open the public demo dashboard
+              </Link>{" "}
+              (fictional event, no sign-in).
+            </p>
           </CardContent>
         </Card>
       </div>

@@ -441,6 +441,8 @@ export function OrganizerEventAnalyticsDashboard({
   onForbidden,
   showEventHeader = true,
   onEventMetaChange,
+  /** When set, skips API fetch (e.g. public `/organizer-demo` with fictional data). */
+  demoAnalytics = null,
 }: {
   eventId: string
   onForbidden: () => void
@@ -451,14 +453,20 @@ export function OrganizerEventAnalyticsDashboard({
     eventEndsAt: string | null
     eventCode: string | null
   }) => void
+  demoAnalytics?: OrganizerEventAnalytics | null
 }) {
   const [analytics, setAnalytics] = useState<OrganizerEventAnalytics | null>(
-    null,
+    () => demoAnalytics ?? null,
   )
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!demoAnalytics)
   const [drilldown, setDrilldown] = useState<DrilldownState>(null)
 
   const load = useCallback(async () => {
+    if (demoAnalytics) {
+      setAnalytics(demoAnalytics)
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const res = await fetch(
       `/api/organizer/event-analytics?eventId=${encodeURIComponent(eventId)}`,
@@ -476,10 +484,10 @@ export function OrganizerEventAnalyticsDashboard({
     const data = (await res.json()) as OrganizerEventAnalytics
     setAnalytics(data)
     setLoading(false)
-  }, [eventId, onForbidden])
+  }, [eventId, onForbidden, demoAnalytics])
 
   useEffect(() => {
-    load()
+    void load()
   }, [load])
 
   useEffect(() => {

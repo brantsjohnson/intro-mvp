@@ -32,14 +32,15 @@
 <meta property="og:description" content="Match every attendee or sponsor to the right person in the room. Prove event ROI and sync follow-ups to CRM.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://www.intro.events/">
-<meta property="og:image" content="https://www.intro.events/og-image.png">
+<meta property="og:image" content="https://www.intro.events/marketing/Intro%20Circle%20Logo%20-%20Transparent.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Intro — Prove Event ROI">
 <meta name="twitter:description" content="Match every attendee or sponsor to the right person in the room. Prove event ROI.">
-<meta name="twitter:image" content="https://www.intro.events/og-image.png">
+<meta name="twitter:image" content="https://www.intro.events/marketing/Intro%20Circle%20Logo%20-%20Transparent.png">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <link rel="canonical" href="https://www.intro.events/">
-<link rel="icon" href="/marketing/Intro%20Logo%20(1).png" type="image/png">
+<link rel="icon" href="/marketing/Intro%20Circle%20Logo%20-%20Transparent.png" type="image/png">
+<link rel="apple-touch-icon" href="/marketing/Intro%20Circle%20Logo%20-%20Transparent.png">
 <!-- GA4: literal gtag.js URL in HTML so GA setup + Tag Assistant can detect the tag (not only via JS). -->
 <script>window.INTRO_GA_MEASUREMENT_ID = 'G-LT17QF6CBE';</script>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-LT17QF6CBE"></script>
@@ -331,6 +332,32 @@ h1, h2, h3 { font-family: var(--font-heading); font-weight: bold; letter-spacing
 @media (max-width: 900px) {
   .hero-two-col { grid-template-columns: 1fr; }
   .hero-phone-wrap { display: none; }
+}
+
+/* How It Works hero: two columns like sponsor “Stop guessing” (1fr / 1fr) */
+.two-col.works-hero-two-col {
+  align-items: center;
+}
+.section-dark .works-hero-two-col .body-text {
+  color: rgba(237, 235, 230, 0.65);
+}
+.works-hero-two-col .works-hero-video-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+}
+.section-dark .works-hero-two-col .works-hero-video-wrap video {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: 1.25rem;
+  display: block;
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+  transform-origin: center center;
+  will-change: transform;
 }
 
 /* ── PULL QUOTE ── */
@@ -1219,11 +1246,26 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-dark section-pad texture-dots" style="padding-top:12rem;">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="SIMPLE TO SET UP. POWERFUL ON THE BACK END."></span></div>
-      <h1 class="hero-headline reveal" style="max-width:900px;"><span style="color:var(--background);">You run the event.</span> <em class="accent-amber italic">Intro handles the proof.</em></h1>
-      <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.65);margin-top:2rem;">Send your attendees one link. Intro gives them a reason to connect, records interactions, and <strong>hands you a report your sponsors can't argue with.</strong></p>
-      <div class="consequence-quote reveal reveal-delay-2" style="display:inline-block;max-width:600px;"><span class="cq-text">"I sent one link." </span><span class="cq-good">Intro recorded the rest, weeks after the event closed.</span></div>
-      <div style="margin-top:2rem;" class="reveal reveal-delay-3"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+      <div class="two-col works-hero-two-col">
+        <div>
+          <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="SIMPLE TO SET UP. POWERFUL ON THE BACK END."></span></div>
+          <h1 class="hero-headline reveal" style="max-width:900px;"><span style="color:var(--background);">You run the event.</span> <em class="accent-amber italic">Intro handles the proof.</em></h1>
+          <p class="body-text reveal reveal-delay-1" style="margin-top:2rem;">Send your attendees one link. Intro gives them a reason to connect, records interactions, and <strong>hands you a report your sponsors can't argue with.</strong></p>
+          <div class="consequence-quote reveal reveal-delay-2" style="display:inline-block;max-width:600px;"><span class="cq-text">"I sent one link." </span><span class="cq-good">Intro recorded the rest, weeks after the event closed.</span></div>
+          <div style="margin-top:2rem;" class="reveal reveal-delay-3"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+        </div>
+        <div class="works-hero-video-wrap reveal reveal-delay-2">
+          <video
+            id="works-organizer-video"
+            src="/marketing/Organizer%20Page.mov"
+            autoplay
+            loop
+            muted
+            playsinline
+            preload="auto"
+          ></video>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1360,17 +1402,17 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
         <!-- STARTER -->
         <div class="pricing-card reveal">
           <div class="plan-name">Starter</div>
-          <p class="plan-tagline">Up to 250 attendees. One event at a time.</p>
+          <p class="plan-tagline">Up to 500 people. One event at a time.</p>
           <div class="plan-price-wrap">
             <div class="plan-price" id="starter-price">
               <span class="price-person"><span class="price-amount">$3.50</span><span class="price-unit"> avg. per person</span></span>
-              <span class="price-event" style="display:none;"><span class="price-amount">$875</span><span class="price-unit"> per event</span></span>
+              <span class="price-event" style="display:none;"><span class="price-amount">$1,750</span><span class="price-unit"> per event</span></span>
             </div>
           </div>
           <button class="btn btn-ghost-light plan-cta" onclick="navigate('contact')">Get started →</button>
           <div class="plan-divider"></div>
           <ul class="plan-features">
-            <li>Up to 250 attendees</li>
+            <li>Up to 500 people</li>
             <li>3 matches per attendee</li>
             <li>1 sponsor integration</li>
             <li>CRM integration</li>
@@ -1384,17 +1426,17 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
         <div class="pricing-card featured reveal reveal-delay-1">
           <div class="featured-badge">Most Popular</div>
           <div class="plan-name">Growth</div>
-          <p class="plan-tagline">Up to 500 attendees. Full sponsor ROI suite.</p>
+          <p class="plan-tagline">Up to 1,000 people. Full sponsor ROI suite.</p>
           <div class="plan-price-wrap">
             <div class="plan-price" id="growth-price">
               <span class="price-person"><span class="price-amount">$5.00</span><span class="price-unit"> avg. per person</span></span>
-              <span class="price-event" style="display:none;"><span class="price-amount">$2,500</span><span class="price-unit"> per event</span></span>
+              <span class="price-event" style="display:none;"><span class="price-amount">$5,000</span><span class="price-unit"> per event</span></span>
             </div>
           </div>
           <button class="btn btn-primary plan-cta" onclick="navigate('contact')">Get started →</button>
           <div class="plan-divider"></div>
           <ul class="plan-features">
-            <li>Up to 500 attendees</li>
+            <li>Up to 1,000 people</li>
             <li>3 matches per attendee</li>
             <li>Sponsor integration</li>
             <li>CRM integration</li>
@@ -1448,7 +1490,7 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
         </div>
         <div class="pricing-free-trial-features">
           <ul class="plan-features">
-            <li>Up to 50 attendees</li>
+            <li>Up to 100 people</li>
             <li>1 match per attendee</li>
             <li>Attendee directory</li>
             <li>Standard post-event survey</li>
@@ -1470,7 +1512,7 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
             <span class="faq-q">Does Intro charge per attendee?</span>
             <span class="faq-icon">+</span>
           </button>
-          <div class="faq-answer"><p class="faq-a">Yes — Intro is priced per attendee. Starter is <strong>$3.50/person</strong> (up to 250 attendees, <strong>$875</strong> per event at capacity) and Growth is <strong>$5.00/person</strong> (up to 500 attendees). Enterprise is custom.</p></div>
+          <div class="faq-answer"><p class="faq-a">Yes — Intro is priced per attendee. Starter is <strong>$3.50/person</strong> (up to 500 people, <strong>$1,750</strong> per event at capacity) and Growth is <strong>$5.00/person</strong> (up to 1,000 people, <strong>$5,000</strong> per event at capacity). Enterprise is custom.</p></div>
         </div>
         <div class="faq-item reveal reveal-delay-1 faq-accordion">
           <button class="faq-toggle" onclick="toggleFaq(this)">
@@ -2499,22 +2541,35 @@ window.addEventListener('beforeunload', () => {
   init();
 })();
 
-/* ── Hero phone mockup: scroll-driven tilt ── */
+/* ── Hero phone mockups: scroll-driven tilt (home + How It Works) ── */
 (function () {
-  const phone = document.getElementById('hero-phone');
-  if (!phone) return;
-  const heroVideo = document.getElementById('hero-phone-video');
-  if (heroVideo) {
-    heroVideo.defaultPlaybackRate = 0.65;
-    heroVideo.playbackRate = 0.65;
-    heroVideo.addEventListener('play', function () {
-      heroVideo.playbackRate = 0.65;
-    });
-  }
   const MAX_Y = 10;
   const MAX_X = 5;
-  let ticking = false;
-  function updatePhoneTilt() {
+  const setups = [{ phoneId: 'hero-phone', videoId: 'hero-phone-video' }];
+
+  const phones = [];
+  setups.forEach(function (cfg) {
+    const phone = document.getElementById(cfg.phoneId);
+    if (!phone) return;
+    phones.push(phone);
+    const heroVideo = document.getElementById(cfg.videoId);
+    if (heroVideo) {
+      heroVideo.defaultPlaybackRate = 0.65;
+      heroVideo.playbackRate = 0.65;
+      heroVideo.addEventListener('play', function () {
+        heroVideo.playbackRate = 0.65;
+      });
+      heroVideo.addEventListener('loadedmetadata', function () {
+        heroVideo.playbackRate = 0.65;
+      });
+      const playPromise = heroVideo.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(function () {});
+      }
+    }
+  });
+
+  function updatePhoneTilt(phone) {
     const rect = phone.getBoundingClientRect();
     const viewH = window.innerHeight;
     const centerY = rect.top + rect.height / 2;
@@ -2522,12 +2577,20 @@ window.addEventListener('beforeunload', () => {
     const rotX =  norm * MAX_X;
     const rotY = -norm * MAX_Y;
     phone.style.transform = `perspective(1000px) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg)`;
-    ticking = false;
   }
-  window.addEventListener('scroll', function () {
-    if (!ticking) { requestAnimationFrame(updatePhoneTilt); ticking = true; }
-  }, { passive: true });
-  updatePhoneTilt();
+
+  let ticking = false;
+  function onScroll() {
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(function () {
+        phones.forEach(updatePhoneTilt);
+        ticking = false;
+      });
+    }
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  phones.forEach(updatePhoneTilt);
 })();
 
 /* ── Sponsor demo video: slow playback + scroll-driven tilt ── */
@@ -2564,6 +2627,48 @@ window.addEventListener('beforeunload', () => {
     const rotX =  normY * MAX_ROTATE_X;   /* tilt back when below centre, forward above */
     const rotY = -normY * MAX_ROTATE_Y;   /* slight left/right twist opposite direction  */
 
+    video.style.transform =
+      `perspective(900px) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg)`;
+    ticking = false;
+  }
+
+  window.addEventListener('scroll', function () {
+    if (!ticking) {
+      requestAnimationFrame(updateTilt);
+      ticking = true;
+    }
+  }, { passive: true });
+
+  updateTilt();
+})();
+
+/* ── How It Works: organizer video (wide frame like sponsor proof; grid stays 2fr / 1fr from .hero-two-col) ── */
+(function () {
+  const video = document.getElementById('works-organizer-video');
+  if (!video) return;
+
+  function setRate() {
+    video.defaultPlaybackRate = 0.65;
+    video.playbackRate = 0.65;
+  }
+  setRate();
+  video.addEventListener('play', setRate);
+  video.addEventListener('loadedmetadata', setRate);
+  const playPromise = video.play();
+  if (playPromise && typeof playPromise.catch === 'function') {
+    playPromise.catch(function () {});
+  }
+
+  const MAX_ROTATE_Y = 8;
+  const MAX_ROTATE_X = 4;
+  let ticking = false;
+  function updateTilt() {
+    const rect = video.getBoundingClientRect();
+    const viewH = window.innerHeight;
+    const centerY = rect.top + rect.height / 2;
+    const normY = (centerY - viewH / 2) / (viewH / 2);
+    const rotX =  normY * MAX_ROTATE_X;
+    const rotY = -normY * MAX_ROTATE_Y;
     video.style.transform =
       `perspective(900px) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg)`;
     ticking = false;

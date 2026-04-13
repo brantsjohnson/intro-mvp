@@ -17,20 +17,23 @@ function AuthPageInner() {
               The Best Way to Network
             </p>
             <div className="flex flex-col justify-center items-center mb-0 sm:mb-1">
-              <div className="relative inline-block leading-none">
-                <span
+              <div
+                className={`inline-flex items-center gap-2 sm:gap-3 text-foreground leading-none ${changaOne.className}`}
+                style={{ letterSpacing: "0.02em" }}
+              >
+                <img
+                  src="/marketing/Intro%20Logo%20-%20Transparent.png"
+                  alt=""
+                  width={56}
+                  height={56}
+                  decoding="async"
+                  className="h-11 w-auto sm:h-14 md:h-16 lg:h-[4.25rem] shrink-0 object-contain"
                   aria-hidden
-                  className={`${changaOne.className} block absolute left-0 top-[6px] text-accent text-[64px] sm:text-[80px] md:text-[96px] lg:text-[120px] xl:text-[144px]`}
-                >
-                  INTRO
-                </span>
-                <span
-                  className={`${changaOne.className} relative block text-foreground text-[64px] sm:text-[80px] md:text-[96px] lg:text-[120px] xl:text-[144px]`}
-                >
-                  INTRO
+                />
+                <span className="font-normal text-[2.35rem] sm:text-[3rem] md:text-[3.75rem] lg:text-[4.25rem] xl:text-[4.75rem]">
+                  Intro
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Beta Test</p>
             </div>
           </div>
         </div>
