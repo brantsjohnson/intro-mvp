@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, MouseEvent, useCallback, useMemo, useRef } from "react"
+import { Changa_One } from "next/font/google"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GradientButton } from "@/components/ui/gradient-button"
@@ -41,6 +42,8 @@ import {
 } from "@/lib/pending-event-invite"
 import { haptics } from "@/lib/haptics"
 import { toast } from "sonner"
+
+const changaOne = Changa_One({ weight: "400", subsets: ["latin"] })
 import {
   DEMO_USER,
   DEMO_SELF_PROFILE,
@@ -1762,14 +1765,12 @@ export function HomePage() {
                 </Select>
               ) : (
                 <h1
-                  className="text-2xl text-accent"
-                  style={{
-                    fontFamily: "Changa One, cursive",
-                    fontWeight: 400,
-                    letterSpacing: "0.02em",
-                  }}
+                  className={cn(
+                    "text-2xl font-normal leading-none text-accent normal-case tracking-[0.02em]",
+                    changaOne.className,
+                  )}
                 >
-                  INTRO
+                  Intro
                 </h1>
               )}
             </div>

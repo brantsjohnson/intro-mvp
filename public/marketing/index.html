@@ -233,12 +233,32 @@ h1, h2, h3 { font-family: var(--font-heading); font-weight: bold; letter-spacing
 /* ── HERO ── */
 .hero-section { position: relative; overflow: hidden; }
 #hero-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 1; pointer-events: none; }
-.hero-two-col { display: grid; grid-template-columns: 2fr 1fr; gap: 3rem; align-items: center; position: relative; z-index: 2; }
+.hero-two-col {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 3rem;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+  grid-template-rows: auto auto;
+}
+.hero-copy-lead { grid-column: 1; grid-row: 1; }
+.hero-cta-stack { grid-column: 1; grid-row: 2; }
 .hero-content { position: relative; }
-.hero-content .body-text { color: var(--muted-foreground); margin-bottom: 2.5rem; }
+.hero-content .body-text { color: var(--muted-foreground); margin-bottom: 0; }
+.hero-copy-lead .body-text { margin-bottom: 0; }
+.hero-cta-stack .consequence-quote { margin-top: 0; }
 
 /* ── IPHONE MOCKUP ── */
-.hero-phone-wrap { display: flex; justify-content: flex-end; align-items: center; padding-right: 0.75rem; }
+.hero-phone-wrap {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding-right: 0.75rem;
+}
 .iphone-mockup {
   position: relative;
   width: 268px;
@@ -330,8 +350,24 @@ h1, h2, h3 { font-family: var(--font-heading); font-weight: bold; letter-spacing
   z-index: 10;
 }
 @media (max-width: 900px) {
-  .hero-two-col { grid-template-columns: 1fr; }
-  .hero-phone-wrap { display: none; }
+  .hero-two-col {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 2rem;
+  }
+  .hero-copy-lead { grid-column: 1; grid-row: 1; }
+  .hero-phone-wrap {
+    grid-column: 1;
+    grid-row: 2;
+    justify-content: center;
+    padding-right: 0;
+  }
+  .hero-cta-stack { grid-column: 1; grid-row: 3; }
+  .hero-phone-wrap .iphone-mockup {
+    width: min(248px, 82vw);
+    height: auto;
+    aspect-ratio: 268 / 546;
+  }
 }
 
 /* How It Works hero: two columns like sponsor “Stop guessing” (1fr / 1fr) */
@@ -347,6 +383,22 @@ h1, h2, h3 { font-family: var(--font-heading); font-weight: bold; letter-spacing
   align-items: center;
   min-width: 0;
 }
+@media (min-width: 901px) {
+  .works-hero-two-col .works-hero-intro {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .works-hero-two-col .works-hero-actions {
+    grid-column: 1;
+    grid-row: 2;
+    margin-top: 1.5rem;
+  }
+  .works-hero-two-col .works-hero-video-wrap {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+}
 .section-dark .works-hero-two-col .works-hero-video-wrap video {
   width: 100%;
   max-width: 100%;
@@ -358,6 +410,27 @@ h1, h2, h3 { font-family: var(--font-heading); font-weight: bold; letter-spacing
     0 0 0 1px rgba(255, 255, 255, 0.06);
   transform-origin: center center;
   will-change: transform;
+}
+
+/* Sections with body + full-width video + quote/CTA below on mobile; video right column on desktop */
+@media (min-width: 901px) {
+  .col-video-split {
+    grid-template-rows: auto auto;
+  }
+  .col-video-split > .cvs-top {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .col-video-split > .cvs-bottom {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .col-video-split > .cvs-video {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    min-width: 0;
+  }
 }
 
 /* ── PULL QUOTE ── */
@@ -533,6 +606,32 @@ h1, h2, h3 { font-family: var(--font-heading); font-weight: bold; letter-spacing
 footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0.1); padding: 2.5rem 0 2rem; }
 .footer-inner { max-width: 1200px; margin: 0 auto; padding: 0 5rem; }
 .footer-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 3rem; padding-bottom: 2rem; border-bottom: 1px solid rgba(237,235,230,0.1); margin-bottom: 1.5rem; flex-wrap: wrap; }
+.footer-brand {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.55rem;
+}
+.footer-brand-mark-wrap {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  line-height: 0;
+}
+.footer-brand-mark {
+  height: 1.28rem;
+  width: auto;
+  object-fit: contain;
+  object-position: left center;
+  display: block;
+}
+.footer-brand-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.35rem;
+}
+.footer-brand-text .footer-tagline { margin-top: 0; }
 .footer-logo { font-family: var(--font-display); font-size: 1.5rem; font-weight: 400; letter-spacing: 0.02em; color: var(--background); line-height: 1; }
 .footer-logo span { color: var(--background); }
 .footer-tagline { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(237,235,230,0.5); margin-top: 0.35rem; }
@@ -909,16 +1008,11 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
         <span class="eyebrow-text" data-text="FOR EVENT DIRECTORS"></span>
       </div>
       <div class="hero-two-col">
-        <div class="hero-content">
+        <div class="hero-copy-lead hero-content">
           <h1 class="hero-headline reveal">
             Match every <span class="hero-nowrap">attendee or sponsor</span> to the <em class="accent-amber italic">right person in the room.</em>
           </h1>
           <p class="body-text reveal reveal-delay-1" style="color:var(--foreground);">Intro matches your attendees and sponsors to the right people, records who they meet, and <strong>syncs follow-ups directly to their CRM</strong> so the pipeline your event created is finally visible. Add it to your existing stack and prove ROI without rebuilding a thing.</p>
-          <div class="consequence-quote reveal reveal-delay-2"><span class="cq-text">"Sponsors stopped asking if it worked." </span><span class="cq-good">Intro proved the event ROI.</span></div>
-          <div class="reveal reveal-delay-3">
-            <button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button>
-            <p style="margin-top:0.85rem; font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; color:rgba(58,56,53,0.35);">100% satisfaction guarantee</p>
-          </div>
         </div>
         <div class="hero-phone-wrap reveal reveal-delay-2">
           <div class="iphone-mockup" id="hero-phone">
@@ -935,6 +1029,13 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
             </div>
             <div class="iphone-island"></div>
             <div class="iphone-home"></div>
+          </div>
+        </div>
+        <div class="hero-cta-stack hero-content">
+          <div class="consequence-quote reveal reveal-delay-2"><span class="cq-text">"Sponsors stopped asking if it worked." </span><span class="cq-good">Intro proved the event ROI.</span></div>
+          <div class="reveal reveal-delay-3">
+            <button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button>
+            <p style="margin-top:0.85rem; font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; color:rgba(58,56,53,0.35);">100% satisfaction guarantee</p>
           </div>
         </div>
       </div>
@@ -1044,15 +1145,14 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
   <section class="section-light section-pad">
     <div class="container">
       <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="DATA YOUR COMPETITORS DON'T HAVE"></span></div>
-      <div class="two-col" style="margin-bottom:4rem; align-items:flex-start;">
-        <div>
+      <div class="two-col col-video-split" style="margin-bottom:4rem; align-items:flex-start;">
+        <div class="cvs-top">
           <h2 class="section-headline reveal">What Intro gives you <em class="accent-wine italic">that nothing else does.</em></h2>
           <p class="body-text reveal reveal-delay-1" style="color:var(--foreground);">
-            Intro doesn't just prove your event's worth. <strong>It increases it.</strong><br>
-            <span style="display:inline-block;margin-top:0.5rem;"><strong style="color:var(--primary);">60%</strong> higher sponsor renewal when organizers share real ROI data.<sup style="font-size:0.6em;">3</sup></span>
+            Intro doesn't just prove your event's worth. <strong>It increases it.</strong>
           </p>
         </div>
-        <div class="reveal reveal-delay-2">
+        <div class="cvs-video reveal reveal-delay-2">
           <video
             id="sponsor-demo-video"
             src="/marketing/sponsor-page-compress.mov"
@@ -1063,6 +1163,11 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
             preload="auto"
             style="width:100%;border-radius:1.25rem;display:block;box-shadow:0 8px 40px rgba(0,0,0,0.13);margin-bottom:1.5rem;"
           ></video>
+        </div>
+        <div class="cvs-bottom">
+          <p class="body-text reveal reveal-delay-2" style="color:var(--foreground); margin-top:0;">
+            <span style="display:inline-block;margin-top:0.25rem;"><strong style="color:var(--primary);">60%</strong> higher sponsor renewal when organizers share real ROI data.<sup style="font-size:0.6em;">3</sup></span>
+          </p>
         </div>
       </div>
       <div>
@@ -1247,12 +1352,10 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
   <section class="section-dark section-pad texture-dots" style="padding-top:12rem;">
     <div class="container">
       <div class="two-col works-hero-two-col">
-        <div>
+        <div class="works-hero-intro">
           <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="SIMPLE TO SET UP. POWERFUL ON THE BACK END."></span></div>
           <h1 class="hero-headline reveal" style="max-width:900px;"><span style="color:var(--background);">You run the event.</span> <em class="accent-amber italic">Intro handles the proof.</em></h1>
           <p class="body-text reveal reveal-delay-1" style="margin-top:2rem;">Send your attendees one link. Intro gives them a reason to connect, records interactions, and <strong>hands you a report your sponsors can't argue with.</strong></p>
-          <div class="consequence-quote reveal reveal-delay-2" style="display:inline-block;max-width:600px;"><span class="cq-text">"I sent one link." </span><span class="cq-good">Intro recorded the rest, weeks after the event closed.</span></div>
-          <div style="margin-top:2rem;" class="reveal reveal-delay-3"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
         </div>
         <div class="works-hero-video-wrap reveal reveal-delay-2">
           <video
@@ -1264,6 +1367,10 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
             playsinline
             preload="auto"
           ></video>
+        </div>
+        <div class="works-hero-actions">
+          <div class="consequence-quote reveal reveal-delay-2" style="display:inline-block;max-width:600px;"><span class="cq-text">"I sent one link." </span><span class="cq-good">Intro recorded the rest, weeks after the event closed.</span></div>
+          <div style="margin-top:2rem;" class="reveal reveal-delay-3"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
         </div>
       </div>
     </div>
@@ -1579,19 +1686,14 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
   <section class="section-light section-pad">
     <div class="container">
       <div class="eyebrow" style="color:var(--accent);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="WHAT PROOF LOOKS LIKE"></span></div>
-      <div class="two-col" style="align-items:flex-start;">
-        <div>
+      <div class="two-col col-video-split" style="align-items:flex-start;">
+        <div class="cvs-top">
           <h2 class="section-headline reveal">Stop guessing. <em class="accent-wine italic">Start showing the numbers.</em></h2>
           <p class="body-text reveal reveal-delay-1">With Intro, sponsors get matched to the right attendees before the event. Every conversation recorded. Every follow-up triggered. Synced to their CRM automatically.</p>
-          <div class="consequence-quote reveal reveal-delay-2"><span class="cq-text">"I finally had something real to show my CFO." </span><span class="cq-good">We renewed the same day.</span></div>
-          <div class="stat-block reveal reveal-delay-3" style="margin-top:1rem;">
-            <div class="stat-number" data-target="60" style="color:var(--primary);">0</div>
-            <div class="stat-label" style="color:var(--foreground);">higher sponsor renewal when organizers share real ROI data.<sup style="font-size:0.6em;">3</sup></div>
-          </div>
-          <div style="margin-top:2rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
         </div>
-        <div class="reveal reveal-delay-2">
+        <div class="cvs-video reveal reveal-delay-2">
           <video
+            id="sponsor-proof-dashboard-video"
             src="/marketing/sponsor-page-compress.mov"
             autoplay
             loop
@@ -1599,6 +1701,14 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
             playsinline
             style="width:100%;border-radius:1.25rem;display:block;box-shadow:0 8px 40px rgba(0,0,0,0.13);transform-origin:center center;will-change:transform;"
           ></video>
+        </div>
+        <div class="cvs-bottom">
+          <div class="consequence-quote reveal reveal-delay-2"><span class="cq-text">"I finally had something real to show my CFO." </span><span class="cq-good">We renewed the same day.</span></div>
+          <div class="stat-block reveal reveal-delay-3" style="margin-top:1rem;">
+            <div class="stat-number" data-target="60" style="color:var(--primary);">0</div>
+            <div class="stat-label" style="color:var(--foreground);">higher sponsor renewal when organizers share real ROI data.<sup style="font-size:0.6em;">3</sup></div>
+          </div>
+          <div style="margin-top:2rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
         </div>
       </div>
     </div>
@@ -1842,9 +1952,21 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 <footer>
   <div class="footer-inner">
     <div class="footer-top">
-      <div>
-        <div class="footer-logo"><span>I</span>ntro</div>
-        <div class="footer-tagline">Prove Event ROI.</div>
+      <div class="footer-brand">
+        <div class="footer-brand-mark-wrap" aria-hidden="true">
+          <img
+            class="footer-brand-mark"
+            src="/marketing/Intro%20Logo%20-%20Transparent.png"
+            alt=""
+            width="24"
+            height="24"
+            decoding="async"
+          />
+        </div>
+        <div class="footer-brand-text">
+          <div class="footer-logo"><span>I</span>ntro</div>
+          <div class="footer-tagline">Prove Event ROI.</div>
+        </div>
       </div>
       <div class="footer-links">
         <button onclick="navigate('home')">Home</button>
@@ -1856,7 +1978,7 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
       </div>
     </div>
     <div class="footer-builder">
-      <div class="footer-builder-label">Who Built This</div>
+      <div class="footer-builder-label">Why We Built Intro</div>
       <p class="footer-builder-text">I've had event budgets cut because sponsors wanted an ROI. It stings, because events are one of the most powerful ways attendees and sponsors can connect and grow their businesses. So I built Intro to fix that. <span class="footer-builder-name">— Brant Johnson, Creator of Intro</span></p>
     </div>
     <div class="footer-bottom">
@@ -2593,53 +2715,61 @@ window.addEventListener('beforeunload', () => {
   phones.forEach(updatePhoneTilt);
 })();
 
-/* ── Sponsor demo video: slow playback + scroll-driven tilt ── */
+/* ── Sponsor dashboard clips: slow playback + scroll-driven tilt (home + sponsors proof) ── */
 (function () {
-  const video = document.getElementById('sponsor-demo-video');
-  if (!video) return;
+  const ids = ['sponsor-demo-video', 'sponsor-proof-dashboard-video'];
+  const videos = ids.map(function (id) {
+    return document.getElementById(id);
+  }).filter(Boolean);
+  if (!videos.length) return;
 
-  /* Slow the video to 1/2 speed */
-  function setRate() {
+  function setRate(video) {
     video.defaultPlaybackRate = 0.5;
     video.playbackRate = 0.5;
   }
-  setRate();
-  video.addEventListener('play', setRate);
-  video.addEventListener('loadedmetadata', setRate);
-  const playPromise = video.play();
-  if (playPromise && typeof playPromise.catch === 'function') {
-    playPromise.catch(function () {});
-  }
+  videos.forEach(function (video) {
+    setRate(video);
+    video.addEventListener('play', function () {
+      setRate(video);
+    });
+    video.addEventListener('loadedmetadata', function () {
+      setRate(video);
+    });
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(function () {});
+    }
+  });
 
-  /* Scroll-driven perspective tilt */
-  const MAX_ROTATE_Y = 8;   /* degrees left/right */
-  const MAX_ROTATE_X = 4;   /* degrees up/down   */
-
+  const MAX_ROTATE_Y = 8;
+  const MAX_ROTATE_X = 4;
   let ticking = false;
-  function updateTilt() {
-    const rect = video.getBoundingClientRect();
+  function updateAllTilt() {
     const viewH = window.innerHeight;
-
-    /* How far the element's centre is from the viewport centre, normalised -1 → 1 */
-    const centerY = rect.top + rect.height / 2;
-    const normY = (centerY - viewH / 2) / (viewH / 2);   /* -1 = top, +1 = bottom */
-
-    const rotX =  normY * MAX_ROTATE_X;   /* tilt back when below centre, forward above */
-    const rotY = -normY * MAX_ROTATE_Y;   /* slight left/right twist opposite direction  */
-
-    video.style.transform =
-      `perspective(900px) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg)`;
+    videos.forEach(function (video) {
+      const rect = video.getBoundingClientRect();
+      const centerY = rect.top + rect.height / 2;
+      const normY = (centerY - viewH / 2) / (viewH / 2);
+      const rotX = normY * MAX_ROTATE_X;
+      const rotY = -normY * MAX_ROTATE_Y;
+      video.style.transform =
+        'perspective(900px) rotateX(' +
+        rotX.toFixed(2) +
+        'deg) rotateY(' +
+        rotY.toFixed(2) +
+        'deg)';
+    });
     ticking = false;
   }
 
   window.addEventListener('scroll', function () {
     if (!ticking) {
-      requestAnimationFrame(updateTilt);
       ticking = true;
+      requestAnimationFrame(updateAllTilt);
     }
   }, { passive: true });
 
-  updateTilt();
+  updateAllTilt();
 })();
 
 /* ── How It Works: organizer video (wide frame like sponsor proof; grid stays 2fr / 1fr from .hero-two-col) ── */
