@@ -5,8 +5,8 @@ import { Changa_One } from "next/font/google"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GradientButton } from "@/components/ui/gradient-button"
-import { EventJoinScanner } from "@/components/ui/event-join-scanner"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { PresenceAvatar } from "@/components/ui/presence-avatar"
 import { MatchCard } from "@/components/ui/match-card"
 import { QRCard } from "@/components/ui/qr-card"
@@ -215,9 +215,7 @@ export function HomePage() {
     setUnreadMessageCount(2)
   }, [isDemoMode])
 
-  // 6-digit code input state for home page (no QR scanner)
-  const [eventCodeInput, setEventCodeInput] = useState<string[]>(["", "", "", "", "", ""])
-  const eventCodeInputRefs = useRef<(HTMLInputElement | null)[]>([])
+  const [eventCodeInput, setEventCodeInput] = useState("")
 
   const filteredDirectory = useMemo(() => {
     if (directoryFilter === "connected") {
@@ -328,20 +326,18 @@ export function HomePage() {
 
           clearPendingEventInvite()
 
-          try {
-            await fetch("/api/refresh-matches", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                eventId: event.event_id,
-                newUserId: user.id,
-              }),
-            })
-          } catch (error) {
+          void fetch("/api/refresh-matches", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              eventId: event.event_id,
+              newUserId: user.id,
+            }),
+          }).catch((error) => {
             console.error("Failed to refresh matches for new user:", error)
-          }
+          })
 
           router.replace(`/onboarding?from=event-join&eventId=${event.event_id}`)
         } finally {
@@ -1612,20 +1608,18 @@ export function HomePage() {
 
       haptics.success()
 
-      try {
-        await fetch("/api/refresh-matches", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            eventId: event.event_id,
-            newUserId: user.id,
-          }),
-        })
-      } catch (error) {
+      void fetch("/api/refresh-matches", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          eventId: event.event_id,
+          newUserId: user.id,
+        }),
+      }).catch((error) => {
         console.error("Failed to refresh matches for new user:", error)
-      }
+      })
 
       router.push(`/onboarding?from=event-join&eventId=${event.event_id}`)
     } catch (error) {
@@ -1807,91 +1801,44 @@ export function HomePage() {
               <div className="space-y-6">
                 {/* Title and Subtitle */}
                 <div className="text-center space-y-2">
-                  <p className="text-sm text-foreground">Enter 6 digit code to join.</p>
+                  <p className="text-sm text-foreground">Enter your event code to join the event.</p>
                 </div>
 
-                {/* 6-Digit Code Input - No QR Scanner */}
-                <form 
+                <form
                   onSubmit={(e) => {
                     e.preventDefault()
-                    const fullCode = eventCodeInput.join('')
-                    if (fullCode.length === 6) {
-                      handleJoinEvent(fullCode)
+                    if (eventCodeInput.length === 6) {
+                      handleJoinEvent(eventCodeInput)
                     }
                   }}
                   className="space-y-4"
                 >
-                  <div className="flex justify-center items-center gap-2">
-                    {eventCodeInput.map((digit, index) => (
-                      <input
-                        key={index}
-                        ref={(el) => {
-                          eventCodeInputRefs.current[index] = el
-                        }}
-                        type="text"
-                        inputMode="text"
-                        maxLength={1}
-                        value={digit}
-                        onChange={(e) => {
-                          const sanitized = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
-                          if (sanitized.length > 1) {
-                            // Handle paste
-                            const chars = sanitized.split('').slice(0, 6)
-                            const newCode = [...eventCodeInput]
-                            chars.forEach((char, i) => {
-                              if (index + i < 6) {
-                                newCode[index + i] = char
-                              }
-                            })
-                            setEventCodeInput(newCode)
-                            const nextIndex = Math.min(index + chars.length, 5)
-                            eventCodeInputRefs.current[nextIndex]?.focus()
-                          } else {
-                            const newCode = [...eventCodeInput]
-                            newCode[index] = sanitized
-                            setEventCodeInput(newCode)
-                            if (sanitized && index < 5) {
-                              eventCodeInputRefs.current[index + 1]?.focus()
-                            }
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Backspace' && !eventCodeInput[index] && index > 0) {
-                            eventCodeInputRefs.current[index - 1]?.focus()
-                          } else if (e.key === 'ArrowLeft' && index > 0) {
-                            eventCodeInputRefs.current[index - 1]?.focus()
-                          } else if (e.key === 'ArrowRight' && index < 5) {
-                            eventCodeInputRefs.current[index + 1]?.focus()
-                          }
-                        }}
-                        onPaste={(e) => {
-                          e.preventDefault()
-                          const pasted = e.clipboardData.getData('text').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)
-                          const newCode = [...eventCodeInput]
-                          pasted.split('').forEach((char, i) => {
-                            if (i < 6) {
-                              newCode[i] = char
-                            }
-                          })
-                          setEventCodeInput(newCode)
-                          const lastFilledIndex = Math.min(pasted.length - 1, 5)
-                          eventCodeInputRefs.current[lastFilledIndex]?.focus()
-                        }}
-                        className={cn(
-                          "w-12 h-14 text-center text-xl font-semibold rounded-lg border-2 bg-muted/40 text-foreground",
-                          "focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
-                          "transition-all",
-                          digit ? "border-primary" : "border-border"
-                        )}
-                        disabled={isJoiningEvent}
-                      />
-                    ))}
-                  </div>
-                  
+                  <Input
+                    id="home-event-code"
+                    type="text"
+                    inputMode="text"
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    maxLength={6}
+                    value={eventCodeInput}
+                    onChange={(e) =>
+                      setEventCodeInput(
+                        e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6)
+                      )
+                    }
+                    disabled={isJoiningEvent}
+                    className={cn(
+                      "max-w-md mx-auto h-12 text-base font-medium bg-muted/40",
+                      eventCodeInput.length > 0 && "border-primary/60"
+                    )}
+                    aria-label="Event code"
+                  />
+
                   <div className="flex justify-center">
                     <GradientButton 
                       type="submit"
-                      disabled={eventCodeInput.join('').length !== 6 || isJoiningEvent}
+                      disabled={eventCodeInput.length !== 6 || isJoiningEvent}
                       className="max-w-xs rounded-full py-3 text-base font-medium"
                     >
                       {isJoiningEvent ? (
@@ -2356,7 +2303,7 @@ export function HomePage() {
                 only a few questions.
               </DialogDescription>
               <p className="text-xs text-muted-foreground mt-4">
-                This may take 30 seconds to load. Do not refresh.
+                Usually just a moment. Do not refresh.
               </p>
             </div>
           </div>

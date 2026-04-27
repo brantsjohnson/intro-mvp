@@ -14,6 +14,7 @@ import { ArrowRight, ChevronLeft, Loader2, Camera, X, Upload } from "lucide-reac
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ImageCropModal } from "@/components/ui/image-crop-modal"
 import { CameraCapture } from "@/components/ui/camera-capture"
+import { EventBranchingOnboarding } from "@/components/onboarding/event-branching-onboarding"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { decryptEventCode } from "@/lib/event-code-encryption"
 import {
@@ -21,6 +22,10 @@ import {
   peekEncryptedInvitePayload,
   peekLegacyPlainEventCode,
 } from "@/lib/pending-event-invite"
+import { DEMO_EVENT, DEMO_USER } from "@/lib/home-demo-data"
+import { demoHref } from "@/lib/demo-mode"
+
+const DEMO_EVENT_NAME = DEMO_EVENT.name
 
 interface OnboardingStep {
   id: string
@@ -126,7 +131,9 @@ export function NewOnboardingFlow() {
   const searchParams = useSearchParams()
   const codeFromUrl = searchParams.get("code")
   const eventCodeFromUrl = searchParams.get("eventCode")
-  const eventId = searchParams.get('eventId')
+  const isDemo = searchParams.get("demo") === "1"
+  const eventIdFromUrl = searchParams.get('eventId')
+  const eventId = isDemo ? DEMO_EVENT.id : eventIdFromUrl
   const fromEventJoin = searchParams.get('from') === 'event-join'
   const fromAutoJoin = searchParams.get('from') === 'auto-join'
 
@@ -209,6 +216,23 @@ export function NewOnboardingFlow() {
 
   // Check if user has completed profile
   useEffect(() => {
+    // Demo mode: seed a fake user + demo event and jump straight to the
+    // branching flow. No Supabase / storage / enrichment calls at all.
+    if (isDemo) {
+      setUser(DEMO_USER as unknown as User)
+      setFirstName("Alex")
+      setLastName("Rivera")
+      setJobTitle("Head of Growth")
+      setCompany("https://luminarylabs.example")
+      setCompanyName("Luminary Labs")
+      setPhotoUrl("https://randomuser.me/api/portraits/women/44.jpg")
+      setEventName(DEMO_EVENT_NAME)
+      setProfileExists(true)
+      setProfileCompleted(true)
+      setHasCompletedEventOnboardingBefore(true)
+      return
+    }
+
     const checkProfileStatus = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
@@ -348,7 +372,7 @@ export function NewOnboardingFlow() {
     }
     
     checkProfileStatus()
-  }, [router, supabase, fromEventJoin, eventId, effectiveInviteEncrypted, effectiveInviteLegacy])
+  }, [router, supabase, fromEventJoin, eventId, effectiveInviteEncrypted, effectiveInviteLegacy, isDemo])
 
   // Map UI connection type IDs to database format
   const mapConnectionTypeToDB = (uiId: string): string => {
@@ -888,18 +912,19 @@ export function NewOnboardingFlow() {
       // If user edited it, use their edited value; otherwise try to enrich if needed
       let companyNameToSave = companyName.trim() || null
       let companySummaryToSave = companySummary || null
-      
-      // If URL exists, always try to enrich to ensure we have summary
-      // This ensures that even if user manually edited the name, we still get the summary
-      if (company && /[.]/.test(company)) {
+
+      // Company URL: debounced enrichCompany() already runs while typing. Calling
+      // company-enrich again here duplicated a slow edge-function round-trip (often
+      // many seconds). Only fetch on submit if we still have no summary (e.g. user
+      // tapped Complete before debounce finished).
+      const companyLooksLikeUrl = Boolean(company && /[.]/.test(company))
+      const hasCachedSummary = Boolean((companySummary || "").trim())
+      if (companyLooksLikeUrl && !hasCachedSummary) {
         try {
           const { data: session } = await supabase.auth.getSession()
           const token = session.session?.access_token
           const enrichUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/company-enrich`
-          console.log('[handleCompleteProfile] Enriching on submit for:', company)
-          console.log('[handleCompleteProfile] Current companySummary state:', companySummary)
-          console.log('[handleCompleteProfile] Current companySummaryToSave:', companySummaryToSave)
-          
+
           const res = await fetch(enrichUrl, {
             method: "POST",
             headers: {
@@ -908,51 +933,31 @@ export function NewOnboardingFlow() {
             },
             body: JSON.stringify({ url: company })
           })
-          
+
           if (res.ok) {
             const enriched = await res.json()
-            console.log('[handleCompleteProfile] Enrichment response keys:', Object.keys(enriched))
-            console.log('[handleCompleteProfile] Full enrichment response:', JSON.stringify(enriched, null, 2))
-            
-            // Check for company description in multiple possible field names
-            const companyDescription = enriched.company_description || enriched.description || enriched.summary || null
-            
-            // Update company name if we don't have one yet (don't overwrite user's manual entry)
+            const companyDescription =
+              enriched.company_description || enriched.description || enriched.summary || null
+
             if (!companyNameToSave && enriched.company_name) {
               companyNameToSave = enriched.company_name
             }
-            
-            // Always update company summary from enrichment if available (prioritize fresh enrichment)
+
             if (companyDescription) {
-              console.log('[handleCompleteProfile] Setting summary from enrichment (length:', companyDescription.length, ')')
               companySummaryToSave = companyDescription
             } else if (companySummary) {
-              // Fallback: use state value if enrichment didn't return description
-              console.log('[handleCompleteProfile] No description in enrichment response, using state value (length:', companySummary.length, ')')
-              companySummaryToSave = companySummary
-            } else {
-              console.log('[handleCompleteProfile] No description available from enrichment or state')
-            }
-          } else {
-            const errorText = await res.text()
-            console.error('[handleCompleteProfile] Enrichment failed:', res.status, errorText)
-            // If enrichment fails, use state value if available
-            if (companySummary && !companySummaryToSave) {
-              console.log('[handleCompleteProfile] Using state value after enrichment failure')
               companySummaryToSave = companySummary
             }
+          } else if (companySummary && !companySummaryToSave) {
+            companySummaryToSave = companySummary
           }
         } catch (e) {
           console.error("[handleCompleteProfile] Enrichment error (non-blocking):", e)
-          // If enrichment errors, use state value if available
           if (companySummary && !companySummaryToSave) {
-            console.log('[handleCompleteProfile] Using state value after enrichment error')
             companySummaryToSave = companySummary
-        }
+          }
         }
       } else if (companySummary && !companySummaryToSave) {
-        // If no URL but we have state value, use it
-        console.log('[handleCompleteProfile] No URL provided, using state value')
         companySummaryToSave = companySummary
       }
 
@@ -1038,18 +1043,25 @@ export function NewOnboardingFlow() {
 
       setProfileCompleted(true)
       
-      // Redirect based on whether we have an encrypted code
-      // If encrypted code exists, redirect to home with it for auto-join
-      setIsRedirecting(true)
-      setTimeout(() => {
-        if (effectiveInviteEncrypted && !eventId) {
-          router.push(`/home?code=${encodeURIComponent(effectiveInviteEncrypted)}`)
-        } else if (effectiveInviteLegacy && !eventId) {
-          router.push(`/event/join?code=${encodeURIComponent(effectiveInviteLegacy)}`)
-        } else {
-          router.push("/home")
-        }
-      }, 1000)
+      // Redirect based on whether we have an encrypted code / pending event.
+      // - If an eventId is present, stay on this page so the branching event flow takes over.
+      // - If an encrypted or legacy invite code is present (no resolved eventId yet), route through the join path.
+      // - Otherwise, send the user to /home.
+      if (eventId) {
+        // Stay put — the render now swaps to <EventBranchingOnboarding /> because
+        // profileCompleted just flipped to true.
+      } else {
+        setIsRedirecting(true)
+        setTimeout(() => {
+          if (effectiveInviteEncrypted) {
+            router.push(`/home?code=${encodeURIComponent(effectiveInviteEncrypted)}`)
+          } else if (effectiveInviteLegacy) {
+            router.push(`/event/join?code=${encodeURIComponent(effectiveInviteLegacy)}`)
+          } else {
+            router.push("/home")
+          }
+        }, 1000)
+      }
     } catch (error) {
       console.error("Error completing profile:", error)
     } finally {
@@ -1883,10 +1895,11 @@ export function NewOnboardingFlow() {
     }] : [])
   ]
 
-  // Determine visible steps:
-  // - If eventId is present, only show event-specific steps (skip profile)
-  // - If no eventId, show profile steps (user needs to complete profile first)
-  const visibleSteps = eventId ? eventSteps : (profileCompleted ? [] : profileSteps)
+  // Visible steps only drive the profile-onboarding portion now. Event-specific
+  // onboarding is rendered by <EventBranchingOnboarding /> below (see the `eventId &&
+  // profileCompleted` branch). The legacy `eventSteps` / `followUpSteps` helpers are
+  // kept temporarily in this file to avoid a giant diff; they are no longer rendered.
+  const visibleSteps = profileCompleted ? [] : profileSteps
   const currentStepData = visibleSteps[currentStep]
   const isLastStep = currentStep === visibleSteps.length - 1
 
@@ -2023,9 +2036,26 @@ export function NewOnboardingFlow() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground font-body">Loading...</p>
-          <p className="text-xs text-muted-foreground font-body mt-2">Do not refresh this page. Could take 30 seconds.</p>
+          <p className="text-xs text-muted-foreground font-body mt-2">Don&apos;t refresh. Usually a few seconds.</p>
         </div>
       </div>
+    )
+  }
+
+  // Event-specific onboarding uses the branching flow v2. Profile completion happens
+  // earlier in this same component; once profile is saved we swap in the new flow.
+  if (eventId && profileCompleted) {
+    return (
+      <EventBranchingOnboarding
+        eventId={eventId}
+        userId={user.id}
+        eventName={eventName}
+        demo={isDemo}
+        onComplete={() => {
+          setIsRedirecting(true)
+          router.push(demoHref("/home", isDemo))
+        }}
+      />
     )
   }
 
@@ -2035,7 +2065,7 @@ export function NewOnboardingFlow() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground font-body">Loading...</p>
-          <p className="text-xs text-muted-foreground font-body mt-2">Do not refresh this page. Could take 30 seconds.</p>
+          <p className="text-xs text-muted-foreground font-body mt-2">Don&apos;t refresh. Usually a few seconds.</p>
         </div>
       </div>
     )
@@ -2052,12 +2082,13 @@ export function NewOnboardingFlow() {
               {isRedirecting ? toSentenceCase("Redirecting to your dashboard...") : toSentenceCase("Saving your information...")}
             </h3>
             <p className="text-muted-foreground">
-              {isRedirecting 
-                ? "Taking you to your personalized homepage." 
-                : "This may take a few moments."
-              }
+              {isRedirecting
+                ? "Taking you to your personalized homepage."
+                : "Saving your profile. If you added a company URL or a new photo, that step can take a bit longer."}
             </p>
-            <p className="text-xs text-muted-foreground mt-2">Do not refresh this page. Could take 30 seconds.</p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Don&apos;t refresh. A new photo upload or first-time company fetch can take up to ~30 seconds.
+            </p>
           </div>
         </div>
       )}
@@ -2194,7 +2225,7 @@ export function NewOnboardingFlow() {
             {/* Continue Button */}
             <GradientButton 
               onClick={isLastStep 
-                ? (profileCompleted ? handleCompleteEventOnboarding : handleCompleteProfile)
+                ? handleCompleteProfile
                 : handleNext
               } 
               disabled={isLastStep 

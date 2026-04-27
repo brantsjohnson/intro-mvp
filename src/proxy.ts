@@ -28,6 +28,19 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Demo-mode sponsor access: App Router layouts cannot read `searchParams`,
+  // so we stamp an `x-intro-demo: 1` request header when `/sponsor/*` is visited
+  // with `?demo=1`. The sponsor layout reads this header to skip the auth redirect.
+  const isSponsorDemo =
+    request.nextUrl.pathname.startsWith("/sponsor/") &&
+    request.nextUrl.searchParams.get("demo") === "1"
+
+  if (isSponsorDemo) {
+    const demoHeaders = new Headers(request.headers)
+    demoHeaders.set("x-intro-demo", "1")
+    return NextResponse.next({ request: { headers: demoHeaders } })
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL

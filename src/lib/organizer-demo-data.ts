@@ -439,7 +439,7 @@ export function getOrganizerDemoAnalytics(): OrganizerEventAnalytics {
   cachedAnalytics = {
     event_id: ORGANIZER_DEMO_EVENT_ID,
     event_code: "DEMO26",
-    event_name: "Global Tech Summit 2026",
+    event_name: "Founders & Funders Summit",
     event_starts_at: "2026-05-18T08:00:00.000Z",
     event_ends_at: "2026-05-20T19:00:00.000Z",
     definitions: {

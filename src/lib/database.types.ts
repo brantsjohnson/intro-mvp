@@ -19,6 +19,7 @@ export type Database = {
           career_title: string | null
           career_years_experience: number | null
           company_name: string | null
+          company_url: string | null
           company_summary: string | null
           expertise_summary: string | null
           hobbies: string[] | null
@@ -209,6 +210,11 @@ export type Database = {
           last_profile_change_at: string | null
           onboarding_completed: boolean | null
           adaptive_qna_json: Json | null
+          need_flow_state_json: Json | null
+          need_summary_final: string | null
+          offer_flow_state_json: Json | null
+          offer_summary_final: string | null
+          flow_onboarding_version: number | null
           created_at: string | null
           updated_at: string | null
         }

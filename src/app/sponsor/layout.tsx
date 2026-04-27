@@ -1,3 +1,4 @@
+import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { SponsorHeaderNav } from "@/components/sponsor/sponsor-header-nav"
 import { createServerComponentClient } from "@/lib/supabase-server"
@@ -7,13 +8,18 @@ export default async function SponsorLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createServerComponentClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const headerList = await headers()
+  const isDemo = headerList.get("x-intro-demo") === "1"
 
-  if (!user) {
-    redirect("/auth")
+  if (!isDemo) {
+    const supabase = await createServerComponentClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      redirect("/auth")
+    }
   }
 
   return (

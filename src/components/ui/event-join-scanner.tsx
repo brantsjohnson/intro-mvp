@@ -1,9 +1,14 @@
 import * as React from "react"
 import { GradientButton } from "@/components/ui/gradient-button"
+import { Input } from "@/components/ui/input"
 import { Camera, ArrowRight, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { BrowserQRCodeReader } from "@zxing/browser"
 import { EventQRCodeService } from "@/lib/event-qr-service"
+
+function sanitizeEventCode(raw: string): string {
+  return raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6)
+}
 
 interface EventJoinScannerProps {
   onJoinEvent: (eventCode: string) => void
@@ -18,7 +23,7 @@ export function EventJoinScanner({
   isLoading = false,
   className 
 }: EventJoinScannerProps) {
-  const [eventCode, setEventCode] = React.useState<string[]>(["", "", "", "", "", ""])
+  const [eventCode, setEventCode] = React.useState("")
   const [isScanning, setIsScanning] = React.useState(false)
   const [scanError, setScanError] = React.useState<string | null>(null)
   const [isProcessing, setIsProcessing] = React.useState(false)
@@ -28,69 +33,13 @@ export function EventJoinScanner({
   const eventQRService = React.useRef(new EventQRCodeService())
   const lastScanTime = React.useRef<number>(0)
   const scanCooldown = 1000 // 1 second cooldown between scans
-  const inputRefs = React.useRef<(HTMLInputElement | null)[]>([])
 
-  const handleDigitChange = (index: number, value: string) => {
-    // Only allow alphanumeric characters
-    const sanitized = value.toUpperCase().replace(/[^A-Z0-9]/g, '')
-    if (sanitized.length > 1) {
-      // If pasting multiple characters, distribute them
-      const chars = sanitized.split('').slice(0, 6)
-      const newCode = [...eventCode]
-      chars.forEach((char, i) => {
-        if (index + i < 6) {
-          newCode[index + i] = char
-        }
-      })
-      setEventCode(newCode)
-      // Focus the next empty input or the last one
-      const nextIndex = Math.min(index + chars.length, 5)
-      inputRefs.current[nextIndex]?.focus()
-    } else {
-      const newCode = [...eventCode]
-      newCode[index] = sanitized
-      setEventCode(newCode)
-      
-      // Auto-focus next input
-      if (sanitized && index < 5) {
-        inputRefs.current[index + 1]?.focus()
-      }
-    }
-  }
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !eventCode[index] && index > 0) {
-      // Move to previous input on backspace if current is empty
-      inputRefs.current[index - 1]?.focus()
-    } else if (e.key === 'ArrowLeft' && index > 0) {
-      inputRefs.current[index - 1]?.focus()
-    } else if (e.key === 'ArrowRight' && index < 5) {
-      inputRefs.current[index + 1]?.focus()
-    }
-  }
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault()
-    const pasted = e.clipboardData.getData('text').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)
-    const newCode = [...eventCode]
-    pasted.split('').forEach((char, i) => {
-      if (i < 6) {
-        newCode[i] = char
-      }
-    })
-    setEventCode(newCode)
-    // Focus the last filled input or the last one
-    const lastFilledIndex = Math.min(pasted.length - 1, 5)
-    inputRefs.current[lastFilledIndex]?.focus()
-  }
-
-  const fullEventCode = eventCode.join('')
-  const isCodeComplete = fullEventCode.length === 6
+  const isCodeComplete = eventCode.length === 6
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (isCodeComplete) {
-      onJoinEvent(fullEventCode)
+      onJoinEvent(eventCode)
     }
   }
 
@@ -240,36 +189,28 @@ export function EventJoinScanner({
     <div className={cn("space-y-6", className)}>
       {/* Title and Subtitle */}
       <div className="text-center space-y-2">
-        <p className="text-sm text-foreground">Enter 6 digit code or scan QR code to join.</p>
+        <p className="text-sm text-foreground">Enter your event code to join the event.</p>
       </div>
 
-      {/* 6-Digit Code Input */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex justify-center items-center gap-2">
-          {eventCode.map((digit, index) => (
-            <input
-              key={index}
-              ref={(el) => {
-                inputRefs.current[index] = el
-              }}
-              type="text"
-              inputMode="text"
-              maxLength={1}
-              value={digit}
-              onChange={(e) => handleDigitChange(index, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(index, e)}
-              onPaste={handlePaste}
-              className={cn(
-                "w-12 h-14 text-center text-xl font-semibold rounded-lg border-2 bg-muted/40 text-foreground",
-                "focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
-                "transition-all",
-                digit ? "border-primary" : "border-border"
-              )}
-              disabled={isLoading}
-            />
-          ))}
-        </div>
-        
+        <Input
+          id="event-join-code"
+          type="text"
+          inputMode="text"
+          autoComplete="off"
+          autoCapitalize="characters"
+          spellCheck={false}
+          maxLength={6}
+          value={eventCode}
+          onChange={(e) => setEventCode(sanitizeEventCode(e.target.value))}
+          disabled={isLoading}
+          className={cn(
+            "max-w-md mx-auto h-12 text-base font-medium bg-muted/40",
+            eventCode.length > 0 && "border-primary/60"
+          )}
+          aria-label="Event code"
+        />
+
         <div className="flex justify-center">
           <GradientButton 
             type="submit"

@@ -22,6 +22,7 @@ export function AuthForm() {
   const searchParams = useSearchParams()
   const eventCode = searchParams.get("eventCode") // Legacy support
   const encryptedCode = searchParams.get("code") // New encrypted code
+  const isDemo = searchParams.get("demo") === "1"
   const supabase = createClientComponentClient()
 
   useEffect(() => {
@@ -29,6 +30,10 @@ export function AuthForm() {
   }, [encryptedCode, eventCode])
 
   const startOAuth = async (provider: "google" | "linkedin_oidc") => {
+    if (isDemo) {
+      window.location.href = "/onboarding?demo=1"
+      return
+    }
     setIsLoading(true)
     try {
       // Must match the tab you started from. NEXT_PUBLIC_APP_URL is often set to production,
@@ -61,6 +66,11 @@ export function AuthForm() {
 
   const handleEmailAuth = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+
+    if (isDemo) {
+      window.location.href = "/onboarding?demo=1"
+      return
+    }
 
     if (isSignUp && !consent) {
       return
@@ -248,6 +258,13 @@ export function AuthForm() {
       <CardContent className="p-6 space-y-6">
         {/* Header */}
         <div className="text-center">
+          {isDemo && (
+            <div className="mb-3 flex justify-center">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                Demo mode - no account will be created
+              </span>
+            </div>
+          )}
           <h2 className="text-2xl font-title mb-2">welcome!</h2>
           <p className="text-foreground text-center">Sign-up takes 3 minutes</p>
         </div>

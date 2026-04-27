@@ -189,44 +189,60 @@ export async function POST(request: NextRequest) {
     let needEmbedding: number[] | null = null
     let profileEmbedding: number[] | null = null
 
+    // Branching-flow bridge: if the user confirmed AI summaries in the new v2 event onboarding,
+    // those texts are the source of truth for matching. Prefer them over legacy derivation, but
+    // only if the corresponding field is populated.
+    const needSummaryFinal = (attendance as any).need_summary_final as string | null | undefined
+    const offerSummaryFinal = (attendance as any).offer_summary_final as string | null | undefined
+    const hasFinalOffer = typeof offerSummaryFinal === 'string' && offerSummaryFinal.trim().length > 0
+    const hasFinalNeed = typeof needSummaryFinal === 'string' && needSummaryFinal.trim().length > 0
+
     if (openai) {
       try {
-        // Generate offer summary (what they can provide/offer to others)
-        const offerContext = `Job: ${user?.career_title || ''} at ${user?.company_name || ''}
+        // Generate or reuse offer summary.
+        if (hasFinalOffer) {
+          offerSummaryText = offerSummaryFinal!.trim()
+        } else {
+          const offerContext = `Job: ${user?.career_title || ''} at ${user?.company_name || ''}
 Expertise: ${user?.expertise_summary || ''}
 Hobbies: ${hobbies.join(', ') || 'Not specified'}
 Connection goals they selected: ${connectionTypes.filter((t: string) => t === 'be_mentor' || t === 'recruit' || t === 'biz_opps').join(', ') || 'general networking'}
 Why attending: ${attendance.why_attending_text || ''}`
 
-        const offerResponse = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: "Summarize what this person can OFFER to others at a networking event (what they bring, what they can help with, what they're offering). Keep it concise (2-3 sentences max). Focus on their expertise, skills, and what they can provide to others.\n\nCRITICAL: Always use gender-neutral language. Never assume someone's gender. Use \"they/them/their\" pronouns, or refer to people by their name, title, or role. Never use \"he/him/his\" or \"she/her\" pronouns." },
-            { role: "user", content: offerContext }
-          ],
-          temperature: 0.7,
-          max_tokens: 150,
-        })
+          const offerResponse = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              { role: "system", content: "Summarize what this person can OFFER to others at a networking event (what they bring, what they can help with, what they're offering). Keep it concise (2-3 sentences max). Focus on their expertise, skills, and what they can provide to others.\n\nCRITICAL: Always use gender-neutral language. Never assume someone's gender. Use \"they/them/their\" pronouns, or refer to people by their name, title, or role. Never use \"he/him/his\" or \"she/her\" pronouns." },
+              { role: "user", content: offerContext }
+            ],
+            temperature: 0.7,
+            max_tokens: 150,
+          })
 
-        offerSummaryText = offerResponse.choices[0]?.message?.content?.trim() || ''
+          offerSummaryText = offerResponse.choices[0]?.message?.content?.trim() || ''
+        }
 
-        // Generate want summary (what they're looking for/seeking)
-        const wantContext = `Connection goals: ${connectionTypes.join(', ')}
+        // Generate or reuse want summary (the matchmaker still reads this column name).
+        if (hasFinalNeed) {
+          wantSummaryText = needSummaryFinal!.trim()
+        } else {
+          const wantContext = `Connection goals: ${connectionTypes.join(', ')}
 Business need: ${attendance.business_need_text || ''}
 Why attending: ${attendance.why_attending_text || ''}
 Job: ${user?.career_title || ''}`
 
-        const wantResponse = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: "Summarize what this person is LOOKING FOR or SEEKING at a networking event (mentorship, opportunities, connections, etc.). Keep it concise (2-3 sentences max).\n\nCRITICAL: Always use gender-neutral language. Never assume someone's gender. Use \"they/them/their\" pronouns, or refer to people by their name, title, or role. Never use \"he/him/his\" or \"she/her\" pronouns." },
-            { role: "user", content: wantContext }
-          ],
-          temperature: 0.7,
-          max_tokens: 150,
-        })
+          const wantResponse = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              { role: "system", content: "Summarize what this person is LOOKING FOR or SEEKING at a networking event (mentorship, opportunities, connections, etc.). Keep it concise (2-3 sentences max).\n\nCRITICAL: Always use gender-neutral language. Never assume someone's gender. Use \"they/them/their\" pronouns, or refer to people by their name, title, or role. Never use \"he/him/his\" or \"she/her\" pronouns." },
+              { role: "user", content: wantContext }
+            ],
+            temperature: 0.7,
+            max_tokens: 150,
+          })
 
-        wantSummaryText = wantResponse.choices[0]?.message?.content?.trim() || ''
+          wantSummaryText = wantResponse.choices[0]?.message?.content?.trim() || ''
+        }
 
         // Generate embeddings for semantic search/matching
         if (offerSummaryText) {

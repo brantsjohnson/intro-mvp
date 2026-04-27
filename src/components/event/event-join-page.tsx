@@ -190,22 +190,18 @@ export function EventJoinPage() {
       // Success haptic feedback
       haptics.success()
 
-      // Trigger match refresh for the new user (in background)
-      try {
-        await fetch("/api/refresh-matches", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            eventId: typedEvent.event_id,
-            newUserId: user.id,
-          }),
-        })
-      } catch (error) {
+      void fetch("/api/refresh-matches", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          eventId: typedEvent.event_id,
+          newUserId: user.id,
+        }),
+      }).catch((error) => {
         console.error("Failed to refresh matches for new user:", error)
-        // Background-only; no user-facing error
-      }
+      })
 
       // Redirect to onboarding step 3 (networking goals) for this specific event
       router.push(`/onboarding?from=event-join&eventId=${typedEvent.event_id}`)
