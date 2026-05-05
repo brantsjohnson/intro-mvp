@@ -602,8 +602,9 @@ If confidence is below 50, set the type to null. Only return data you're reasona
       console.log('Skipping users update - no data to save')
     }
 
-    // Trigger matching for this user if embeddings were generated/updated
-    if (offerEmbedding || wantEmbedding || needEmbedding || profileEmbedding) {
+    // Trigger matching for this user after derive. Rules-first matching should
+    // not depend on embeddings being present.
+    if (eventId && userId) {
       try {
         const matchResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/matchmaker`, {
           method: 'POST',
@@ -615,7 +616,8 @@ If confidence is below 50, set the type to null. Only return data you're reasona
             event_id: eventId,
             user_id: userId,
             mode: 'incremental',
-            use_ai: true // Enable AI when user joins event
+            use_ai: false,
+            force_recompute: true
           })
         })
         

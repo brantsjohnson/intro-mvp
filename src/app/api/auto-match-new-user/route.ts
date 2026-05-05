@@ -14,44 +14,20 @@ export async function POST(request: NextRequest) {
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Get event ID from event code
+    // Get event ID from event code using current schema.
     const { data: eventData, error: eventError } = await supabase
       .from('events')
-      .select('id, event_name, is_active, starts_at, ends_at, matchmaking_enabled')
-      .eq('code', eventCode.toUpperCase())
+      .select('event_id, event_code, event_name, event_starts_at, event_ends_at')
+      .eq('event_code', eventCode.toUpperCase())
       .single()
 
     if (eventError || !eventData) {
       return NextResponse.json({ 
         error: 'Event not found' 
       }, { status: 404 })
-    }
-
-    // Check if event is live
-    const now = new Date()
-    const startsAt = new Date(eventData.starts_at)
-    const endsAt = new Date(eventData.ends_at)
-    
-    const isEventLive = eventData.is_active && 
-                       eventData.matchmaking_enabled && 
-                       now >= startsAt && 
-                       now <= endsAt
-
-    if (!isEventLive) {
-      return NextResponse.json({ 
-        error: 'Event is not live or matchmaking is disabled',
-        event_status: {
-          is_active: eventData.is_active,
-          matchmaking_enabled: eventData.matchmaking_enabled,
-          is_within_date_range: now >= startsAt && now <= endsAt,
-          starts_at: eventData.starts_at,
-          ends_at: eventData.ends_at,
-          current_time: now.toISOString()
-        }
-      }, { status: 400 })
     }
 
     // Call the Edge Function to auto-match the new user
@@ -63,10 +39,11 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ 
-        event_id: eventData.id,
+        event_id: eventData.event_id,
         user_id: userId,
         mode: 'incremental',
-        use_ai: true // Enable AI when user joins event
+        use_ai: false,
+        force_recompute: true
       })
     })
 
@@ -83,7 +60,7 @@ export async function POST(request: NextRequest) {
     const { count: matchCount } = await supabase
       .from('connections')
       .select('*', { count: 'exact', head: true })
-      .eq('event_id', eventData.id)
+      .eq('event_id', eventData.event_id)
       .eq('connection_kind', 'system_match')
       .or(`a_id.eq.${userId},b_id.eq.${userId}`)
 
@@ -96,7 +73,7 @@ export async function POST(request: NextRequest) {
             user.user.email,
             eventData.event_name || 'the event',
             matchCount,
-            `https://introevent.site?event=${eventData.id}`
+            `https://introevent.site?event=${eventData.event_id}`
           ).catch((error) => {
             console.error('Failed to send match notification email:', error)
           })
@@ -111,7 +88,7 @@ export async function POST(request: NextRequest) {
       message: 'New user auto-matched successfully',
       user_id: userId,
       event_code: eventCode,
-      event_id: eventData.id,
+      event_id: eventData.event_id,
       match_count: matchCount || 0,
       matchmaker_result: matchmakerResult
     })
