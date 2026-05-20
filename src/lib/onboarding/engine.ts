@@ -11,16 +11,14 @@
 //   (important for AI-generated questions) when persisting the answered entry.
 
 import type { SupabaseClient } from "@supabase/supabase-js"
-import type { Database, Json } from "@/lib/database.types"
+import type { Database } from "@/lib/database.types"
 import { callAiJson, callAiText, isAiEnabled } from "./ai"
 import {
-  FlowDefinition,
   FlowNode,
   FlowOption,
   FlowState,
   StepEntry,
   extractQuestionTopicsFromHistory,
-  normalizeChoiceId,
   resolveNextNodeId,
   getFlowNode,
 } from "./flows"
@@ -33,6 +31,7 @@ import {
   formatOnboardingProfileBlock,
   formatPersonContextBlock,
   getAiMultipleChoiceInstructions,
+  type NeedDynamicInstructionContext,
   REWRITE_NEED_SUMMARY_INSTRUCTIONS,
   REWRITE_OFFER_SUMMARY_INSTRUCTIONS,
 } from "./prompts"
@@ -60,7 +59,30 @@ interface PendingQuestion {
 
 interface ExtendedFlowState extends FlowState {
   pending?: PendingQuestion | null
+  mapped_need_branch?: "A" | "B" | "C" | "D" | "E" | "truly_unique" | null
 }
+
+type NeedBranchCode = "A" | "B" | "C" | "D" | "E" | "F"
+
+const NEED_BRANCH_LABELS: Record<NeedBranchCode, string> = {
+  A: "Meet people generally",
+  B: "Learn about the topic",
+  C: "Build partnerships",
+  D: "Find customers",
+  E: "Represent an organization",
+  F: "Other",
+}
+
+const STUDENT_OVERLAY_HINTS = [
+  "student",
+  "intern",
+  "unemployed",
+  "between roles",
+  "sabbatical",
+  "freelancer between gigs",
+  "looking for work",
+  "job seeker",
+]
 
 export interface AdvanceResult {
   phase: "question" | "confirm" | "done"
@@ -87,6 +109,16 @@ export async function needAdvance(
   const flow = flowForKind("need")
   const state = coerceState(ctx.attendance.need_flow_state_json) as ExtendedFlowState
   state.pending = (ctx.attendance.need_flow_state_json as Record<string, unknown>)?.pending as PendingQuestion | null ?? null
+  state.mapped_need_branch =
+    ((ctx.attendance.need_flow_state_json as Record<string, unknown>)?.mapped_need_branch as
+      | "A"
+      | "B"
+      | "C"
+      | "D"
+      | "E"
+      | "truly_unique"
+      | null
+      | undefined) ?? null
 
   // Idempotent re-entry: pending question exists and client didn't submit an
   // answer (e.g. page refresh, React strict-mode remount). Re-emit what we
@@ -177,9 +209,11 @@ export async function needAdvance(
   if (nextNode.type === "ai_generated_multiple_choice") {
     const ai = await generateNeedAiQuestion(ctx, state, nextNode)
     if (!ai || ai.skip) {
+      if (ai?.mappedBranch) state.mapped_need_branch = ai.mappedBranch
       if (ai?.draftSummary) state.draft_summary = ai.draftSummary
       return await finalizeNeedSummary(supabase, ctx, state)
     }
+    if (ai.mappedBranch) state.mapped_need_branch = ai.mappedBranch
     if (ai.draftSummary) state.draft_summary = ai.draftSummary
     const pending: PendingQuestion = {
       node_id: nextNode.node_id,
@@ -222,9 +256,185 @@ interface AiQuestionResult {
   choices: FlowOption[]
   draftSummary: string
   skip?: boolean
+  mappedBranch?: "A" | "B" | "C" | "D" | "E" | "truly_unique"
 }
 
 const SPONSOR_COMPANY_CONTEXT_MAX = 1200
+
+function inferNeedBranchFromMainGoal(state: ExtendedFlowState): NeedBranchCode {
+  const first = state.node_path[0]
+  const text = `${first?.answer || ""} ${first?.question || ""}`.toLowerCase()
+  if (text.includes("learn")) return "B"
+  if (text.includes("partnership")) return "C"
+  if (text.includes("customer")) return "D"
+  if (text.includes("represent")) return "E"
+  if (text.includes("other")) return "F"
+  return "A"
+}
+
+function normalizeMappedBranch(raw: unknown): "A" | "B" | "C" | "D" | "E" | "truly_unique" | null {
+  if (!raw) return null
+  const value = String(raw).trim().toLowerCase()
+  if (["a", "b", "c", "d", "e"].includes(value)) return value.toUpperCase() as "A" | "B" | "C" | "D" | "E"
+  if (value === "truly_unique") return "truly_unique"
+  return null
+}
+
+function hasPriorNeedAiTurns(state: ExtendedFlowState): boolean {
+  return state.node_path.some((entry) =>
+    /(AI_|AI_LOOP|_TEXT$|_INDUSTRY_PICK$|_PROBLEM_TEXT$|O_Q2_CLARIFY_1$)/.test(entry.node_id),
+  )
+}
+
+function inferStudentOverlay(ctx: OnboardingContext, transcript: string): boolean {
+  const title = (ctx.user.career_title || "").toLowerCase()
+  const combined = `${title} ${transcript.toLowerCase()}`
+  return STUDENT_OVERLAY_HINTS.some((hint) => combined.includes(hint))
+}
+
+function collectNeedSignals(
+  branch: NeedBranchCode,
+  resolved: NeedDynamicInstructionContext["resolvedBranchCode"],
+  transcript: string,
+  studentOverlay: boolean,
+): { covered: string[]; missing: string[] } {
+  const t = transcript.toLowerCase()
+  const covered: string[] = []
+  const missing: string[] = []
+  const has = (patterns: RegExp[]) => patterns.some((p) => p.test(t))
+
+  if (resolved === "A") {
+    if (has([/\bpeer\b/, /\bmentor\b/, /\bmentee\b/, /collabor/i, /opposite perspective/i, /casual/i])) covered.push("who_to_meet")
+    else missing.push("who_to_meet")
+
+    if (has([/\bwork\b/, /career/i, /\btool/i, /\bchallenge/i, /outside work/i, /\bhobby/i])) covered.push("talk_topics")
+    else missing.push("talk_topics")
+
+    if (has([/\bhobby\b/, /\bsport/i, /\bmusic\b/, /\btravel\b/, /\bbook\b/, /\bgaming\b/])) covered.push("shared_interest_hook")
+    else missing.push("shared_interest_hook")
+
+    const jobHint = has([/\bjob\b/, /\bintern/i, /\bwork opportunit/i, /\bcareer\b/])
+    const jobSpecific = has([/\bproduct\b/, /\bengineer/i, /\bdesign\b/, /\bmarketing\b/, /\bsales\b/, /\bfinance\b/, /\boperations\b/, /\bdata\b/, /\blegal\b/, /\bmajor\b/, /\bfield of study\b/, /\bmba\b/])
+    if (jobHint) {
+      if (jobSpecific) covered.push("job_target_specificity")
+      else missing.push("job_target_specificity")
+    }
+  }
+
+  if (resolved === "B") {
+    if (has([/\bsub-?topic\b/, /\bspecific\b/, /\bworkflow\b/, /\btool\b/, /\bindustry\b/, /\brole\b/])) covered.push("specific_subtopic")
+    else missing.push("specific_subtopic")
+    if (has([/\bdecision\b/, /\bproblem\b/, /\bevaluat/i, /\bcuriosity\b/, /\bright now\b/, /\burgent\b/])) covered.push("why_now")
+    else missing.push("why_now")
+    if (has([/\bpractitioner\b/, /\bexpert\b/, /\bresearcher\b/, /\bpeer\b/, /\bvendor\b/])) covered.push("teacher_profile")
+    else missing.push("teacher_profile")
+  }
+
+  if (resolved === "C") {
+    if (has([/sales\/integration/i, /\bintegration\b/, /\bsponsor/i, /\binvestor/i, /cross-sector/i])) covered.push("partnership_subtype")
+    else missing.push("partnership_subtype")
+    if (has([/\bindustry\b/, /\bstage\b/, /\bsize\b/, /\baudience\b/, /\bcheck size\b/, /\bsector\b/, /\bgeography\b/, /\bthesis\b/, /\bcause area\b/])) covered.push("partner_profile_target")
+    else missing.push("partner_profile_target")
+    if (studentOverlay) covered.push("student_overlay_applied")
+  }
+
+  if (resolved === "D") {
+    if (has([/\bindustry\b/, /\bbuyer\b/, /\brole\b/, /\bcompany size\b/])) covered.push("ideal_customer")
+    else missing.push("ideal_customer")
+    if (has([/\bactively evaluating\b/, /\bexploring\b/, /\breplacing\b/, /\bproblem-aware\b/])) covered.push("buying_situation")
+    else missing.push("buying_situation")
+  }
+
+  if (resolved === "E") {
+    if (has([/\brecruit\b/, /\bsell\b/, /\bpartner\b/, /\blearn\b/, /\bpresence\b/, /\bsupport clients\b/])) covered.push("org_goal_today")
+    else missing.push("org_goal_today")
+    if (has([/\bpeers?\b/, /\bbuyers?\b/, /\bsuppliers?\b/, /\bregulators?\b/, /\btalent\b/, /\bpress\b/, /\binvestors?\b/])) covered.push("target_people")
+    else missing.push("target_people")
+    if (has([/\btopic\b/, /\bconversation\b/, /\blead\b/])) covered.push("org_topic_hook")
+    else missing.push("org_topic_hook")
+  }
+
+  if (branch === "F" && resolved === "truly_unique") {
+    if (has([/\bwho\b/, /\bhelp\b/, /\bconnect\b/, /\bmeet\b/])) covered.push("who_would_help")
+    else missing.push("who_would_help")
+  }
+
+  return { covered, missing }
+}
+
+function buildNeedInstructionContext(
+  ctx: OnboardingContext,
+  state: ExtendedFlowState,
+  transcript: string,
+): NeedDynamicInstructionContext {
+  const branchCode = inferNeedBranchFromMainGoal(state)
+  const mapped = normalizeMappedBranch(state.mapped_need_branch)
+  const resolvedBranchCode =
+    branchCode === "F" && mapped ? mapped : branchCode
+  const studentOverlay = inferStudentOverlay(ctx, transcript)
+  const signals = collectNeedSignals(branchCode, resolvedBranchCode, transcript, studentOverlay)
+  return {
+    branchCode,
+    branchLabel: NEED_BRANCH_LABELS[branchCode],
+    resolvedBranchCode,
+    firstAiTurnInBranch: !hasPriorNeedAiTurns(state),
+    studentOverlay,
+    companyKnown: Boolean((ctx.user.company_name || "").trim()),
+    companySummaryKnown: Boolean((ctx.user.company_summary || "").trim()),
+    mappedBranch: mapped,
+    coveredSignals: signals.covered,
+    missingSignals: signals.missing,
+  }
+}
+
+function pickNeedAiMode(node: FlowNode): string {
+  if (node.ai_mode) return node.ai_mode
+  if (Array.isArray(node.ai_inputs) && node.ai_inputs.includes("event_attendee_industries_distribution")) {
+    return "event_topics_for_learning"
+  }
+  return "clarify_last_answer"
+}
+
+function buildEventContextBlock(ctx: OnboardingContext): string {
+  const eventName = (ctx.event.event_name || "").trim()
+  const schema = ctx.event.onboarding_question_schema
+  const schemaText = schema ? JSON.stringify(schema).slice(0, 1400) : ""
+  const parts = [`Event name: ${eventName || "(unknown)"}`]
+  if (schemaText) parts.push(`Event onboarding schema: ${schemaText}`)
+  return parts.join("\n")
+}
+
+function normalizeAiChoices(rawChoices: string[] | null | undefined, maxChoices: number): FlowOption[] {
+  const letters = ["A", "B", "C", "D", "E", "F", "G"]
+  if (!rawChoices || rawChoices.length === 0) return []
+  const seen = new Set<string>()
+  const cleaned: string[] = []
+
+  for (const value of rawChoices) {
+    const label = String(value || "").trim()
+    if (!label) continue
+    const key = label.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    cleaned.push(label)
+  }
+
+  const nonOther = cleaned.filter((label) => label.toLowerCase() !== "other")
+  const hasOther = cleaned.some((label) => label.toLowerCase() === "other")
+  const capped = nonOther.slice(0, Math.max(1, maxChoices - 1))
+  const finalLabels = hasOther ? [...capped, "Other"] : [...capped, "Other"]
+
+  return finalLabels
+    .slice(0, maxChoices)
+    .map((label, idx) => ({ id: letters[idx] || String(idx + 1), label }))
+}
+
+function splitOfferSelections(answer: string): string[] {
+  return String(answer || "")
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+}
 
 /** Server-side call to the same edge function as profile onboarding (HTML scrape + description). */
 async function fetchCompanyWebsiteEnrichment(url: string): Promise<{
@@ -298,13 +508,14 @@ async function generateNeedAiQuestion(
   node: FlowNode,
 ): Promise<AiQuestionResult | null> {
   if (!isAiEnabled()) return null
-  const mode = node.ai_mode || "clarify_last_answer"
-  const system = getAiMultipleChoiceInstructions(mode)
+  const mode = pickNeedAiMode(node)
   const personBlock = formatPersonContextBlock(personContext(ctx))
   const profileBlock = formatOnboardingProfileBlock(ctx.user)
   const transcript = buildTranscriptBlock(state)
+  const branchContext = buildNeedInstructionContext(ctx, state, transcript)
+  const system = getAiMultipleChoiceInstructions(mode, branchContext)
   const topics = extractQuestionTopicsFromHistory(transcript)
-  const eventBio = ctx.event.event_name || ""
+  const eventContext = buildEventContextBlock(ctx)
 
   let liveScrape: { company_name?: string; company_description?: string } | null = null
   if (mode === "sponsor_roi_type") {
@@ -323,39 +534,59 @@ async function generateNeedAiQuestion(
     `PERSON CONTEXT:\n${personBlock}\n\n` +
     (profileBlock ? `PROFILE SNIPPETS:\n${profileBlock}\n\n` : "") +
     (sponsorCompanyBlock
-      ? `COMPANY_WEBSITE_CONTEXT (infer what they sell, sector, and service — ground industry / ICP / buyer questions here; do not contradict explicit questionnaire answers):\n${sponsorCompanyBlock}\n\n`
+      ? `COMPANY_WEBSITE_CONTEXT (infer what they sell, sector, and service - ground industry / ICP / buyer questions here; do not contradict explicit questionnaire answers):\n${sponsorCompanyBlock}\n\n`
       : "") +
     `FULL QUESTIONNAIRE TRANSCRIPT:\n${transcript || "(none)"}\n\n` +
     `Topics already covered: ${topics || "(none)"}\n` +
     `questions_asked: ${state.asked_count}\n` +
-    `event_summary: ${eventBio}\n\n` +
+    `EVENT CONTEXT:\n${eventContext}\n\n` +
     `Return JSON per the format rules.`
 
   const json = await callAiJson<{
     draft_summary?: string
     question?: string | null
     choices?: string[] | null
+    mapped_branch?: string | null
   }>({
     system,
     user: userPayload,
-    maxTokens: 600,
-    temperature: 0.4,
+    maxTokens: 700,
+    temperature: 0.3,
   })
   if (!json) return null
 
   const draftSummary = typeof json.draft_summary === "string" ? json.draft_summary.trim() : ""
   const skip = !json.question || !Array.isArray(json.choices) || json.choices.length === 0
+  const mappedBranch = normalizeMappedBranch(json.mapped_branch)
 
-  if (skip) return { question: "", choices: [], draftSummary, skip: true }
+  if (skip) {
+    return {
+      question: "",
+      choices: [],
+      draftSummary,
+      skip: true,
+      mappedBranch: mappedBranch || undefined,
+    }
+  }
 
-  const letters = ["A", "B", "C", "D", "E", "F", "G"]
-  const choices: FlowOption[] = (json.choices as string[])
-    .map((label, idx) => ({ id: letters[idx] || String(idx + 1), label: String(label).trim() }))
-    .filter((c) => Boolean(c.label))
+  const choices = normalizeAiChoices(json.choices as string[], 6)
+  if (choices.length < 2) {
+    return {
+      question: "",
+      choices: [],
+      draftSummary,
+      skip: true,
+      mappedBranch: mappedBranch || undefined,
+    }
+  }
 
-  return { question: String(json.question).trim(), choices, draftSummary }
+  return {
+    question: String(json.question).trim(),
+    choices,
+    draftSummary,
+    mappedBranch: mappedBranch || undefined,
+  }
 }
-
 async function finalizeNeedSummary(
   supabase: SupabaseClient<Database>,
   ctx: OnboardingContext,
@@ -379,19 +610,20 @@ async function generateNeedFinalSummary(
   const history = buildShortHistory(state)
   const system =
     "You write what a person is looking for at a networking event.\n" +
-    "Synthesize the FULL questionnaire transcript into ONE fluent sentence (or rarely two very short ones if needed).\n" +
-    "Weave early answers (main goal) with later-branch details — do not mirror only the last step or string their answers together.\n" +
-    "If PROFILE SNIPPETS appear, use them only to clarify phrasing when the transcript is thin; never contradict explicit answers.\n" +
+    "Use the full transcript to produce one clear summary that reflects their actual path and details.\n" +
+    "Include concrete intent signals: who they want to meet, what they want to discuss, and any specific target context (role/domain/partner/customer profile) when present.\n" +
+    "Do not over-genericize. Preserve useful specifics from user answers.\n" +
+    "If PROFILE SNIPPETS appear, use them only to clarify phrasing when transcript detail is thin; never contradict explicit answers.\n" +
     "Use only stated facts; do not invent goals.\n" +
     'Start with "Looking for..." or "Needs help with...".\n' +
-    "Typically under ~35 words. Return ONLY the summary text."
+    "Usually one sentence, max two short sentences. Return only summary text."
   const user =
     `PERSON CONTEXT:\n${personBlock}\n\n` +
     (profileBlock ? `PROFILE SNIPPETS:\n${profileBlock}\n\n` : "") +
     `FULL QUESTIONNAIRE TRANSCRIPT:\n${transcript || "(none)"}\n\n` +
     `Short history:\n${history || "(none)"}\n\n` +
     `Return the summary only.`
-  const text = await callAiText({ system, user, maxTokens: 180, temperature: 0.4 })
+  const text = await callAiText({ system, user, maxTokens: 220, temperature: 0.3 })
   return text || fallbackNeedSummary(state)
 }
 
@@ -410,6 +642,16 @@ export async function needRewrite(
   correction: string,
 ): Promise<string> {
   const state = coerceState(ctx.attendance.need_flow_state_json) as ExtendedFlowState
+  state.mapped_need_branch =
+    ((ctx.attendance.need_flow_state_json as Record<string, unknown>)?.mapped_need_branch as
+      | "A"
+      | "B"
+      | "C"
+      | "D"
+      | "E"
+      | "truly_unique"
+      | null
+      | undefined) ?? null
   if (!isAiEnabled()) {
     state.draft_summary = correction.trim() || state.draft_summary
     await persistState(supabase, ctx, "need", state)
@@ -444,6 +686,16 @@ export async function needBack(
 ): Promise<AdvanceResult> {
   const state = coerceState(ctx.attendance.need_flow_state_json) as ExtendedFlowState
   state.pending = (ctx.attendance.need_flow_state_json as Record<string, unknown>)?.pending as PendingQuestion | null ?? null
+  state.mapped_need_branch =
+    ((ctx.attendance.need_flow_state_json as Record<string, unknown>)?.mapped_need_branch as
+      | "A"
+      | "B"
+      | "C"
+      | "D"
+      | "E"
+      | "truly_unique"
+      | null
+      | undefined) ?? null
 
   // Nothing to step back to – just re-emit the entry node.
   if (state.node_path.length === 0) {
@@ -485,6 +737,16 @@ export async function needConfirm(
   ctx: OnboardingContext,
 ): Promise<string> {
   const state = coerceState(ctx.attendance.need_flow_state_json) as ExtendedFlowState
+  state.mapped_need_branch =
+    ((ctx.attendance.need_flow_state_json as Record<string, unknown>)?.mapped_need_branch as
+      | "A"
+      | "B"
+      | "C"
+      | "D"
+      | "E"
+      | "truly_unique"
+      | null
+      | undefined) ?? null
   state.is_confirmed = true
   state.pending = null
   const finalSummary = state.draft_summary || fallbackNeedSummary(state)
@@ -624,14 +886,11 @@ async function generateOfferIntro(
     system,
     user: "Generate the Q1 offer question and 5 options per the rules.",
     maxTokens: 500,
-    temperature: 0.5,
+    temperature: 0.3,
   })
   if (!json || !json.question || !Array.isArray(json.choices)) return null
-  const letters = ["A", "B", "C", "D", "E"]
-  const choices = json.choices
-    .slice(0, 5)
-    .map((label, i) => ({ id: letters[i], label: String(label).trim() }))
-    .filter((c) => Boolean(c.label))
+  const choices = normalizeAiChoices(json.choices, 5)
+  if (choices.length < 2) return null
   return { question: String(json.question).trim(), choices }
 }
 
@@ -642,26 +901,25 @@ async function generateOfferValidation(
   if (!isAiEnabled()) return null
   const last = state.node_path[state.node_path.length - 1]
   if (!last) return null
+  const selections = splitOfferSelections(last.answer || "")
+  const primarySelection = selections.find((value) => !/^other\b/i.test(value)) || selections[0] || last.answer || ""
   const system = buildOfferValidationInstructions({
-    selectedOffer: last.answer || "",
+    selectedOffer: primarySelection,
     lastQ: last.question || "",
-    lastA: last.answer || "",
+    lastA: selections.join("; ") || last.answer || "",
     jobTitle: ctx.user.career_title || "",
     company: ctx.user.company_name || "",
     companyDescription: ctx.user.company_summary || "",
   })
   const json = await callAiJson<{ question?: string; choices?: string[] }>({
     system,
-    user: "Generate the Q2 validation question and 4 options per the rules.",
+    user: "Generate the Q2 validation question and 4 options per the rules. If multiple options were selected, focus on the strongest non-Other selection first.",
     maxTokens: 500,
-    temperature: 0.5,
+    temperature: 0.3,
   })
   if (!json || !json.question || !Array.isArray(json.choices)) return null
-  const letters = ["A", "B", "C", "D"]
-  const choices = json.choices
-    .slice(0, 4)
-    .map((label, i) => ({ id: letters[i], label: String(label).trim() }))
-    .filter((c) => Boolean(c.label))
+  const choices = normalizeAiChoices(json.choices, 5)
+  if (choices.length < 2) return null
   return { question: String(json.question).trim(), choices }
 }
 
@@ -852,3 +1110,5 @@ function personContext(ctx: OnboardingContext) {
 }
 
 export { loadOnboardingContext }
+
+

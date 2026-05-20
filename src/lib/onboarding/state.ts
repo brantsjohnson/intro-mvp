@@ -56,6 +56,7 @@ export interface OnboardingAttendanceRow {
 export interface OnboardingEventRow {
   event_id: string
   event_name: string | null
+  onboarding_question_schema: Json | null
 }
 
 export interface OnboardingContext {
@@ -108,7 +109,7 @@ export async function loadOnboardingContext(
 
   const { data: event, error: eventError } = await supabase
     .from("events")
-    .select("event_id, event_name")
+    .select("event_id, event_name, onboarding_question_schema")
     .eq("event_id", eventId)
     .maybeSingle()
   if (eventError) return { ctx: null, error: eventError.message }

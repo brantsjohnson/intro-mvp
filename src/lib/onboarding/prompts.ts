@@ -44,88 +44,180 @@ export function formatOnboardingProfileBlock(u: {
 }
 
 // ---- Need: in-flow clarifying MC instructions ----
-// Port of getAiMultipleChoiceInstructions_() in src/Code.js.
-export function getAiMultipleChoiceInstructions(mode: string): string {
+// Branch-aware version: still deterministic rules-first, but with explicit
+// A-F branch objectives and student/between-roles overlay.
+export interface NeedDynamicInstructionContext {
+  branchCode: "A" | "B" | "C" | "D" | "E" | "F"
+  branchLabel: string
+  resolvedBranchCode: "A" | "B" | "C" | "D" | "E" | "F" | "truly_unique"
+  firstAiTurnInBranch: boolean
+  studentOverlay: boolean
+  companyKnown: boolean
+  companySummaryKnown: boolean
+  mappedBranch?: string | null
+  coveredSignals?: string[]
+  missingSignals?: string[]
+}
+
+function formatSignalList(title: string, values: string[] | undefined): string {
+  if (!values || values.length === 0) return `${title}: (none)`
+  return `${title}: ${values.join("; ")}`
+}
+
+function buildBranchDirective(context: NeedDynamicInstructionContext): string {
+  const shared =
+    "BRANCH-AWARE REQUIREMENTS (highest priority):\n" +
+    "- Use the branch objective below to decide the next best question.\n" +
+    "- Ask exactly one multiple-choice question per turn.\n" +
+    '- Choices must include "Other" as the final option.\n' +
+    "- Build on prior answers; do not restart from generic discovery.\n" +
+    "- If the branch goals are already clear, return skip.\n\n"
+
+  const overlay =
+    context.studentOverlay
+      ? "STUDENT/BETWEEN-ROLES OVERLAY: ACTIVE. Avoid company ICP, hiring pipeline, or sales pipeline assumptions unless explicitly stated. Anchor on field of study, target role family, personal projects, or curiosity area. For partnership/customer paths, default to career exploration unless explicit business intent is stated.\n\n"
+      : ""
+
+  const companyGuard = context.companySummaryKnown
+    ? "COMPANY SUMMARY: KNOWN. Do not ask what the company does.\n\n"
+    : ""
+
+  const signals =
+    `${formatSignalList("Covered signals", context.coveredSignals)}\n` +
+    `${formatSignalList("Missing signals", context.missingSignals)}\n\n`
+
+  const branchA =
+    "Branch A (Meet people generally) objective:\n" +
+    "1) Identify who they want to meet: peer, opposite perspective, mentor, mentee, collaborator, or casual.\n" +
+    "2) Identify what they want to discuss: work, career path, tools, a challenge, or life outside work.\n" +
+    "3) Bonus: capture one shared-interest hook (hobby/topic).\n" +
+    "4) If job/internship hints appear, capture specific work target (function, field of study, or role track).\n"
+
+  const branchB =
+    "Branch B (Learn about the topic) objective:\n" +
+    "1) Capture a specific sub-topic (not umbrella topic).\n" +
+    "2) Capture why it matters now: current problem, upcoming decision, tool evaluation, or curiosity.\n" +
+    "3) Capture best teacher profile: practitioner, vendor/expert, researcher, or peer learner.\n"
+
+  const branchC =
+    "Branch C (Build partnerships) objective:\n" +
+    "1) On first AI turn, commit to one sub-intent: sales/integration, sponsor-find, sponsor-offer, investor-raising, investor-investing, cross-sector.\n" +
+    "2) Then capture target profile details by sub-intent:\n" +
+    "   - sales/integration: partner industry, stage, size\n" +
+    "   - sponsor-find: what needs sponsorship and audience\n" +
+    "   - sponsor-offer: audience they want to reach\n" +
+    "   - investor-raising: stage, sector, check size\n" +
+    "   - investor-investing: thesis and sector focus\n" +
+    "   - cross-sector: cause area, geography, partner type\n"
+
+  const branchD =
+    "Branch D (Find customers) objective:\n" +
+    "1) Fill ideal-customer gap: industry, buyer role, or company size (only what is missing).\n" +
+    "2) Capture buying situation: actively evaluating, exploring, replacing vendor, or problem-aware only.\n" +
+    "Never re-ask what the company does when summary exists.\n"
+
+  const branchE =
+    "Branch E (Represent an organization) objective:\n" +
+    "1) Capture why the org is here: recruit, sell, partner, learn, build presence, support clients.\n" +
+    "2) Capture who they want to meet: peers, buyers, suppliers, regulators, talent, press, investors.\n" +
+    "3) Bonus: one specific topic the org can lead.\n" +
+    "Anchor on known company name and never ask what the company does.\n"
+
+  const branchFFirstTurn =
+    "Branch F (Other) first-turn objective:\n" +
+    "Map intent to one of A/B/C/D/E or truly_unique on this turn.\n" +
+    'Include "mapped_branch" in JSON with one of: "A","B","C","D","E","truly_unique".\n' +
+    "If mapped to truly_unique, next question should identify who would help, grounded in user words.\n" +
+    "After mapping to A-E, continue using that branch objective.\n"
+
+  const branchFResolved =
+    context.resolvedBranchCode === "truly_unique"
+      ? "Branch F mapped objective (truly_unique): ask who would be most helpful to meet, grounded in the user's own words and constraints.\n"
+      : `Branch F mapped objective: use mapped branch ${context.resolvedBranchCode} rules for this turn.\n`
+
+  const branchMap: Record<string, string> = {
+    A: branchA,
+    B: branchB,
+    C: branchC,
+    D: branchD,
+    E: branchE,
+    F:
+      context.firstAiTurnInBranch && !context.mappedBranch
+        ? branchFFirstTurn
+        : branchFResolved,
+  }
+
+  const objectiveKey =
+    context.resolvedBranchCode === "truly_unique" ? "F" : context.resolvedBranchCode
+
+  return (
+    shared +
+    `Current branch: ${context.branchCode} (${context.branchLabel})\n` +
+    `Resolved branch target: ${context.resolvedBranchCode}\n` +
+    `First AI turn in branch: ${context.firstAiTurnInBranch ? "yes" : "no"}\n` +
+    `Company known: ${context.companyKnown ? "yes" : "no"}\n` +
+    `Company summary known: ${context.companySummaryKnown ? "yes" : "no"}\n\n` +
+    overlay +
+    companyGuard +
+    signals +
+    branchMap[objectiveKey] +
+    "\n"
+  )
+}
+
+export function getAiMultipleChoiceInstructions(
+  mode: string,
+  context?: NeedDynamicInstructionContext,
+): string {
   const PHASE1 =
     "You are a gap-check engine for a networking match system.\n" +
     "You always receive:\n" +
     "- PERSON CONTEXT: name, company, job title, and optional role/function field.\n" +
-    "- FULL QUESTIONNAIRE TRANSCRIPT: every step with flow node id, full question text (including options), and the user's exact answer.\n" +
-    "Treat the transcript as ground truth for what was asked and what they chose.\n" +
-    "Use job title and role only to disambiguate phrasing (e.g. founder vs investor); NEVER override or contradict explicit answers or selected options.\n" +
-    'If a question label could be misread (e.g. words like "investors" in the stem), rely on which option letter they actually picked and the flow node id.\n\n' +
-    "PHASE 1 — Always run this first (silently, do not output it):\n" +
-    "1. From the FULL transcript (every Q/A step), person context, and any PROFILE SNIPPETS in the user message, write ONE fluent draft sentence of what this person wants at the event.\n" +
-    '   Start with "Looking for..." or "Needs help with...".\n' +
-    "   Weave together the main goal AND later-branch details (topics, constraints, free-text) into coherent prose — not a comma-list of quotes and not a restatement of only the last answer.\n" +
-    "   Keep concrete terms they used (roles, domains, product names) when they matter for matching.\n" +
-    "   Use PROFILE SNIPPETS only to sharpen meaning when the questionnaire alone is vague; never invent goals they did not imply.\n" +
-    "   No invented facts.\n" +
-    "2. Evaluate each of the three clarity dimensions:\n" +
-    "   - helper_shape: Do we know what kind of person or perspective would actually help them? (experience, lens, situation — not a job title)\n" +
-    "   - motivation: Do we know WHY this matters to them right now? (pressure, gap, deadline, uncertainty)\n" +
-    "   - success: Do we know what one good conversation would produce for them? (clarity, one decision, one intro, validation, next step)\n" +
-    "3. Mark each dimension as CLEAR or UNCLEAR based only on explicit signals in the history.\n\n"
+    "- FULL QUESTIONNAIRE TRANSCRIPT: every step with node id, full question text (including options), and the user's answer.\n" +
+    "Treat the transcript as ground truth for what was asked and chosen.\n" +
+    "Use job title/profile only to disambiguate wording; never override explicit answers.\n\n" +
+    "PHASE 1 (silent):\n" +
+    "1) Synthesize one concise draft summary from the full transcript.\n" +
+    "2) Decide what key signal is still missing for matching quality.\n"
 
   const PHASE2 =
-    "PHASE 2 — Decide:\n" +
-    "- If questions_asked >= 7 OR all three dimensions are CLEAR → return the skip response (see format below).\n" +
-    "- If a gap exists and questions_asked < 7 → ask exactly ONE multiple-choice question targeting the FIRST unclear dimension.\n" +
-    "- NEVER ask about a dimension that is already CLEAR from the history.\n" +
-    '- NEVER repeat a topic already covered in "Topics already covered" (provided in input).\n\n' +
-    "How to ask (indirect, narrow):\n" +
-    "- Ask about the situation, not about job titles or ideal match types.\n" +
-    "- Good angles: what is most stuck, what they are trying to decide, what would make today useful, what would change things fastest.\n" +
-    '- Bad angles: "who do you want to meet", "ideal mentor", "define success", networking jargon.\n' +
-    '- One axis per question only. No "and", no "or".\n\n' +
-    "Abstraction ladder (prefer questions in this order if unclear):\n" +
-    "1) What they are here to do today (situation)\n" +
-    "2) What feels blocked or scarce (friction)\n" +
-    "3) What would change things fastest (leverage)\n" +
-    "4) What is a hard constraint (only if critical)\n\n" +
-    "Language rules:\n" +
-    "- Concrete everyday words. No jargon.\n" +
-    '- Do not say "to help us understand". Do not name roles unless the user already named them.\n' +
-    "- Do not assume career/job intent unless the user explicitly said so.\n\n"
+    "PHASE 2:\n" +
+    "- If questions_asked >= 7 or required signals are already clear, return skip.\n" +
+    "- Otherwise ask exactly one multiple-choice question that fills the highest-priority missing signal.\n" +
+    "- Never repeat already-covered topics.\n" +
+    "- Keep question concise and practical.\n\n"
 
   const CHOICES =
-    "Choice design rules:\n" +
-    '- 4 to 7 choices total (including "Other").\n' +
-    '- "Other" must always be the LAST choice.\n' +
-    '- Each choice represents ONE idea only. No "and", no slashes.\n' +
-    "- Keep choices parallel (same grammatical form).\n" +
-    "- Avoid synonyms or overlapping categories.\n" +
-    "- Each choice: 1 to 7 words.\n" +
-    "- Do NOT include option letters in the choices.\n\n"
+    "Choice rules:\n" +
+    '- 4 to 7 choices total, with "Other" always last.\n' +
+    "- Choices must be non-overlapping and parallel.\n" +
+    "- Each choice should be short and concrete.\n\n"
+
+  const requireMappedBranch =
+    context?.branchCode === "F" &&
+    context?.firstAiTurnInBranch &&
+    !context?.mappedBranch
 
   const FORMAT =
-    "Format rules (MUST follow):\n" +
-    "- Return ONLY valid JSON (no markdown, no extra keys).\n" +
-    '- ALWAYS include "draft_summary" in the response.\n' +
-    '- "draft_summary" must reflect the ENTIRE transcript so far (all steps), synthesized — not the latest answer alone.\n' +
+    "Format rules:\n" +
+    "- Return JSON only.\n" +
+    '- Always include "draft_summary".\n' +
     "- If asking a question:\n" +
     '  {"draft_summary":"...","question":"...","choices":["...","...","Other"]}\n' +
-    "- If no question needed (all clear or cap reached):\n" +
+    "- If no question needed:\n" +
     '  {"draft_summary":"...","question":null,"choices":null}\n' +
-    "- Question must be <= 12 words.\n"
+    (requireMappedBranch
+      ? '- Also include "mapped_branch": "A" | "B" | "C" | "D" | "E" | "truly_unique".\n'
+      : "")
 
-  const BASE = PHASE1 + PHASE2 + CHOICES + FORMAT
+  const BRANCH = context ? `\n${buildBranchDirective(context)}\n` : ""
+  const BASE = PHASE1 + PHASE2 + CHOICES + BRANCH + FORMAT
 
   if (mode === "event_topics_for_learning") {
     return (
       BASE +
       "\nMode override: event_topics_for_learning\n" +
-      "Use this mode ONLY to propose event-relevant learning topic choices.\n\n" +
-      "Context priority:\n" +
-      "1) Immediate prior Q/A (primary)\n" +
-      "2) Earlier answers (secondary)\n" +
-      "3) Event summary (ONLY to propose topic options)\n\n" +
-      "Behavior rules:\n" +
-      "- If the user already named a specific topic, return the skip response.\n" +
-      "- If the user is vague, use the event summary to propose 3 to 4 plausible topic options.\n" +
-      "- Do NOT invent domains not present in the event summary.\n" +
-      "- Topic choices must improve matchmaking (signals who they should talk to).\n" +
-      '- Always include "Other" as the final choice.\n'
+      "Use event context to propose concrete sub-topic options relevant to this event.\n"
     )
   }
 
@@ -133,48 +225,20 @@ export function getAiMultipleChoiceInstructions(mode: string): string {
     return (
       BASE +
       "\nMode override: clarify_job_target\n" +
-      "This step runs after the user said they are looking for jobs, internships, or work opportunities.\n\n" +
-      "Extra dimension (mandatory for skip):\n" +
-      "- job_target_specificity: Do we know WHAT KIND of work or study direction they mean — at least ONE concrete anchor, such as:\n" +
-      "  • a function or role family (e.g. product, engineering, design, marketing, sales, HR, operations, finance, data, legal, general business),\n" +
-      "  • OR field of study / major if they are a student,\n" +
-      "  • OR a specific role title or track they stated.\n\n" +
-      "NOT sufficient to treat as CLEAR:\n" +
-      '- Only timing or setting: "full-time", "part-time", "internship", "startup", "corporate", "after graduation" without WHAT work.\n' +
-      "- Only *where* they want to work (e.g. startups vs corporate vs VC) from the prior step — that is not the same as *what they do* or want to do.\n" +
-      '- Vague words alone: "job", "opportunities", "career", "work" without domain or function.\n\n' +
-      "If job title is generic or unclear about what they actually do today or want to do next, prioritize questions that clarify function, field, or day-to-day work — not just company type.\n\n" +
-      'If job title or transcript suggests "Student" and job_target_specificity is still weak, ask about field of study OR target role family.\n\n' +
-      "PHASE 2 (this mode): Do NOT return skip until job_target_specificity is CLEAR, unless questions_asked is already >= 7 (then return skip with best-effort draft).\n" +
-      "If UNCLEAR, ask exactly ONE multiple-choice question that narrows function, field, or role type — everyday words, no jargon.\n"
+      "If job/internship intent exists, do not stop until function/field/role-track specificity is clear (unless step cap reached).\n"
     )
   }
 
   if (mode === "sponsor_roi_type") {
     return (
       BASE +
-      "\nMode override: sponsor_roi_type — READ THIS BEFORE USING GENERIC PHASE2 FOR THE QUESTION\n" +
-      "They already said they want **customers / revenue**. Matchmaking cannot \"fix\" their personal sales struggles (blocks, competition, lack of connections). **Do not ask about what feels blocked, hardest, or challenging for them** — that does not help find the right intro.\n\n" +
-      "You will receive **COMPANY_WEBSITE_CONTEXT** when we have a company URL and/or saved or freshly scraped site text. Treat it as the best available signal for **what they sell**, **what industry they operate in**, and **how to describe their service** — then ask MC questions that narrow **which client industries or buyer types** they want, **which slice of their service** matters for intros, or **who at the event** fits. Prefer stems that reference that context implicitly (e.g. \"Given what [company] does…\") without quoting long URLs.\n\n" +
-      "What we need instead (pick the single biggest gap and ask ONE MC question about it):\n" +
-      "1) **Who they want as a client** — type of buyer, role, company stage/size, **industry vertical**, or buying situation (ideal customer profile).\n" +
-      "2) **What problem they solve for those clients** — concrete buyer situation or outcome (**what their service actually changes**), not the founder's stress.\n" +
-      "3) **Who would be most useful to talk with here** — which *kind of person* at the event would help (e.g. buyers in a named industry, partners who reach their ICP, operators in a segment) — expressed as matchable options, not therapy about their obstacles.\n\n" +
-      "FORBIDDEN in both question stem and choices:\n" +
-      "- Words and frames like: blocked, stuck, hardest, challenging (for *them*), biggest struggle, competition, limited connections, unclear target market, \"finding customers\" as the *problem definition*.\n" +
-      "- Any option that is only **seller internal pain** with no **client or conversation target** signal.\n\n" +
-      "REQUIRED:\n" +
-      "- Question + choices must sharpen **client profile**, **buyer-side problem or situation they fix**, and/or **best conversation partner type** — grounded in transcript and profile; do not invent segments they did not imply.\n" +
-      "- Good stem shapes (vary; do not copy verbatim): \"Which buyers are you trying to reach?\", \"What situation do you improve for customers?\", \"Who here would be the best conversation for you?\", \"What does the client problem look like before you help?\".\n" +
-      "- Choices must be **parallel**, **specific** buyer or conversation angles — things that help matching, not founder obstacles.\n\n" +
-      "For THIS mode only: when choosing what to ask, **ignore** generic PHASE2 lines about \"what feels blocked\", friction, scarcity, or the abstraction ladder focused on **the user's** internal struggle — those rules do not apply to the emitted question; use only the bullets above.\n\n" +
-      "Skip: return skip when the transcript already gives enough to describe **who they want to sell to**, **what buyer problem or outcome they own**, and/or **who would be a useful intro** — unless questions_asked cap forces skip per PHASE 2.\n"
+      "\nMode override: sponsor_roi_type\n" +
+      "Focus on customer-profile, buying context, and best conversation partner. Avoid internal seller-pain framing.\n"
     )
   }
 
   return BASE
 }
-
 // ---- Need: rewrite summary after user correction ----
 // Port of rewriteNeedSummary_() in src/Code.js.
 export const REWRITE_NEED_SUMMARY_INSTRUCTIONS =
@@ -479,3 +543,4 @@ export function buildRewriteOfferSummaryUserPayload(
     `Return the revised offer summary only.`
   )
 }
+
