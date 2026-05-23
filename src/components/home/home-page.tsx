@@ -78,6 +78,9 @@ interface MatchWithProfile {
   dive_deeper: string
   profile: Profile
   is_present: boolean
+  match_score?: number
+  created_at?: string | null
+  viewer_is_source?: boolean
   structured_explanation?: StructuredMatchExplanation
   connection_type?: string
   algorithm_version?: string | null
@@ -411,12 +414,12 @@ export function HomePage() {
       const { data: edges, error: edgesError } = await supabase
         .from("connections")
         .select(
-          "a_id, b_id, match_explanation_text, match_score_breakdown_json, created_at, match_algorithm_version",
+          "a_id, b_id, created_by_user_id, match_score, match_explanation_text, match_score_breakdown_json, created_at, match_algorithm_version",
         )
         .eq("event_id", eventId)
         .eq("connection_kind", "system_match")
         .or(`a_id.eq.${user.id},b_id.eq.${user.id}`)
-        .order("created_at", { ascending: false })
+        .order("match_score", { ascending: false })
 
       if (edgesError) {
         console.error("Failed to load matches:", edgesError)
@@ -428,6 +431,16 @@ export function HomePage() {
       }
 
       const edgesList = (edges ?? []) as any[]
+      const scoreOf = (edge: any): number => {
+        if (typeof edge?.match_score === "number") return edge.match_score
+        if (typeof edge?.match_score_breakdown_json?.normalized_score === "number") {
+          return edge.match_score_breakdown_json.normalized_score
+        }
+        if (typeof edge?.match_score_breakdown_json?.raw_score === "number") {
+          return edge.match_score_breakdown_json.raw_score / 60
+        }
+        return 0
+      }
 
       console.log(`[loadMatches] Loaded ${edgesList.length} match records from database`)
 
@@ -437,7 +450,17 @@ export function HomePage() {
           edge.a_id < edge.b_id ? `${edge.a_id}-${edge.b_id}` : `${edge.b_id}-${edge.a_id}`
         const existing = matchMap.get(pairKey)
 
-        if (!existing || new Date(edge.created_at) > new Date(existing.created_at)) {
+        const edgeScore = scoreOf(edge)
+        const existingScore = existing ? scoreOf(existing) : -1
+        const edgeIsViewerSource = edge.created_by_user_id === user.id
+        const existingIsViewerSource = existing ? existing.created_by_user_id === user.id : false
+
+        if (
+          !existing ||
+          (edgeIsViewerSource !== existingIsViewerSource
+            ? edgeIsViewerSource
+            : edgeScore > existingScore || (edgeScore === existingScore && new Date(edge.created_at) > new Date(existing.created_at)))
+        ) {
           matchMap.set(pairKey, edge)
         }
       }
@@ -540,17 +563,21 @@ export function HomePage() {
           const structuredExplanation = (matchData as any)
             .structured_explanation as StructuredMatchExplanation | undefined
           const algorithmVersion = e.match_algorithm_version || null
+          const normalizedScore = scoreOf(e)
 
           const summary = explanation
 
           return {
-            id: e.created_at || `${u.user_id}-${explanation}`,
+            id: `${e.a_id}-${e.b_id}`,
             summary,
             bases: matchData.bases || [],
             shared_activities: sharedActivitiesStr,
             dive_deeper: matchData.dive_deeper || "",
             profile,
             is_present: Boolean(attendanceMap.get(otherId)),
+            match_score: normalizedScore,
+            created_at: e.created_at || null,
+            viewer_is_source: e.created_by_user_id === user.id,
             structured_explanation: structuredExplanation,
             connection_type: structuredExplanation?.connection_type,
             algorithm_version: algorithmVersion,
@@ -559,8 +586,14 @@ export function HomePage() {
         .filter(Boolean) as MatchWithProfile[]
 
       formatted.sort((a, b) => {
-        const aTime = new Date(a.id).getTime()
-        const bTime = new Date(b.id).getTime()
+        const sourcePriority = Number(Boolean(b.viewer_is_source)) - Number(Boolean(a.viewer_is_source))
+        if (sourcePriority !== 0) return sourcePriority
+
+        const scoreDiff = (b.match_score || 0) - (a.match_score || 0)
+        if (scoreDiff !== 0) return scoreDiff
+
+        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
         return bTime - aTime
       })
 

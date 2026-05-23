@@ -140,8 +140,11 @@ const PARTNERSHIP_PATTERNS = [
 const FUNDRAISING_PATTERNS = [
   /\b(fundrais|raise\s+capital|raise\s+money|investors?|vc\b|angel\b|seed\s+round|series\s+[abc])\b/i,
 ]
-const MENTORSHIP_PATTERNS = [
-  /\b(mentor|mentorship|coaching|guidance|advisor|advisory|learn\s+from)\b/i,
+const MENTORSHIP_NEED_PATTERNS = [
+  /\b(mentor|mentorship|coaching|coach|mentee)\b/i,
+]
+const MENTORSHIP_OFFER_PATTERNS = [
+  /\b(mentor|mentorship|coaching|coach|advisor|advisory)\b/i,
 ]
 const NETWORKING_PATTERNS = [/\b(network|networking|connections?|meet\s+people)\b/i]
 
@@ -308,18 +311,23 @@ function inferCanHire(
   needsJob: boolean,
   needsInternship: boolean,
 ): boolean {
-  if (connectionTypes.some((t) => t.includes("recruit") || t.includes("hiring"))) return true
-
   const titleLower = jobTitle.toLowerCase()
   const leadershipSignal =
     containsAny(titleLower, TITLE_EXEC_PATTERNS) || /\b(manager|director|head|lead|partner)\b/i.test(titleLower)
+  const connectionRecruitSignal = connectionTypes.some((t) => t.includes("recruit") || t.includes("hiring"))
   const explicitHiring = containsAny(signalLower, HIRING_PATTERNS)
 
-  if (explicitHiring && leadershipSignal) return true
-  if (explicitHiring && /\bintern\b/i.test(signalLower) && leadershipSignal) return true
-  if ((needsJob || needsInternship) && !explicitHiring) return false
+  // Contradictory self-seeking signals should not be treated as hiring authority.
+  if (needsJob || needsInternship) {
+    if (!explicitHiring) return false
+    if (!leadershipSignal) return false
+  }
 
-  return explicitHiring
+  if (connectionRecruitSignal && leadershipSignal && !needsJob && !needsInternship) return true
+  if (explicitHiring && leadershipSignal) return true
+  if (explicitHiring && /\b(we('| a)?re\s+hiring|hiring\s+for|open\s+roles?)\b/i.test(signalLower)) return true
+
+  return false
 }
 
 function inferSeniority(
@@ -407,13 +415,14 @@ function inferCanMentor(
   canHire: boolean,
   primaryIntent: CanonicalIntent,
 ): boolean {
-  if (containsAny(offerSignalLower, MENTORSHIP_PATTERNS)) return true
-  if (/\b(advisor|advisory|coach|coaching)\b/i.test(offerSignalLower)) return true
-  if (containsAny(needSignalLower, [/\bi can mentor\b/i])) return true
+  if (primaryIntent === "job_search" || primaryIntent === "internship_search") return false
 
   const seniorOrExec = seniority === "senior" || seniority === "executive"
+  const explicitMentorOffer = containsAny(offerSignalLower, MENTORSHIP_OFFER_PATTERNS) || containsAny(needSignalLower, [/\bi can mentor\b/i])
+
+  // Keep this conservative: require some authority/experience context.
+  if (explicitMentorOffer && (seniorOrExec || canHire)) return true
   if (!seniorOrExec) return false
-  if (primaryIntent === "job_search" || primaryIntent === "internship_search") return false
   if (canHire) return true
   return /\b(founder|operator|executive|partner|principal)\b/i.test(offerSignalLower)
 }
@@ -599,7 +608,7 @@ function toCanonicalProfile(row: any): CanonicalProfile | null {
   const needsCustomers = connectionTypes.includes("business_opportunities") || containsAny(needSignalLower, CUSTOMER_PATTERNS)
   const needsPartnerships = connectionTypes.includes("partnerships") || containsAny(needSignalLower, PARTNERSHIP_PATTERNS)
   const needsFundraisingHelp = containsAny(needSignalLower, FUNDRAISING_PATTERNS)
-  const needsMentorship = connectionTypes.includes("find_mentor") || containsAny(needSignalLower, MENTORSHIP_PATTERNS)
+  const needsMentorship = connectionTypes.includes("find_mentor") || containsAny(needSignalLower, MENTORSHIP_NEED_PATTERNS)
   const needsNetworking =
     connectionTypes.includes("general") ||
     containsAny(needSignalLower, NETWORKING_PATTERNS) ||
@@ -723,6 +732,8 @@ function scorePair(source: CanonicalProfile, candidate: CanonicalProfile): Score
     source.needsCustomers ||
     source.needsPartnerships ||
     (source.secondaryIntent ? COMMERCIAL_INTENTS.has(source.secondaryIntent) : false)
+  const mentorshipPrimary = source.primaryIntent === "mentorship"
+  const mentorshipSecondary = source.secondaryIntent === "mentorship"
 
   if ((source.needsJob || source.needsInternship) && candidate.canHire) {
     addCapped("job_hiring", 24, 32, "Job/internship seeker matched to hiring-capable profile.", true)
@@ -733,10 +744,13 @@ function scorePair(source: CanonicalProfile, candidate: CanonicalProfile): Score
   }
 
   if (source.needsMentorship) {
+    const mentorCap = mentorshipPrimary ? 28 : mentorshipSecondary ? 14 : 6
     if (candidate.canMentor) {
-      addCapped("mentorship", 22, 28, "Mentorship seeker matched to mentor-capable profile.", true)
+      const points = mentorshipPrimary ? 22 : mentorshipSecondary ? 10 : 4
+      addCapped("mentorship", points, mentorCap, "Mentorship seeker matched to mentor-capable profile.", mentorshipPrimary || mentorshipSecondary)
     } else if (candidate.seniority === "senior" || candidate.seniority === "executive") {
-      addCapped("mentorship", 10, 28, "Mentorship seeker matched to senior/executive profile.", true)
+      const points = mentorshipPrimary ? 10 : mentorshipSecondary ? 5 : 2
+      addCapped("mentorship", points, mentorCap, "Mentorship seeker matched to senior/executive profile.", mentorshipPrimary)
     }
   }
 
@@ -935,52 +949,176 @@ function selectCandidates(source: CanonicalProfile, scored: ScoredCandidate[]): 
 
 function conciseSummary(source: CanonicalProfile, row: ScoredCandidate): string {
   const candidate = row.candidate
+  const mentorshipPoints = row.ruleHits?.mentorship ?? 0
+  const jobPoints = row.ruleHits?.job_hiring ?? 0
+  const fundraisingPoints = row.ruleHits?.fundraising ?? 0
+  const commercialPoints = row.ruleHits?.commercial ?? 0
+  const networkingPoints = row.ruleHits?.networking ?? 0
+
+  const candidateTitle = candidate.jobTitle || "candidate profile"
+  const candidateIdentity = candidate.company ? `${candidateTitle} at ${candidate.company}` : candidateTitle
+  const candidateRoleFamily =
+    candidate.commercialRoleFamily !== "unknown"
+      ? candidate.commercialRoleFamily.replace(/_/g, " ")
+      : roleFamily(candidate.targetRole).replace(/_/g, " ")
+  const sourceRoleFamily =
+    source.commercialRoleFamily !== "unknown"
+      ? source.commercialRoleFamily.replace(/_/g, " ")
+      : roleFamily(source.targetRole).replace(/_/g, " ")
+
+  const domainLabel = (domain: string): string => {
+    const labels: Record<string, string> = {
+      ai_ml: "AI/ML",
+      fintech: "fintech",
+      healthcare: "healthcare",
+      education: "education",
+      media: "media",
+      startup: "startup",
+      enterprise: "enterprise",
+      nonprofit: "nonprofit",
+      general: "general",
+    }
+    return labels[domain] || domain.replace(/_/g, " ")
+  }
+
+  const offerFamilyLabel = (family: string): string => {
+    const labels: Record<string, string> = {
+      sales_gtm: "sales/GTM support",
+      partnerships: "partnership development",
+      legal_risk: "legal/compliance guidance",
+      finance_strategy: "finance/fundraising guidance",
+      people_hr: "talent/hiring support",
+      technical_product: "technical/product guidance",
+      creative_brand: "creative/brand support",
+      founder_operator: "founder/operator guidance",
+      general: "general support",
+    }
+    return labels[family] || family.replace(/_/g, " ")
+  }
+
+  const commercialSubtypeLabel = (subtype: CommercialSubtype): string => {
+    if (subtype === "likely_buyer") return "buyer/revenue-side commercial fit"
+    if (subtype === "likely_partner") return "partnership-oriented commercial fit"
+    if (subtype === "likely_advisor") return "advisor/operator commercial fit"
+    return "general commercial fit"
+  }
 
   if (row.fallbackUsed || row.rawScore <= FALLBACK_MIN_SCORE) {
-    return "Fallback match; limited strong matches were available, but this profile has some networking relevance."
+    return `Fallback match; limited strong fits were available, but ${candidateIdentity} offers some networking relevance.`
   }
 
   const clauses: string[] = []
-  if ((source.needsJob || source.needsInternship) && candidate.canHire) {
-    clauses.push("Hiring-capable profile aligned with job/internship needs.")
-  }
-  if (source.needsMentorship && (candidate.canMentor || candidate.seniority === "senior" || candidate.seniority === "executive")) {
-    clauses.push("Mentor-capable senior profile aligned with mentorship needs.")
-  }
-  if (source.needsFundraisingHelp && (candidate.targetDomain === "startup" || candidate.seniority === "executive" || candidate.targetCompanyType === "investors_vc")) {
-    clauses.push("Startup-relevant profile aligned with fundraising guidance needs.")
+  const clauseSet = new Set<string>()
+  const addClause = (clause: string) => {
+    const cleaned = cleanText(clause)
+    if (!cleaned || clauseSet.has(cleaned)) return
+    clauseSet.add(cleaned)
+    clauses.push(cleaned)
   }
 
-  if (source.needsCustomers || source.needsPartnerships || (source.secondaryIntent ? COMMERCIAL_INTENTS.has(source.secondaryIntent) : false)) {
-    if (candidate.offerCommercialSubtype === "likely_buyer") {
-      clauses.push("Likely buyer-side commercial profile.")
-    } else if (candidate.offerCommercialSubtype === "likely_partner") {
-      clauses.push("Likely partnership-oriented commercial profile.")
-    } else if (candidate.offerCommercialSubtype === "likely_advisor") {
-      clauses.push("Likely advisor/operator commercial profile.")
+  const commercialFocus = source.needsCustomers
+    ? "customer growth goals"
+    : source.needsPartnerships
+      ? "partnership goals"
+      : source.secondaryIntent && COMMERCIAL_INTENTS.has(source.secondaryIntent)
+        ? `${source.secondaryIntent.replace(/_/g, " ")} goals`
+        : "commercial goals"
+
+  const groupRank: Array<[string, number]> = [
+    ["job_hiring", jobPoints],
+    ["commercial", commercialPoints],
+    ["fundraising", fundraisingPoints],
+    ["mentorship", mentorshipPoints],
+    ["networking", networkingPoints],
+  ]
+    .filter(([, points]) => points > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+
+  for (const [group] of groupRank) {
+    if (clauses.length >= 2) break
+    if (group === "job_hiring") {
+      if ((source.needsJob || source.needsInternship) && candidate.canHire) {
+        addClause(
+          source.needsInternship
+            ? `Internship alignment with hiring-capable ${candidateIdentity}.`
+            : `Job-search alignment with hiring-capable ${candidateIdentity}.`,
+        )
+        continue
+      }
+      if (source.canHire && (candidate.needsJob || candidate.needsInternship)) {
+        addClause(`${candidateIdentity} appears role-seeking while this attendee is hiring-capable.`)
+      }
+      continue
     }
 
-    if (source.commercialRoleFamily !== "unknown" && candidate.commercialRoleFamily !== "unknown") {
-      if (source.commercialRoleFamily === candidate.commercialRoleFamily) {
-        clauses.push("Strong commercial role adjacency.")
-      } else if (commercialRoleFamiliesComplementary(source.commercialRoleFamily, candidate.commercialRoleFamily)) {
-        clauses.push("Complementary commercial role adjacency.")
+    if (group === "commercial") {
+      let clause = `${commercialSubtypeLabel(candidate.offerCommercialSubtype)} for ${commercialFocus} via ${offerFamilyLabel(candidate.offerCapabilityFamily)}.`
+      if (source.commercialRoleFamily !== "unknown" && candidate.commercialRoleFamily !== "unknown") {
+        if (source.commercialRoleFamily === candidate.commercialRoleFamily) {
+          clause = `${commercialSubtypeLabel(candidate.offerCommercialSubtype)} for ${commercialFocus}; shared ${candidateRoleFamily} function.`
+        } else if (commercialRoleFamiliesComplementary(source.commercialRoleFamily, candidate.commercialRoleFamily)) {
+          clause = `${commercialSubtypeLabel(candidate.offerCommercialSubtype)} for ${commercialFocus}; complementary ${sourceRoleFamily} -> ${candidateRoleFamily} fit.`
+        }
+      }
+      addClause(clause)
+      continue
+    }
+
+    if (group === "fundraising") {
+      if (candidate.targetCompanyType === "investors_vc") {
+        addClause(`Fundraising support potential from ${candidateIdentity} with investor context.`)
+      } else {
+        addClause(`Fundraising-relevant perspective from ${candidateIdentity} with startup/operator context.`)
+      }
+      continue
+    }
+
+    if (group === "mentorship") {
+      if (
+        mentorshipPoints >= 8 &&
+        source.needsMentorship &&
+        (candidate.canMentor || candidate.seniority === "senior" || candidate.seniority === "executive")
+      ) {
+        addClause(
+          candidate.canMentor
+            ? `Mentorship value from mentor-capable ${candidateIdentity}.`
+            : `Mentorship value from senior ${candidateIdentity}.`,
+        )
+      }
+      continue
+    }
+
+    if (group === "networking") {
+      if (source.targetDomain !== "general" && source.targetDomain === candidate.targetDomain) {
+        addClause(`Shared ${domainLabel(candidate.targetDomain)} domain context for networking.`)
+      } else if (complementaryDomains(source.targetDomain, candidate.targetDomain)) {
+        addClause(
+          `Complementary domain context (${domainLabel(source.targetDomain)} + ${domainLabel(candidate.targetDomain)}).`,
+        )
+      } else {
+        addClause(`General networking overlap with ${candidateIdentity}.`)
       }
     }
   }
 
-  if (source.targetDomain !== "general" && source.targetDomain === candidate.targetDomain) {
-    clauses.push("Relevant domain overlap.")
-  } else if (complementaryDomains(source.targetDomain, candidate.targetDomain)) {
-    clauses.push("Complementary domain context.")
+  if (clauses.length < 2 && source.targetDomain !== "general" && source.targetDomain === candidate.targetDomain) {
+    addClause(`Shared ${domainLabel(candidate.targetDomain)} domain context.`)
+  }
+  if (clauses.length < 2 && complementaryDomains(source.targetDomain, candidate.targetDomain)) {
+    addClause(
+      `Complementary domain context (${domainLabel(source.targetDomain)} + ${domainLabel(candidate.targetDomain)}).`,
+    )
+  }
+  if (clauses.length < 2 && candidate.offerSummary) {
+    addClause(`Offer-side strength from ${candidateIdentity}: ${offerFamilyLabel(candidate.offerCapabilityFamily)}.`)
   }
 
   if (clauses.length === 0) {
-    if (row.reasons.length > 0) return row.reasons[0]
-    return "General intent-level compatibility with practical overlap."
+    if (row.reasons.length > 0) return cleanText(row.reasons[0])
+    return `Practical compatibility with ${candidateIdentity}.`
   }
 
-  return [...new Set(clauses)].slice(0, 2).join(" ")
+  return clauses.slice(0, 2).join(" ")
 }
 
 async function loadCanonicalProfilesForEvent(supabase: any, eventId: string): Promise<CanonicalProfile[]> {
@@ -1016,9 +1154,11 @@ async function upsertMatches(
     .delete()
     .eq("event_id", eventId)
     .eq("connection_kind", "system_match")
-    .or(`a_id.eq.${viewer.id},b_id.eq.${viewer.id}`)
+    .eq("created_by_user_id", viewer.id)
 
   if (selected.length === 0) return 0
+
+  let persisted = 0
 
   const rows = selected.map((row) => {
     const candidate = row.candidate
@@ -1071,12 +1211,67 @@ async function upsertMatches(
     }
   })
 
-  const { error } = await supabase.from("connections").insert(rows)
-  if (error) {
-    throw new Error(`connections_insert_failed: ${error.message}`)
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const selectedRow = selected[i]
+
+    const { data: existing, error: existingError } = await supabase
+      .from("connections")
+      .select("connection_id, created_by_user_id, match_score, match_score_breakdown_json")
+      .eq("event_id", eventId)
+      .eq("connection_kind", "system_match")
+      .eq("a_id", row.a_id)
+      .eq("b_id", row.b_id)
+      .maybeSingle()
+
+    if (existingError) {
+      throw new Error(`connections_lookup_failed: ${existingError.message}`)
+    }
+
+    if (!existing) {
+      const { error: insertError } = await supabase.from("connections").insert(row)
+      if (insertError) {
+        throw new Error(`connections_insert_failed: ${insertError.message}`)
+      }
+      persisted += 1
+      continue
+    }
+
+    const existingRaw =
+      typeof existing?.match_score_breakdown_json?.raw_score === "number"
+        ? existing.match_score_breakdown_json.raw_score
+        : typeof existing?.match_score === "number"
+          ? Math.round(existing.match_score * MATCH_SCORE_NORMALIZATION_MAX)
+          : 0
+
+    const shouldReplace =
+      selectedRow.rawScore > existingRaw + 1 ||
+      (selectedRow.rawScore === existingRaw &&
+        existing.created_by_user_id !== viewer.id &&
+        viewer.id < existing.created_by_user_id)
+
+    if (!shouldReplace) {
+      continue
+    }
+
+    const { error: updateError } = await supabase
+      .from("connections")
+      .update({
+        created_by_user_id: row.created_by_user_id,
+        match_score: row.match_score,
+        match_score_breakdown_json: row.match_score_breakdown_json,
+        match_explanation_text: row.match_explanation_text,
+        match_algorithm_version: row.match_algorithm_version,
+      })
+      .eq("connection_id", existing.connection_id)
+
+    if (updateError) {
+      throw new Error(`connections_update_failed: ${updateError.message}`)
+    }
+    persisted += 1
   }
 
-  return rows.length
+  return persisted
 }
 
 async function processUser(eventId: string, userId: string, forceRecompute: boolean) {

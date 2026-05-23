@@ -48,3 +48,6 @@ supabase/.temp/
 # local dev logs
 devserver.out.log
 devserver.err.log
+
+# local generated reports/artifacts
+outputs/
