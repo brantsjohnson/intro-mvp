@@ -9,7 +9,14 @@ export async function PUT(request: NextRequest) {
     const gate = await requirePlatformAdminForRoute()
     if (!gate.ok) return gate.response
 
-    const { eventId, eventName, eventLocation, eventStartsAt, eventEndsAt } = await request.json()
+    const {
+      eventId,
+      eventName,
+      eventLocation,
+      eventDescription,
+      eventStartsAt,
+      eventEndsAt,
+    } = await request.json()
     
     if (!eventId) {
       return NextResponse.json(
@@ -32,6 +39,13 @@ export async function PUT(request: NextRequest) {
     const updateData: any = {}
     if (eventName !== undefined) updateData.event_name = eventName
     if (eventLocation !== undefined) updateData.event_location = eventLocation || null
+    if (eventDescription !== undefined) {
+      // Allow explicit clearing by sending empty string / null
+      updateData.event_description =
+        typeof eventDescription === "string" && eventDescription.trim().length > 0
+          ? eventDescription
+          : null
+    }
     // Store times exactly as provided (datetime-local format: "YYYY-MM-DDTHH:mm")
     // Don't convert timezones - store as-is
     if (eventStartsAt !== undefined) updateData.event_starts_at = eventStartsAt || null

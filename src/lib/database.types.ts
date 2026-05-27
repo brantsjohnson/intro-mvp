@@ -70,6 +70,7 @@ export type Database = {
           event_location: string | null
           event_starts_at: string | null
           event_ends_at: string | null
+          event_description: string | null
           onboarding_question_schema: Json | null
           matching_config: Json | null
           organization_id: string | null

@@ -26,16 +26,16 @@
   } catch (e) {}
 })();
 </script>
-<title>Intro — Prove Event ROI</title>
-<meta name="description" content="Intro matches attendees and sponsors to the right people, records who they meet, and syncs follow-ups to CRM so event-driven pipeline is visible. Prove event ROI without rebuilding your stack.">
-<meta property="og:title" content="Intro — Prove Event ROI">
-<meta property="og:description" content="Match every attendee or sponsor to the right person in the room. Prove event ROI and sync follow-ups to CRM.">
+<title>Intro. The Attendee Experience That Brings Them Back</title>
+<meta name="description" content="Intro creates the attendee experience that earns renewals and delivers sponsorship satisfaction.">
+<meta property="og:title" content="Intro. The Attendee Experience That Brings Them Back">
+<meta property="og:description" content="Intro creates the attendee experience that earns renewals and delivers sponsorship satisfaction.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://www.intro.events/">
 <meta property="og:image" content="https://www.intro.events/marketing/Intro%20Circle%20Logo%20-%20Transparent.png">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Intro — Prove Event ROI">
-<meta name="twitter:description" content="Match every attendee or sponsor to the right person in the room. Prove event ROI.">
+<meta name="twitter:title" content="Intro. The Attendee Experience That Brings Them Back">
+<meta name="twitter:description" content="Intro creates the attendee experience that earns renewals and delivers sponsorship satisfaction.">
 <meta name="twitter:image" content="https://www.intro.events/marketing/Intro%20Circle%20Logo%20-%20Transparent.png">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <link rel="canonical" href="https://www.intro.events/">
@@ -467,8 +467,123 @@ h1, h2, h3 { font-family: var(--font-heading); font-weight: bold; letter-spacing
   letter-spacing: 0;
 }
 
+/* ── ANALYTICS FLOW (compact steps left, video right) ── */
+.analytics-flow {
+  display: grid;
+  grid-template-columns: minmax(168px, 22%) minmax(0, 1fr);
+  gap: 1.25rem 1.75rem;
+  align-items: stretch;
+  margin-bottom: 3.5rem;
+}
+.analytics-flow-steps {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: stretch;
+  min-height: 0;
+  gap: 0;
+}
+.analytics-flow-video {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.analytics-flow-video .analytics-media-slot {
+  margin-bottom: 0;
+  flex: 1;
+}
+.flow-step {
+  border: 1px solid var(--border);
+  border-radius: 0 0.65rem 0.65rem 0;
+  padding: 0.35rem 0.45rem 0.35rem 0.5rem;
+  background: var(--card);
+  text-align: left;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+  transition: border-color 0.35s ease, background 0.35s ease, box-shadow 0.35s ease, opacity 0.35s ease;
+  opacity: 0.7;
+}
+.flow-step.is-active {
+  opacity: 1;
+  border-color: var(--primary);
+  background: rgba(114, 165, 87, 0.12);
+  box-shadow: 0 1px 6px rgba(114, 165, 87, 0.1);
+}
+.flow-step-icon {
+  flex-shrink: 0;
+}
+.flow-step-icon svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+.flow-step-body {
+  flex: 1;
+  min-width: 0;
+}
+.flow-step-title {
+  font-family: var(--font-heading);
+  font-size: 0.68rem;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+  color: var(--foreground);
+  line-height: 1.15;
+  margin: 0;
+}
+.flow-step-desc {
+  font-size: 0.58rem;
+  color: var(--muted-foreground);
+  line-height: 1.2;
+  margin: 0.1rem 0 0;
+}
+.flow-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
+  min-height: 2px;
+  padding: 0;
+  color: var(--primary);
+  opacity: 0.45;
+  user-select: none;
+  line-height: 0;
+}
+.flow-arrow svg {
+  width: 11px;
+  height: 11px;
+  stroke: currentColor;
+}
+@media (max-width: 900px) {
+  .analytics-flow {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+  .analytics-flow-steps {
+    justify-content: flex-start;
+    gap: 0;
+  }
+  .flow-arrow {
+    flex: 0 0 auto;
+    padding: 0.15rem 0;
+  }
+  .flow-step {
+    padding: 0.55rem 0.65rem;
+  }
+  .flow-step-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+  .flow-step-title { font-size: 0.82rem; }
+  .flow-step-desc { font-size: 0.72rem; }
+  .flow-arrow { padding: 0.15rem 0; }
+  .flow-arrow svg { width: 14px; height: 14px; }
+}
+
 /* ── STEPS ── */
-.steps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2rem; margin-top: 3rem; }
+.steps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-top: 3rem; }
 .step-card { border: 1px solid var(--border); padding: 2.5rem; border-radius: 0 2rem 2rem 0; background: var(--card); }
 .step-number { font-family: var(--font-heading); font-size: 2.5rem; font-weight: bold; color: var(--amber); line-height: 1; margin-bottom: 1rem; letter-spacing: -0.01em; }
 .step-title { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--foreground); margin-bottom: 0.75rem; }
@@ -1003,16 +1118,12 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
   <section class="hero-section section-light section-pad" style="padding-top:8rem;">
     <canvas id="hero-canvas"></canvas>
     <div class="container">
-      <div class="eyebrow reveal" style="color:var(--primary);">
-        <div class="eyebrow-line"></div>
-        <span class="eyebrow-text" data-text="FOR EVENT DIRECTORS"></span>
-      </div>
       <div class="hero-two-col">
         <div class="hero-copy-lead hero-content">
           <h1 class="hero-headline reveal">
-            Match every <span class="hero-nowrap">attendee or sponsor</span> to the <em class="accent-amber italic">right person in the room.</em>
+            Create the <em class="accent-amber italic">attendee experience</em> that will bring them back year after year.
           </h1>
-          <p class="body-text reveal reveal-delay-1" style="color:var(--foreground);">Intro matches your attendees and sponsors to the right people, records who they meet, and <strong>syncs follow-ups directly to their CRM</strong> so the pipeline your event created is finally visible. Add it to your existing stack and prove ROI without rebuilding a thing.</p>
+          <p class="body-text reveal reveal-delay-1" style="color:var(--foreground);">Intro turns one event into next year's renewal. Better attendee experience. Sponsorship satisfaction guaranteed.</p>
         </div>
         <div class="hero-phone-wrap reveal reveal-delay-2">
           <div class="iphone-mockup" id="hero-phone">
@@ -1032,7 +1143,6 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
           </div>
         </div>
         <div class="hero-cta-stack hero-content">
-          <div class="consequence-quote reveal reveal-delay-2"><span class="cq-text">"Sponsors stopped asking if it worked." </span><span class="cq-good">Intro proved the event ROI.</span></div>
           <div class="reveal reveal-delay-3">
             <button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button>
             <p style="margin-top:0.85rem; font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; color:rgba(58,56,53,0.35);">100% satisfaction guarantee</p>
@@ -1042,117 +1152,113 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
     </div>
   </section>
 
-  <section class="section-dark section-pad texture-dots" style="border-top:1px solid var(--border-dark);">
+  <!-- ── INTRO ANALYTICS TOOL ── -->
+  <section class="section-light section-pad" style="border-top:1px solid var(--border);">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);">
-            <div class="eyebrow-line"></div>
-            <span class="eyebrow-text" data-text="THE COST OF NOT KNOWING"></span>
+      <h2 class="section-headline reveal" style="margin-bottom:2.5rem;">How Intro works to <em class="accent-sage italic">enhance your event.</em></h2>
+
+      <!-- Compact steps left, video right (auto-highlights one step at a time) -->
+      <div class="analytics-flow reveal reveal-delay-1">
+        <div class="analytics-flow-steps reveal reveal-delay-2" id="analytics-flow-steps" aria-label="How Intro works, step by step">
+          <div class="flow-step is-active">
+            <div class="flow-step-icon"><svg viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><circle cx="16" cy="16" r="12"/><path d="M12 13a4 4 0 014-4 4 4 0 014 4c0 2-2 3-4 4M16 22v.01"/></svg></div>
+            <div class="flow-step-body">
+              <div class="flow-step-title">Ask</div>
+              <div class="flow-step-desc">Why they came.</div>
+            </div>
           </div>
-          <h2 class="section-headline reveal">
-            <em class="accent-amber italic">Don't lose a renewal</em>
-            <span style="color:var(--background);">because you couldn't show the results.</span>
-          </h2>
-      <div class="two-col" style="align-items:flex-start; gap:5rem; margin-top:2rem;">
-        <div>
-          <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.7);">You know your event was valuable. But when renewal conversations start, <strong style="color:var(--background);">all you have is attendance numbers and a photo recap. That's not enough anymore.</strong> Intro captures every connection, every introduction, every follow-up and gives it back to you as proof.</p>
-          <div class="reveal reveal-delay-2" style="margin-top:2rem;"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+          <div class="flow-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M7 14l5 5 5-5"/></svg></div>
+
+          <div class="flow-step">
+            <div class="flow-step-icon"><svg viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><circle cx="8" cy="16" r="3"/><circle cx="16" cy="8" r="3"/><circle cx="24" cy="16" r="3"/><circle cx="16" cy="24" r="3"/><path d="M11 16h6M16 11v6"/></svg></div>
+            <div class="flow-step-body">
+              <div class="flow-step-title">Match</div>
+              <div class="flow-step-desc">The right people.</div>
+            </div>
+          </div>
+          <div class="flow-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M7 14l5 5 5-5"/></svg></div>
+
+          <div class="flow-step">
+            <div class="flow-step-icon"><svg viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><rect x="4" y="6" width="24" height="18" rx="2"/><path d="M4 12l12 7 12-7"/></svg></div>
+            <div class="flow-step-body">
+              <div class="flow-step-title">Message</div>
+              <div class="flow-step-desc">Plan the meetup.</div>
+            </div>
+          </div>
+          <div class="flow-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M7 14l5 5 5-5"/></svg></div>
+
+          <div class="flow-step">
+            <div class="flow-step-icon"><svg viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><rect x="4" y="4" width="10" height="10"/><rect x="18" y="4" width="10" height="10"/><rect x="4" y="18" width="10" height="10"/><rect x="18" y="18" width="10" height="10"/></svg></div>
+            <div class="flow-step-body">
+              <div class="flow-step-title">Scan</div>
+              <div class="flow-step-desc">See what you have in common.</div>
+            </div>
+          </div>
+          <div class="flow-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M7 14l5 5 5-5"/></svg></div>
+
+          <div class="flow-step">
+            <div class="flow-step-icon"><svg viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><rect x="6" y="4" width="20" height="24" rx="2"/><path d="M10 10h12M10 14h12M10 18h8"/></svg></div>
+            <div class="flow-step-body">
+              <div class="flow-step-title">Share</div>
+              <div class="flow-step-desc">Built-in business card.</div>
+            </div>
+          </div>
+          <div class="flow-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M7 14l5 5 5-5"/></svg></div>
+
+          <div class="flow-step">
+            <div class="flow-step-icon"><svg viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><circle cx="16" cy="16" r="11"/><path d="M16 9v7l4.5 2.5"/><path d="M10 24c1.5-2 3.5-3 6-3s4.5 1 6 3"/></svg></div>
+            <div class="flow-step-body">
+              <div class="flow-step-title">Follow-up</div>
+              <div class="flow-step-desc">Don't forget who you connected with.</div>
+            </div>
+          </div>
         </div>
-        <div style="padding-top:0.5rem;">
-          <div class="stat-block reveal reveal-delay-1">
-            <div class="stat-number" data-target="71">0</div>
-            <div class="stat-label" style="color:rgba(237,235,230,0.85);">of event organizers struggle to prove ROI to stakeholders.<sup style="font-size:0.6em;">4</sup></div>
+
+        <div class="analytics-flow-video">
+          <div class="analytics-media-slot" style="width:100%;aspect-ratio:16/9;border:1.5px solid var(--border);border-radius:1.25rem;background:var(--card);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;">
+            <div style="text-align:center;padding:2rem;">
+              <div style="font-size:.68rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--muted-foreground);margin-bottom:.5rem;">Product Walkthrough</div>
+              <div style="font-size:.95rem;color:var(--muted-foreground);line-height:1.6;max-width:420px;margin:0 auto;">Video coming soon. The six steps beside it are the full Intro experience.</div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Without / With Intro cards -->
-      <div class="reveal" style="margin-top:4rem; display:grid; grid-template-columns:1fr 1fr; border:1px solid rgba(237,235,230,0.1);">
-        <div style="padding:2.5rem; border-right:1px solid rgba(237,235,230,0.1); background:rgba(153,66,78,0.18);">
-          <div style="font-size:.65rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:1.5rem;">Without Intro</div>
-          <h3 style="font-family:var(--font-heading);font-size:0.85rem;font-weight:bold;letter-spacing:0.01em;color:rgba(237,235,230,0.55);margin-bottom:1rem;line-height:1.1;">You hope sponsors come back.</h3>
-          <p style="font-size:.88rem;color:rgba(237,235,230,0.4);line-height:1.75;">You send a PDF with attendance numbers and a logo recap. The sponsor has no way to measure what they got. They don't renew. You start from scratch every year.</p>
-        </div>
-        <div style="padding:2.5rem; background:rgba(114,165,87,0.12);">
-          <div style="font-size:.65rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--primary);margin-bottom:1.5rem;">With Intro</div>
-          <h3 style="font-family:var(--font-heading);font-size:1.1rem;font-weight:bold;letter-spacing:0.01em;color:var(--background);margin-bottom:1rem;line-height:1.1;">Sponsors ask to upgrade.</h3>
-          <p style="font-size:.88rem;color:rgba(237,235,230,0.8);line-height:1.75;">You send a report showing real connections made and business outcomes recorded. The sponsor sees ROI in black and white. They upgrade and tell other sponsors about your event.</p>
-        </div>
+      <!-- Stacked body paragraphs -->
+      <div class="reveal reveal-delay-2" style="max-width:720px;margin:0 auto;">
+        <p class="body-text" style="color:var(--foreground);margin-bottom:1.25rem;">Intro asks why attendees are coming. It gathers every reason and finds the top people they should meet. Now the attendee knows exactly who to talk to before they leave.</p>
+        <p class="body-text" style="color:var(--foreground);margin-bottom:1.25rem;">They send a message on the platform. They pick a spot. They connect before the event ends.</p>
+        <p class="body-text" style="color:var(--foreground);margin-bottom:1.25rem;">When they meet someone new, they scan a code and see why their interests overlap. That is why a full profile matters. Encourage them to finish it.</p>
+        <p class="body-text" style="color:var(--foreground);margin-bottom:1.25rem;">At the end of the event, every attendee has a built in business card. They share it with whoever they want. Real follow up. Real relationships.</p>
+        <p class="body-text" style="color:var(--foreground);margin-bottom:1.25rem;">It works the same way for sponsors. No more wondering if the event was a good fit. Intro shares the data you need to renew them. Charts and analytics that keep updating through the year.</p>
+        <p class="body-text" style="color:var(--foreground);margin-bottom:2rem;">Intro is the ROI tool you have been waiting for.</p>
       </div>
 
+      <p class="reveal reveal-delay-3" style="text-align:center;font-family:var(--font-heading);font-size:clamp(1.4rem,2.5vw,2rem);font-weight:bold;letter-spacing:.01em;color:var(--foreground);line-height:1.2;max-width:780px;margin:0 auto;">Create the experience your attendees want. Use Intro.</p>
     </div>
   </section>
 
-  <section class="section-light section-pad">
-    <div class="container">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="FOR EVENT DIRECTORS"></span></div>
-      <h2 class="section-headline reveal">Add it in with your other tools <em class="accent-wine italic">and finally prove ROI.</em></h2>
-
-      <div class="two-col" style="align-items:flex-start; gap:4rem; margin-top:2rem;">
-        <div>
-          <p class="body-text reveal" style="color:var(--foreground);">Intro matches your attendees and sponsors to the right people, records who they meet, and <strong>syncs follow-ups directly to their CRM</strong> so the pipeline your event created is finally visible. Add it to your existing stack and prove ROI without rebuilding a thing.</p>
-          <div class="consequence-quote reveal reveal-delay-1">
-            <div class="cq-quote-label cq-quote-label--before">Before Intro</div>
-            <span class="cq-text">"I talked to a bunch of people. Gave out a lot of cards." </span><span class="cq-bad">No idea if they were the right connections.</span>
-          </div>
-          <div class="consequence-quote consequence-quote--after reveal reveal-delay-2">
-            <div class="cq-quote-label cq-quote-label--after">After Intro</div>
-            <span class="cq-text">"Saved me hours figuring out who was the best to talk with." </span><span class="cq-good">Deal made and the data to prove it.</span>
-          </div>
-          <div style="margin-top:2rem;" class="reveal reveal-delay-3"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
-        </div>
-        <div style="padding-top:1rem;">
-          <div class="stack-anim-wrap">
-            <div class="stack-anim-block existing" style="--i:0;">
-              <span class="stack-anim-label">Ticketing</span>
-            </div>
-            <div class="stack-anim-block existing" style="--i:1;">
-              <span class="stack-anim-label">Event App</span>
-            </div>
-            <div class="stack-anim-intro">
-              <div class="stack-anim-block intro-block">
-                <span class="stack-anim-label intro-label">Intro</span>
-                <span class="stack-anim-tag">fits here</span>
-              </div>
-            </div>
-            <div class="stack-anim-block existing" style="--i:2;">
-              <span class="stack-anim-label">CRM</span>
-            </div>
-            <div class="stack-anim-block existing" style="--i:3;">
-              <span class="stack-anim-label">Reporting</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </section>
-
+  <!-- ── THREE STEPS ── -->
   <section class="section-dark section-pad texture-lines">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="FOUR STEPS, ONE REPORT"></span></div>
-      <h2 class="section-headline reveal">Here's how <em class="accent-sage italic">Intro works.</em></h2>
-      <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.75); margin-bottom:4rem; max-width:680px;">Send your attendees one link. Intro gives them a reason to connect, records interactions, and <strong>hands you a report your sponsors can't argue with.</strong></p>
-      <div class="steps-grid">
-        <div class="step-card reveal"><div class="step-number">01</div><div class="step-title">Send Intro Link</div><p class="step-body">Attendees answer a few questions about what they're looking for. <strong>60 seconds. No app download required.</strong></p></div>
-        <div class="step-card reveal reveal-delay-1"><div class="step-number">02</div><div class="step-title">Get Matches</div><p class="step-body">Intro matches them to the right sponsors, partners, and peers. <strong>Everyone arrives knowing who to find and why.</strong></p></div>
-        <div class="step-card reveal reveal-delay-2"><div class="step-number">03</div><div class="step-title">Attendees Meet</div><p class="step-body">Introductions happen. <strong>Every interaction is recorded automatically by Intro.</strong> Not by you.</p></div>
-        <div class="step-card reveal reveal-delay-3"><div class="step-number">04</div><div class="step-title">Show Proof</div><p class="step-body">You get the report. Your sponsors get their CRM entries. <strong>You walk into renewal with data.</strong></p></div>
+      <h2 class="section-headline reveal">Three steps from registration <em class="accent-sage italic">to renewal.</em></h2>
+      <div class="steps-grid" style="margin-top:3rem;">
+        <div class="step-card reveal"><div class="step-number">01</div><div class="step-title">Have your attendees fill out their link.</div><p class="step-body">Send the Intro link with registration. Attendees answer a few questions about what they want from the event. <strong>60 seconds. No app download required.</strong></p></div>
+        <div class="step-card reveal reveal-delay-1"><div class="step-number">02</div><div class="step-title">Attendees meet the right people.</div><p class="step-body">Intro matches them to the sponsors, partners, and peers worth their time. <strong>Everyone arrives knowing who to find and why.</strong></p></div>
+        <div class="step-card reveal reveal-delay-2"><div class="step-number">03</div><div class="step-title">Sponsors get the proof. You get the renewal.</div><p class="step-body">Every match, message, and connection is recorded. <strong>You walk into renewal with real data, not a recap deck.</strong></p></div>
       </div>
       <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
     </div>
   </section>
 
+  <!-- ── THE SPONSOR GUARANTEE ── -->
   <section class="section-light section-pad">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="DATA YOUR COMPETITORS DON'T HAVE"></span></div>
-      <div class="two-col col-video-split" style="margin-bottom:4rem; align-items:flex-start;">
-        <div class="cvs-top">
-          <h2 class="section-headline reveal">What Intro gives you <em class="accent-wine italic">that nothing else does.</em></h2>
-          <p class="body-text reveal reveal-delay-1" style="color:var(--foreground);">
-            Intro doesn't just prove your event's worth. <strong>It increases it.</strong>
-          </p>
-        </div>
-        <div class="cvs-video reveal reveal-delay-2">
+      <h2 class="section-headline reveal" style="margin-bottom:1.5rem;"><em class="accent-sage italic">Sponsorship satisfaction,</em> guaranteed.</h2>
+      <p class="body-text reveal reveal-delay-1" style="color:var(--foreground);max-width:720px;margin-bottom:3rem;">Sponsors stop guessing. You stop hoping. Intro shows them who they met, what was discussed, and what came of it. The renewal conversation writes itself.</p>
+
+      <div class="two-col" style="align-items:flex-start; gap:3rem;">
+        <div class="reveal reveal-delay-1">
           <video
             id="sponsor-demo-video"
             src="/marketing/sponsor-page-compress.mov"
@@ -1161,46 +1267,51 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
             muted
             playsinline
             preload="auto"
-            style="width:100%;border-radius:1.25rem;display:block;box-shadow:0 8px 40px rgba(0,0,0,0.13);margin-bottom:1.5rem;"
+            style="width:100%;border-radius:1.25rem;display:block;box-shadow:0 8px 40px rgba(0,0,0,0.13);"
           ></video>
         </div>
-        <div class="cvs-bottom">
-          <p class="body-text reveal reveal-delay-2" style="color:var(--foreground); margin-top:0;">
-            <span style="display:inline-block;margin-top:0.25rem;"><strong style="color:var(--primary);">60%</strong> higher sponsor renewal when organizers share real ROI data.<sup style="font-size:0.6em;">3</sup></span>
-          </p>
+        <div class="reveal reveal-delay-2" style="display:flex;flex-direction:column;gap:2rem;">
+          <div class="stat-block">
+            <div class="stat-number" data-target="71">0</div>
+            <div class="stat-label" style="color:var(--foreground);">of event organizers struggle to prove ROI.<sup style="font-size:0.6em;">4</sup></div>
+          </div>
+          <div class="stat-block">
+            <div class="stat-number" data-target="60" style="color:var(--primary);">0</div>
+            <div class="stat-label" style="color:var(--foreground);">higher sponsor renewal when organizers share real ROI data.<sup style="font-size:0.6em;">3</sup></div>
+          </div>
         </div>
       </div>
-      <div>
-        <div class="feature-row reveal"><svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><path d="M4 26h24M4 20h16M4 14h20M4 8h12"/><circle cx="26" cy="8" r="4" stroke="var(--primary)"/></svg><div class="feature-content"><h4>The Sponsor Report</h4><p>ROI documented by sponsor, by interaction, by outcome. Your easiest renewal conversation yet.</p></div></div>
-        <div class="feature-row reveal reveal-delay-1"><svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><circle cx="8" cy="16" r="3"/><circle cx="16" cy="8" r="3"/><circle cx="24" cy="16" r="3"/><circle cx="16" cy="24" r="3"/><path d="M11 16h6M16 11v6"/></svg><div class="feature-content"><h4>The Attendee Connection Map</h4><p>Who met who, why it matched, what happened next. The data that makes next year's event better before it starts.</p></div></div>
-        <div class="feature-row reveal reveal-delay-2"><svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><rect x="4" y="8" width="24" height="18"/><path d="M4 14h24M10 8V6M22 8V6"/></svg><div class="feature-content"><h4>CRM Sync</h4><p>Every connection flows into your sponsors' sales tools automatically. No manual entry. No lost cards. This is what turns a $25,000 sponsorship into a $50,000 one.</p></div></div>
-        <div class="feature-row reveal reveal-delay-3"><svg class="feature-icon" viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><path d="M16 4l3 9h9l-7 5 3 9-8-6-8 6 3-9-7-5h9z"/></svg><div class="feature-content"><h4>Upsell Infrastructure</h4><p>Higher-value packages, justified by data. You're not guessing at what's worth more. You're showing sponsors the data and letting them choose.</p></div></div>
+
+      <!-- Without / With Intro cards moved from Cost of Not Knowing -->
+      <div class="reveal reveal-delay-2" style="margin-top:4rem; display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--border);">
+        <div style="padding:2.5rem; border-right:1px solid var(--border); background:rgba(153,66,78,0.08);">
+          <div style="font-size:.65rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:1.5rem;">Without Intro</div>
+          <h3 style="font-family:var(--font-heading);font-size:0.95rem;font-weight:bold;letter-spacing:0.01em;color:var(--muted-foreground);margin-bottom:1rem;line-height:1.2;">You hope sponsors come back.</h3>
+          <p style="font-size:.88rem;color:var(--muted-foreground);line-height:1.75;">You send a PDF with attendance numbers and a logo recap. The sponsor has no way to measure what they got. They don't renew. You start from scratch every year.</p>
+        </div>
+        <div style="padding:2.5rem; background:rgba(114,165,87,0.10);">
+          <div style="font-size:.65rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--primary);margin-bottom:1.5rem;">With Intro</div>
+          <h3 style="font-family:var(--font-heading);font-size:1.1rem;font-weight:bold;letter-spacing:0.01em;color:var(--foreground);margin-bottom:1rem;line-height:1.2;">Sponsors ask to upgrade.</h3>
+          <p style="font-size:.88rem;color:var(--foreground);line-height:1.75;">You send a report showing real connections made and business outcomes recorded. The sponsor sees the value in black and white. They upgrade and tell other sponsors about your event.</p>
+        </div>
       </div>
-      <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+
+      <div class="consequence-quote consequence-quote--after reveal reveal-delay-3" style="margin-top:3rem;">
+        <div class="cq-quote-label cq-quote-label--after">After Intro</div>
+        <span class="cq-text">"Last year I handed my sponsor a PDF. This year I handed them a pipeline report." </span><span class="cq-good">We closed the renewal in the same meeting.</span>
+      </div>
+
+      <p class="reveal reveal-delay-3" style="margin-top:3rem;text-align:center;font-family:var(--font-heading);font-size:clamp(1.2rem,2vw,1.6rem);font-weight:bold;letter-spacing:.01em;color:var(--foreground);line-height:1.3;max-width:780px;margin-left:auto;margin-right:auto;">If your sponsors are not satisfied, neither are we. 100% guarantee.</p>
+
+      <div style="margin-top:2.5rem;text-align:center;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
     </div>
   </section>
 
+  <!-- ── BEFORE / AFTER TABLE ── -->
   <section class="section-dark section-pad">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="WHY IT MATTERS AT YOUR EVENT"></span></div>
-      <div class="two-col" style="margin-bottom:4rem;">
-        <div>
-          <h2 class="section-headline reveal"><em class="accent-sage italic">The best events</em> don't leave connections to chance.</h2>
-          <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.75);margin-top:1rem;">Attendees show up ready to meet the right people. But without structure, those moments never happen. <strong>Intro makes meaningful connection the default, not the exception,</strong> so every event delivers on its promise.</p>
-        </div>
-        <div>
-          <div class="consequence-quote reveal">
-            <div class="cq-quote-label cq-quote-label--before">Before Intro</div>
-            <span class="cq-text">"I talked to a bunch of people. Gave out a lot of cards." </span><span class="cq-bad">No idea if they were the right connections.</span>
-          </div>
-          <div class="consequence-quote consequence-quote--after reveal reveal-delay-1">
-            <div class="cq-quote-label cq-quote-label--after">After Intro</div>
-            <span class="cq-text">"Saved me hours figuring out who was the best to talk with." </span><span class="cq-good">Deal made and the data to prove it.</span>
-          </div>
-        </div>
-      </div>
-      <div class="eyebrow" style="color:var(--primary);margin-top:4rem;"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="BEFORE AND AFTER INTRO"></span></div>
-      <div class="before-after-grid reveal reveal-delay-1">
+      <h2 class="section-headline reveal">One link. <em class="accent-sage italic">Two outcomes that compound.</em></h2>
+      <div class="before-after-grid reveal reveal-delay-1" style="margin-top:3rem;">
         <div class="ba-col before"><div class="ba-header">Before Intro</div><div class="ba-item"><span class="ba-mark">✕</span><div><div class="ba-label">Sponsor Conversation</div><div class="ba-value">"Thanks for coming, hope you got value"</div></div></div><div class="ba-item"><span class="ba-mark">✕</span><div><div class="ba-label">Follow-up</div><div class="ba-value">Business cards in a drawer</div></div></div><div class="ba-item"><span class="ba-mark">✕</span><div><div class="ba-label">Renewal</div><div class="ba-value">Awkward ask</div></div></div><div class="ba-item"><span class="ba-mark">✕</span><div><div class="ba-label">Attendee Fit</div><div class="ba-value">Whoever showed up</div></div></div></div>
         <div class="ba-col after"><div class="ba-header">After Intro</div><div class="ba-item"><span class="ba-mark">✓</span><div><div class="ba-label">Sponsor Conversation</div><div class="ba-value">"Here's your report. Same time next year?"</div></div></div><div class="ba-item"><span class="ba-mark">✓</span><div><div class="ba-label">Follow-up</div><div class="ba-value">Meetings already booked</div></div></div><div class="ba-item"><span class="ba-mark">✓</span><div><div class="ba-label">Renewal</div><div class="ba-value">They reach out first</div></div></div><div class="ba-item"><span class="ba-mark">✓</span><div><div class="ba-label">Attendee Fit</div><div class="ba-value">Matched to their exact ICP</div></div></div></div>
       </div>
@@ -1211,8 +1322,7 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
   <!-- ── FOR ALL EVENT TYPES ── -->
   <section class="section-light section-pad texture-grid" style="position:relative;overflow:hidden;">
     <div class="container" style="position:relative;z-index:1;">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="ENHANCE EVERY EVENT"></span></div>
-      <h2 class="section-headline reveal">For All <em class="accent-sage italic">Event Types</em></h2>
+      <h2 class="section-headline reveal">Works for the event <em class="accent-sage italic">you actually run.</em></h2>
       <p class="body-text reveal reveal-delay-1" style="color:var(--foreground);margin-bottom:3rem;">No matter the format, size, or audience. Intro works for you.</p>
       <div class="ec-carousel-wrap">
         <button class="ec-btn ec-btn-prev" aria-label="Previous" onclick="ecStep(-1)">&#8592;</button>
@@ -1333,9 +1443,8 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-dark texture-dots" style="padding:10rem 0;border-top:1px solid var(--border-dark);">
     <div class="container" style="text-align:center;">
-      <div class="eyebrow" style="color:var(--primary);justify-content:center;"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="PROVE YOUR EVENT'S WORTH"></span><div class="eyebrow-line"></div></div>
-      <h2 class="section-headline reveal" style="max-width:700px;margin:0 auto 1.5rem;text-align:center;">Your next renewal conversation <em class="accent-amber italic">should be the easiest one yet.</em></h2>
-      <p class="body-text reveal reveal-delay-1" style="margin:0 auto 3rem;text-align:center;color:rgba(237,235,230,0.6);"><strong>Higher sponsor renewals.</strong> Stronger attendee retention. Upsell opportunities built in.</p>
+      <h2 class="section-headline reveal" style="max-width:760px;margin:0 auto 1.5rem;text-align:center;">Run the event everyone <em class="accent-amber italic">signs up to do again.</em></h2>
+      <p class="body-text reveal reveal-delay-1" style="margin:0 auto 3rem;text-align:center;color:rgba(237,235,230,0.7);max-width:680px;">Attendees leave with people they will actually call. Sponsors leave with a reason to come back. You leave with next year already in motion.</p>
       <div class="reveal reveal-delay-2" style="display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;">
         <button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button>
       </div>
@@ -1353,9 +1462,8 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
     <div class="container">
       <div class="two-col works-hero-two-col">
         <div class="works-hero-intro">
-          <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="SIMPLE TO SET UP. POWERFUL ON THE BACK END."></span></div>
-          <h1 class="hero-headline reveal" style="max-width:900px;"><span style="color:var(--background);">You run the event.</span> <em class="accent-amber italic">Intro handles the proof.</em></h1>
-          <p class="body-text reveal reveal-delay-1" style="margin-top:2rem;">Send your attendees one link. Intro gives them a reason to connect, records interactions, and <strong>hands you a report your sponsors can't argue with.</strong></p>
+          <h1 class="hero-headline reveal" style="max-width:900px;"><span style="color:var(--background);">You run the event.</span> <em class="accent-amber italic">Intro runs the experience.</em></h1>
+          <p class="body-text reveal reveal-delay-1" style="margin-top:2rem;">Intro handles every attendee match, every conversation, and every sponsor report. You focus on the event.</p>
         </div>
         <div class="works-hero-video-wrap reveal reveal-delay-2">
           <video
@@ -1370,7 +1478,10 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
         </div>
         <div class="works-hero-actions">
           <div class="consequence-quote reveal reveal-delay-2" style="display:inline-block;max-width:600px;"><span class="cq-text">"I sent one link." </span><span class="cq-good">Intro recorded the rest, weeks after the event closed.</span></div>
-          <div style="margin-top:2rem;" class="reveal reveal-delay-3"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+          <div class="reveal reveal-delay-3" style="margin-top:2rem;display:flex;gap:1.5rem;flex-wrap:wrap;">
+            <button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button>
+            <button class="btn btn-ghost-light" onclick="navigate('pricing')">See Pricing</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1378,8 +1489,7 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-light section-pad texture-cross">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="THE INVISIBLE DATA PROBLEM"></span></div>
-      <h2 class="section-headline reveal" style="max-width:100%;margin-bottom:3rem;">Everything valuable at your event flows into tools <em class="accent-wine italic">you never see.</em></h2>
+      <h2 class="section-headline reveal" style="max-width:100%;margin-bottom:3rem;">The data you <em class="accent-wine italic">cannot see today.</em></h2>
       <div class="two-col" style="align-items:flex-start;">
         <div>
           <p class="body-text reveal">Some of your attendees are syncing contacts to their CRM right now. Some sponsors are already logging conversations in Salesforce. Your speakers are probably connecting on LinkedIn. <strong>You have no way of knowing. Because none of it flows back to you. Intro is the only platform that changes that.</strong></p>
@@ -1394,14 +1504,13 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-dark section-pad texture-lines">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="FROM REGISTRATION TO RENEWAL"></span></div>
-      <h2 class="section-headline reveal">Intro is <em class="accent-amber italic">easy to set up.</em></h2>
-      <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.75);margin-bottom:4rem;">Four steps. One link. A report your sponsors will actually read.</p>
+      <h2 class="section-headline reveal">From the first signup to the <em class="accent-amber italic">renewal call.</em></h2>
+      <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.75);margin-bottom:4rem;">One link starts the attendee experience. Sponsorship satisfaction closes the loop.</p>
       <div class="steps-timeline">
-        <div class="step-row reveal"><div class="step-num">01</div><div class="step-content"><h4>Registration</h4><p>Intro is added to your registration flow. Attendees answer a few questions about what they're looking for. <strong>60 seconds. No app download required.</strong></p></div></div>
-        <div class="step-row reveal reveal-delay-1"><div class="step-num">02</div><div class="step-content"><h4>Before the Event</h4><p>Intro's matching engine connects attendees to sponsors, partners, and peers most relevant to them. Everyone arrives knowing who they should find and why.</p></div></div>
-        <div class="step-row reveal reveal-delay-2"><div class="step-num">03</div><div class="step-content"><h4>During the Event</h4><p>Introductions happen. Conversations start. Every interaction is recorded automatically by Intro. Not by you.</p></div></div>
-        <div class="step-row reveal reveal-delay-3"><div class="step-num">04</div><div class="step-content"><h4>After the Event</h4><p>You get the report. Your sponsors get their CRM entries. Your attendees keep their connections. You walk into renewal with data.</p></div></div>
+        <div class="step-row reveal"><div class="step-num">01</div><div class="step-content"><h4>Send the Intro link at registration.</h4><p>Attendees answer a few questions about what they want from the event. <strong>60 seconds. No app download required.</strong></p></div></div>
+        <div class="step-row reveal reveal-delay-1"><div class="step-num">02</div><div class="step-content"><h4>Attendees meet the right people.</h4><p>Intro matches them to the sponsors, partners, and peers worth their time. Everyone arrives knowing who to find and why.</p></div></div>
+        <div class="step-row reveal reveal-delay-2"><div class="step-num">03</div><div class="step-content"><h4>Sponsors see what happened.</h4><p>Every introduction, conversation, and follow-up is recorded automatically. Sponsors get the report. You get the receipts.</p></div></div>
+        <div class="step-row reveal reveal-delay-3"><div class="step-num">04</div><div class="step-content"><h4>Renewals close themselves.</h4><p>When sponsors can see the value, they ask to come back. <strong>The renewal conversation writes itself.</strong></p></div></div>
       </div>
       <div style="margin-top:3rem;" class="reveal"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
     </div>
@@ -1409,8 +1518,7 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-light section-pad texture-grid">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="FOUR WAYS TO PROVE. ONE PLATFORM."></span></div>
-      <h2 class="section-headline reveal">Here's what Intro produces. <em class="accent-wine italic">For every event.</em></h2>
+      <h2 class="section-headline reveal">Four outputs from <em class="accent-wine italic">one link.</em></h2>
       <div class="outputs-grid">
         <div class="output-card reveal"><div class="output-card-num">Output 01</div><h4>The Sponsor Report</h4><p style="font-size:.88rem;color:var(--muted-foreground);line-height:1.7;margin-top:.5rem;">It's not only a summary. It's undeniable data.</p><div class="before">Before Intro</div><div class="quote-mini">"We think it went well. We had a lot of booth traffic."</div><div class="after">After Intro</div><div class="quote-mini">"34 matched attendees. 12 follow-up calls booked. 6 active in pipeline."</div></div>
         <div class="output-card reveal reveal-delay-1"><div class="output-card-num">Output 02</div><h4>The Attendee Connection Map</h4><p style="font-size:.88rem;color:var(--foreground);line-height:1.7;margin-top:.5rem;">Who met who. Why Intro matched them. Whether they followed up. The data that makes next year's event better before it starts.</p><div class="stat-block" style="margin-top:1.5rem;"><div class="stat-number" style="font-size:3rem;color:var(--primary);" data-target="51">0</div><div class="stat-label" style="color:var(--foreground);font-size:0.9rem;">of attendees say effective networking is reason enough to return.<sup style="font-size:0.6em;">1</sup></div></div></div>
@@ -1424,9 +1532,8 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-dark section-pad texture-dots">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="INTRO FITS WHAT YOU ALREADY USE"></span></div>
       <div class="two-col">
-        <div><h2 class="section-headline reveal">You already have tools. <em class="accent-amber italic">Intro completes them.</em></h2><p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.65);">Intro doesn't replace your stack. <strong>It's the layer your stack was missing.</strong> The one that captures what actually happened between people.</p></div>
+        <div><h2 class="section-headline reveal">Fits the stack you <em class="accent-amber italic">already pay for.</em></h2><p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.65);">Intro doesn't replace your stack. <strong>It's the layer your stack was missing.</strong> The one that captures what actually happened between people.</p></div>
         <div class="reveal reveal-delay-2">
           <div class="stack-anim-wrap">
             <div class="stack-anim-block existing" style="--i:0;">
@@ -1455,9 +1562,8 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-light section-pad texture-cross" style="text-align:center;">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);justify-content:center;"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="YOUR NEXT STEP"></span><div class="eyebrow-line"></div></div>
-      <h2 class="section-headline reveal" style="max-width:700px;margin:0 auto 1.5rem;">Walk into your next renewal <em class="accent-wine italic">with data.</em></h2>
-      <p class="body-text reveal reveal-delay-1" style="margin:0 auto 3rem;">Your next sponsor conversation is already forming.</p>
+      <h2 class="section-headline reveal" style="max-width:760px;margin:0 auto 1.5rem;">Your next event starts <em class="accent-wine italic">the next renewal.</em></h2>
+      <p class="body-text reveal reveal-delay-1" style="margin:0 auto 3rem;">Sponsorship satisfaction begins with a better attendee experience. Intro delivers both.</p>
       <div class="reveal reveal-delay-2" style="display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;">
         <button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button>
         <button class="btn btn-ghost-light" onclick="navigate('pricing')">See Pricing</button>
@@ -1474,11 +1580,10 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-dark section-pad texture-dots" style="padding-top:12rem;">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="BUILT AROUND WHAT YOU GET BACK"></span></div>
-      <h1 class="hero-headline reveal">Pricing that <em class="accent-sage italic">pays for itself.</em></h1>
+      <h1 class="hero-headline reveal">Pricing that <em class="accent-sage italic">pays for itself</em> in one renewal.</h1>
       <div class="two-col" style="align-items:flex-start; gap:5rem; margin-top:3rem;">
         <div>
-          <p class="body-text reveal" style="color:rgba(237,235,230,0.75);">This isn't a software purchase. <strong style="color:var(--background);">You're buying proof,</strong> and the platform that lets you charge more for it.</p>
+          <p class="body-text reveal" style="color:rgba(237,235,230,0.75);">This isn't a software purchase. <strong style="color:var(--background);">You're buying the attendee experience that makes sponsorship satisfaction the default.</strong></p>
           <div class="consequence-quote reveal reveal-delay-1"><span class="cq-text">"Last year I handed my sponsor a PDF. This year I handed them a pipeline report." </span><span class="cq-good">We closed the renewal in the same meeting.</span></div>
         </div>
         <div>
@@ -1494,7 +1599,6 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-light section-pad">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="PICK WHAT FITS YOUR EVENT"></span></div>
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1.5rem;margin-bottom:3rem;">
         <h2 class="section-headline reveal" style="margin-bottom:0;">Choose your plan.</h2>
         <!-- Toggle -->
@@ -1611,7 +1715,6 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-dark section-pad">
     <div class="container">
-      <div class="eyebrow" style="color:var(--accent);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="QUESTIONS WORTH ANSWERING"></span></div>
       <h2 class="section-headline reveal">FAQ</h2>
       <div class="faq-list">
         <div class="faq-item reveal faq-accordion">
@@ -1619,7 +1722,7 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
             <span class="faq-q">Does Intro charge per attendee?</span>
             <span class="faq-icon">+</span>
           </button>
-          <div class="faq-answer"><p class="faq-a">Yes — Intro is priced per attendee. Starter is <strong>$3.50/person</strong> (up to 500 people, <strong>$1,750</strong> per event at capacity) and Growth is <strong>$5.00/person</strong> (up to 1,000 people, <strong>$5,000</strong> per event at capacity). Enterprise is custom.</p></div>
+          <div class="faq-answer"><p class="faq-a">Yes. Intro is priced per attendee because the attendee experience is what makes the platform work. Starter is <strong>$3.50/person</strong> (up to 500 people, <strong>$1,750</strong> per event at capacity) and Growth is <strong>$5.00/person</strong> (up to 1,000 people, <strong>$5,000</strong> per event at capacity). Enterprise is custom. Better attendee experience. Sponsorship satisfaction included.</p></div>
         </div>
         <div class="faq-item reveal reveal-delay-1 faq-accordion">
           <button class="faq-toggle" onclick="toggleFaq(this)">
@@ -1649,9 +1752,8 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-light section-pad" style="text-align:center;">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);justify-content:center;"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="PROVE YOUR EVENT'S WORTH"></span><div class="eyebrow-line"></div></div>
-      <h2 class="section-headline reveal" style="max-width:700px;margin:0 auto 1.5rem;">Your next renewal conversation <em class="accent-wine italic">should be the easiest one yet.</em></h2>
-      <p class="body-text reveal reveal-delay-1" style="margin:0 auto 3rem;">Higher sponsor renewals. Stronger attendee retention. Upsell opportunities built in.</p>
+      <h2 class="section-headline reveal" style="max-width:760px;margin:0 auto 1.5rem;">Run the event everyone <em class="accent-wine italic">signs up to do again.</em></h2>
+      <p class="body-text reveal reveal-delay-1" style="margin:0 auto 3rem;max-width:680px;">Attendees leave with people they will actually call. Sponsors leave with a reason to come back. You leave with next year already in motion.</p>
       <div class="reveal reveal-delay-2"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
     </div>
   </section>
@@ -1665,17 +1767,16 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-dark section-pad texture-dots" style="padding-top:12rem;">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="WHAT'S AT STAKE"></span></div>
-      <h1 class="hero-headline reveal"><span style="color:var(--background);">Your sponsors are paying.</span> <em class="accent-amber italic">They deserve to know what they got.</em></h1>
+      <h1 class="hero-headline reveal"><span style="color:var(--background);">Sponsors do not need more booth traffic.</span> <em class="accent-amber italic">They need the right conversations.</em></h1>
       <div class="two-col" style="align-items:flex-start; gap:5rem; margin-top:3rem;">
         <div>
-          <p class="body-text reveal" style="color:rgba(237,235,230,0.8);">The ROI conversation is painful because neither of you can prove the event worked. That's not a perception problem. It's a data problem.</p>
+          <p class="body-text reveal" style="color:rgba(237,235,230,0.8);">Intro makes the attendee experience measurable. That is what sponsors are actually buying.</p>
           <div class="consequence-quote reveal reveal-delay-1"><span class="cq-text">"My boss asked what we got from the sponsorship. I said brand awareness." </span><span class="cq-bad">The sponsorship didn't make the budget next year.</span></div>
         </div>
         <div>
           <div class="stat-block reveal reveal-delay-1">
             <div class="stat-number" data-target="71" style="color:var(--accent);">0</div>
-            <div class="stat-label" style="color:rgba(237,235,230,0.8);">of event organizers can't prove ROI to their stakeholders.<sup style="font-size:0.6em;">4</sup></div>
+            <div class="stat-label" style="color:rgba(237,235,230,0.8);">of event organizers struggle to prove ROI to their stakeholders.<sup style="font-size:0.6em;">4</sup></div>
           </div>
         </div>
       </div>
@@ -1685,10 +1786,9 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-light section-pad">
     <div class="container">
-      <div class="eyebrow" style="color:var(--accent);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="WHAT PROOF LOOKS LIKE"></span></div>
       <div class="two-col col-video-split" style="align-items:flex-start;">
         <div class="cvs-top">
-          <h2 class="section-headline reveal">Stop guessing. <em class="accent-wine italic">Start showing the numbers.</em></h2>
+          <h2 class="section-headline reveal">What proof <em class="accent-wine italic">actually looks like.</em></h2>
           <p class="body-text reveal reveal-delay-1">With Intro, sponsors get matched to the right attendees before the event. Every conversation recorded. Every follow-up triggered. Synced to their CRM automatically.</p>
         </div>
         <div class="cvs-video reveal reveal-delay-2">
@@ -1716,9 +1816,8 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-dark section-pad">
     <div class="container">
-      <div class="eyebrow" style="color:var(--accent);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="BEFORE AND AFTER"></span></div>
-      <h2 class="section-headline reveal">Here's what changes for your sponsors <em class="accent-wine italic">when you run Intro.</em></h2>
-      <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.65);margin-bottom:3rem;">When their sponsorship looks like a sales tool instead of a marketing expense, <strong style="color:var(--background);">it stops being the first thing cut.</strong></p>
+      <h2 class="section-headline reveal">One link. <em class="accent-wine italic">Two outcomes that compound.</em></h2>
+      <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.65);margin-bottom:3rem;">A better attendee experience is what sponsorship satisfaction is built on. <strong style="color:var(--background);">When sponsorship looks like a sales tool instead of a marketing expense, it stops being the first thing cut.</strong></p>
       <div class="ba-table reveal reveal-delay-2">
         <div class="ba-col-head before">Before Intro</div><div class="ba-col-head after">After Intro</div>
         <div class="ba-row-item before-cell"><div class="ba-row-label">Sponsor Conversation</div><div class="ba-row-val bad">✕ "Thanks for coming, hope you got value"</div></div><div class="ba-row-item"><div class="ba-row-label">Sponsor Conversation</div><div class="ba-row-val good">✓ "Here's your report. Same time next year?"</div></div>
@@ -1732,11 +1831,10 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-light section-pad">
     <div class="container">
-      <div class="eyebrow" style="color:var(--accent);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="TWO WAYS TO MAKE THIS HAPPEN"></span></div>
+      <h2 class="section-headline reveal" style="margin-bottom:2.5rem;">Two ways to bring Intro to <em class="accent-wine italic">your next event.</em></h2>
       <div class="two-col">
         <div>
-          <h2 class="section-headline reveal">Get Intro in front of <em class="accent-wine italic">your sponsors.</em></h2>
-          <p class="body-text reveal reveal-delay-1">Stop leaving next year's renewals to chance. Get Intro today and <strong>we'll make sure you have all the data to show your sponsors the success of the event.</strong></p>
+          <p class="body-text reveal reveal-delay-1">Stop leaving next year's renewals to chance. Get Intro today and <strong>we'll make sure you have the data your sponsors need to come back.</strong></p>
           <div class="reveal reveal-delay-2" style="margin-top:2.5rem;display:flex;gap:1.25rem;flex-wrap:wrap;align-items:center;">
             <button class="btn btn-primary" id="share-sponsor-btn" onclick="navigate('contact')">Request access →</button>
             <span id="share-confirm" style="font-size:.75rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--primary);opacity:0;transition:opacity .3s;">Copied website URL ✓</span>
@@ -1744,8 +1842,8 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
         </div>
         <div class="reveal reveal-delay-2">
           <div class="pst-block">
-            <div class="pst-label" style="color:var(--accent);">P.S. — Are You a Sponsor?</div>
-            <h3 style="font-family:var(--font-heading);font-size:1.2rem;font-weight:bold;letter-spacing:0.01em;color:var(--foreground);margin-bottom:1rem;line-height:1.1;">Don't waste your money sponsoring an event that doesn't use Intro.</h3>
+            <div class="pst-label" style="color:var(--accent);">P.S. Are You a Sponsor?</div>
+            <h3 style="font-family:var(--font-heading);font-size:1.2rem;font-weight:bold;letter-spacing:0.01em;color:var(--foreground);margin-bottom:1rem;line-height:1.1;">The events that use Intro are the events sponsors come back to.</h3>
             <p style="font-size:.88rem;color:var(--muted-foreground);line-height:1.8;margin-bottom:1.5rem;">Ask your organizer about Intro before you commit. <strong>You have the leverage. Use it.</strong></p>
             <p style="font-size:.85rem;color:var(--muted-foreground);line-height:1.7;border-left:3px solid var(--accent);padding-left:1rem;margin-bottom:1.5rem;">"We'll sponsor at the Pro tier if the event uses Intro." That's a conversation your organizer will take seriously.</p>
             <button class="btn btn-wine" onclick="navigate('contact','sponsor')">Tell My Organizer →</button>
@@ -1764,11 +1862,10 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-dark section-pad texture-dots" style="padding-top:12rem;">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="WHAT THEY CAME FOR"></span></div>
-      <h1 class="hero-headline reveal">They cleared their calendars for this. <em class="accent-amber italic">Make it worth it.</em></h1>
+      <h1 class="hero-headline reveal">The <em class="accent-amber italic">attendee experience</em> your event was supposed to deliver.</h1>
       <div class="two-col" style="align-items:flex-start; gap:5rem; margin-top:3rem;">
         <div>
-          <p class="body-text reveal" style="color:rgba(237,235,230,0.75);">Your attendees paid to be there. They took the flight, blocked the days. <strong style="color:var(--background);">Give them the one thing a schedule and a venue can't: the right person, at the right time, with a reason to connect.</strong></p>
+          <p class="body-text reveal" style="color:rgba(237,235,230,0.75);">Intro matches every attendee to the right people before they walk in. <strong style="color:var(--background);">Real conversations replace small talk.</strong></p>
           <div class="consequence-quote reveal reveal-delay-1"><span class="cq-text">"I'm sure the right person was in that room." </span><span class="cq-bad">Never found them.</span></div>
         </div>
         <div>
@@ -1784,10 +1881,9 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-light section-pad">
     <div class="container">
-      <div class="eyebrow" style="color:var(--accent);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="THE PROBLEM WITH EVERY EVENT"></span></div>
-      <div class="two-col">
+      <h2 class="section-headline reveal">Without Intro, the right person is in the room <em class="accent-wine italic">and you never find them.</em></h2>
+      <div class="two-col" style="margin-top:2.5rem;">
         <div>
-          <h2 class="section-headline reveal">There's no system for finding the right person. <em class="accent-wine italic">So they do their best.</em></h2>
           <p class="body-text reveal reveal-delay-1">They go home. Their boss asks how it went. They say: "Good. I talked to a lot of people." <strong>That's not a win. That's a missed opportunity your event produced.</strong></p>
         </div>
         <div>
@@ -1802,12 +1898,11 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-dark section-pad">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="MATCHED BEFORE THEY WALK IN"></span></div>
       <div class="two-col" style="align-items:flex-start;">
         <div>
-          <h2 class="section-headline reveal">Intro makes networking <em class="accent-amber italic">useful.</em></h2>
+          <h2 class="section-headline reveal">Matched before you <em class="accent-amber italic">walk in.</em></h2>
           <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.75);margin-top:1.5rem;">At registration, Intro asks what they're looking for. <strong style="color:var(--background);">60 seconds.</strong> Before the event starts, they have a shortlist of the people who actually care about what they do, with a reason why each one matters.</p>
-          <p class="body-text reveal reveal-delay-2" style="color:var(--background);margin-top:1rem;font-weight:600;">Not a directory to sort through. A shortlist that's already done the work.</p>
+          <p class="body-text reveal reveal-delay-2" style="color:var(--background);margin-top:1rem;font-weight:600;">Not a directory to sort through. A shortlist that's already done the work. That is the attendee experience that makes sponsorship satisfaction possible.</p>
           <div style="margin-top:2rem;" class="reveal reveal-delay-3"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
         </div>
         <div class="reveal reveal-delay-2">
@@ -1825,8 +1920,7 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-light section-pad">
     <div class="container">
-      <div class="eyebrow" style="color:var(--accent);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="WHAT THEY GET WITH EVERY EVENT"></span></div>
-      <h2 class="section-headline reveal">You don't need a list of 400 people. <em class="accent-wine italic">You need the few who actually matter.</em></h2>
+      <h2 class="section-headline reveal">What you <em class="accent-wine italic">walk away with.</em></h2>
       <div style="margin-top:3rem;">
         <div class="att-row reveal"><svg width="48" height="48" viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><circle cx="16" cy="16" r="12"/><path d="M12 16l3 3 6-6"/></svg><div class="att-content"><h4>Their Matched Shortlist</h4><p>The people worth talking to, with specific reasons for each one. <strong>No sorting, no guessing.</strong> Done before they walk in.</p></div></div>
         <div class="att-row reveal reveal-delay-1"><svg width="48" height="48" viewBox="0 0 32 32" fill="none" stroke="var(--primary)" stroke-width="1.5"><circle cx="10" cy="16" r="5"/><circle cx="22" cy="10" r="5"/><circle cx="22" cy="22" r="5"/><path d="M15 14l4-3M15 18l4 3"/></svg><div class="att-content"><h4>The Attendee Directory</h4><p>Browse on purpose. Search by industry, goal, or what someone is working on. <strong>Find who they want to meet before the doors open.</strong></p></div></div>
@@ -1837,18 +1931,15 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
   <section class="section-dark section-pad">
     <div class="container">
-      <div class="eyebrow" style="color:var(--primary);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="THEY'LL COME BACK FOR THIS"></span></div>
       <div class="two-col">
         <div>
-          <h2 class="section-headline reveal">Deliver introductions <em class="accent-amber italic">that have impact.</em></h2>
-          <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.65);">Your attendees deserve better than small talk and a pile of cards they'll never sort through. <strong>Intro gives them the one thing a schedule and a venue can't.</strong></p>
-          <p class="body-text reveal reveal-delay-2" style="color:rgba(237,235,230,0.65);margin-top:1rem;"><strong style="color:var(--background);">That's what makes your event worth going back to.</strong></p>
-          <div class="reveal reveal-delay-3" style="margin-top:2.5rem;"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
+          <p class="body-text reveal" style="color:rgba(237,235,230,0.65);">Your attendees deserve more than small talk and a pile of cards they'll never sort through. <strong>Intro gives them the one thing a schedule and a venue can't.</strong></p>
+          <p class="body-text reveal reveal-delay-1" style="color:rgba(237,235,230,0.65);margin-top:1rem;"><strong style="color:var(--background);">That's what makes your event worth going back to.</strong></p>
+          <div class="reveal reveal-delay-2" style="margin-top:2.5rem;"><button class="btn btn-primary" onclick="navigate('contact')">Request Early Access →</button></div>
         </div>
-        <div class="reveal reveal-delay-2">
+        <div class="reveal reveal-delay-1">
           <div class="pst-block" style="border-color:var(--primary)">
-            <div class="pst-label" style="color:var(--primary);">P.S. — Are You an Attendee?</div>
-            <h3 style="font-family:var(--font-heading);font-size:1.3rem;font-weight:bold;letter-spacing:0.01em;color:var(--background);margin-bottom:1rem;line-height:1.1;">You deserve better than small talk.</h3>
+            <div class="pst-label" style="color:var(--primary);">P.S. Are You an Attendee?</div>
             <p style="font-size:.9rem;color:rgba(237,235,230,0.65);line-height:1.8;margin-bottom:1.5rem;">Tell your organizer you want Intro at this event. <strong style="color:var(--background);">It takes 30 seconds and they'll actually listen.</strong></p>
             <p style="font-size:.82rem;color:rgba(237,235,230,0.5);line-height:1.7;border-left:3px solid var(--primary);padding-left:1rem;margin-bottom:1.5rem;">It's anonymous. Your name is never shared.</p>
             <button class="btn btn-sage" onclick="navigate('contact','attendee')">Tell My Organizer →</button>
@@ -1871,7 +1962,6 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
       <button onclick="history.go(-1) || navigate('home')" style="background:none;border:none;cursor:pointer;font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted-foreground);margin-bottom:3rem;padding:0;display:flex;align-items:center;gap:.5rem;">← Back</button>
 
       <!-- Header -->
-      <div class="eyebrow" style="color:var(--amber);"><div class="eyebrow-line"></div><span class="eyebrow-text" data-text="GET STARTED"></span></div>
       <h1 class="hero-headline reveal" style="font-size:clamp(2rem,4vw,3.5rem);margin-bottom:.75rem;">Request early access</h1>
       <p class="body-text reveal reveal-delay-1" style="margin-bottom:3rem;">We'll get back to you within one business day.</p>
 
@@ -1882,9 +1972,9 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
         <div style="margin-bottom:2rem;">
           <label style="font-size:.68rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--muted-foreground);display:block;margin-bottom:.5rem;">I am a…</label>
           <select id="contact-role" onchange="updateContactForm()" style="width:100%;padding:.85rem 1rem;border:1.5px solid var(--border);border-radius:1rem;background:var(--background);font-family:var(--font-sans);font-size:.95rem;color:var(--foreground);outline:none;cursor:pointer;appearance:none;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237D7A73' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 1rem center;padding-right:2.5rem;">
-            <option value="director">Event Director — I run events and want to set up Intro</option>
-            <option value="sponsor">Sponsor — I sponsor events and want my organizer to use Intro</option>
-            <option value="attendee">Attendee — I attend events and want Intro at my next one</option>
+            <option value="director">Event Director. I run events and want to set up Intro</option>
+            <option value="sponsor">Sponsor. I sponsor events and want my organizer to use Intro</option>
+            <option value="attendee">Attendee. I attend events and want Intro at my next one</option>
           </select>
         </div>
 
@@ -1926,7 +2016,7 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
 
           <!-- Attendee anonymous note -->
           <div id="cf-anon-note" style="display:none;border-left:3px solid var(--primary);padding-left:1rem;">
-            <p style="font-size:.82rem;color:var(--muted-foreground);line-height:1.7;">It's anonymous — your name is never shared with the organizer.</p>
+            <p style="font-size:.82rem;color:var(--muted-foreground);line-height:1.7;">It's anonymous. Your name is never shared with the organizer.</p>
           </div>
 
           <!-- Submit -->
@@ -1965,7 +2055,7 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
         </div>
         <div class="footer-brand-text">
           <div class="footer-logo"><span>I</span>ntro</div>
-          <div class="footer-tagline">Prove Event ROI.</div>
+          <div class="footer-tagline">The experience your attendees want.</div>
         </div>
       </div>
       <div class="footer-links">
@@ -1979,12 +2069,12 @@ footer { background: var(--foreground); border-top: 1px solid rgba(237,235,230,0
     </div>
     <div class="footer-builder">
       <div class="footer-builder-label">Why We Built Intro</div>
-      <p class="footer-builder-text">I've had event budgets cut because sponsors wanted an ROI. It stings, because events are one of the most powerful ways attendees and sponsors can connect and grow their businesses. So I built Intro to fix that. <span class="footer-builder-name">— Brant Johnson, Creator of Intro</span></p>
+      <p class="footer-builder-text">I've had event budgets cut because sponsors wanted an ROI. It stings, because events are one of the most powerful ways attendees and sponsors can connect and grow their businesses. So I built Intro to fix that. <span class="footer-builder-name">Brant Johnson, Creator of Intro</span></p>
     </div>
     <div class="footer-bottom">
       <div>© 2026 Intro. All rights reserved. &nbsp;·&nbsp; <span class="footer-guarantee">Satisfaction 100% guaranteed. Or your money back. (Yeah, we know we're not a breakfast cereal.)</span></div>
       <ul class="footnotes">
-        <li><sup>1</sup> Freeman Trends Report 2025 &nbsp;·&nbsp; <sup>2</sup> Freeman Trust Report 2025 (via Harris Poll) &nbsp;·&nbsp; <sup>3</sup> Guidebook, "Sponsor ROI Defined & Measured" &nbsp;·&nbsp; <sup>4</sup> Bizzabo — Event ROI & Measurement Research</li>
+        <li><sup>1</sup> Freeman Trends Report 2025 &nbsp;·&nbsp; <sup>2</sup> Freeman Trust Report 2025 (via Harris Poll) &nbsp;·&nbsp; <sup>3</sup> Guidebook, "Sponsor ROI Defined & Measured" &nbsp;·&nbsp; <sup>4</sup> Bizzabo. Event ROI & Measurement Research</li>
       </ul>
     </div>
   </div>
@@ -2104,7 +2194,7 @@ function trackEvent(name, params) {
 function trackPageView(id) {
   const pageTitle = pageNames[id] || id;
   analyticsState.currentPage = id;
-  document.title = pageTitle === 'Home' ? 'Intro — Prove Event ROI' : 'Intro — ' + pageTitle;
+  document.title = pageTitle === 'Home' ? 'Intro. The Attendee Experience That Brings Them Back' : 'Intro. ' + pageTitle;
   const page_path = window.location.pathname + window.location.search;
   const page_location = window.location.href;
 
@@ -2661,6 +2751,66 @@ window.addEventListener('beforeunload', () => {
   });
 
   init();
+})();
+
+/* ── Analytics flow: auto-highlight steps top to bottom ── */
+(function () {
+  const root = document.getElementById('analytics-flow-steps');
+  if (!root) return;
+  const steps = Array.from(root.querySelectorAll('.flow-step'));
+  if (!steps.length) return;
+
+  let current = 0;
+  let timer = null;
+  const INTERVAL = 2600;
+
+  function setActive(idx) {
+    current = ((idx % steps.length) + steps.length) % steps.length;
+    steps.forEach((el, i) => el.classList.toggle('is-active', i === current));
+  }
+
+  function tick() {
+    setActive(current + 1);
+  }
+
+  function start() {
+    stop();
+    timer = window.setInterval(tick, INTERVAL);
+  }
+
+  function stop() {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+  }
+
+  setActive(0);
+
+  const section = root.closest('section');
+  if (section) {
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) start();
+        else stop();
+      });
+    }, { threshold: 0.2 });
+    obs.observe(section);
+  } else {
+    start();
+  }
+
+  root.addEventListener('mouseenter', stop);
+  root.addEventListener('mouseleave', start);
+
+  steps.forEach((step, i) => {
+    step.addEventListener('click', () => {
+      setActive(i);
+      stop();
+      start();
+    });
+    step.style.cursor = 'pointer';
+  });
 })();
 
 /* ── Hero phone mockups: scroll-driven tilt (home + How It Works) ── */

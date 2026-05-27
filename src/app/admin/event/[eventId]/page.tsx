@@ -41,6 +41,7 @@ interface Event {
   event_location: string | null
   event_starts_at: string | null
   event_ends_at: string | null
+  event_description: string | null
   onboarding_question_schema: any
   matching_config: any
 }
@@ -63,6 +64,7 @@ export default function AdminEventEditPage() {
   const [event, setEvent] = useState<Event | null>(null)
   const [questionSchema, setQuestionSchema] = useState<string>("")
   const [editedEventName, setEditedEventName] = useState<string>("")
+  const [editedEventDescription, setEditedEventDescription] = useState<string>("")
 
   // QR / join link
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null)
@@ -154,6 +156,7 @@ export default function AdminEventEditPage() {
 
       setEvent(data)
       setEditedEventName(data.event_name || "")
+      setEditedEventDescription(data.event_description || "")
       setQuestionSchema(
         data.onboarding_question_schema
           ? JSON.stringify(data.onboarding_question_schema, null, 2)
@@ -630,7 +633,10 @@ export default function AdminEventEditPage() {
 
     setIsSaving(true)
     try {
-      if (editedEventName !== event.event_name) {
+      const nameChanged = editedEventName !== event.event_name
+      const descriptionChanged =
+        (editedEventDescription || "") !== (event.event_description || "")
+      if (nameChanged || descriptionChanged) {
         const updateResponse = await fetch("/api/update-event", {
           method: "PUT",
           headers: {
@@ -638,7 +644,10 @@ export default function AdminEventEditPage() {
           },
           body: JSON.stringify({
             eventId: event.event_id,
-            eventName: editedEventName,
+            ...(nameChanged ? { eventName: editedEventName } : {}),
+            ...(descriptionChanged
+              ? { eventDescription: editedEventDescription }
+              : {}),
           }),
         })
 
@@ -761,6 +770,21 @@ export default function AdminEventEditPage() {
                   <Input value={event.event_location} disabled className="mt-1" />
                 </div>
               )}
+              <div>
+                <Label htmlFor="eventDescription">Event Description</Label>
+                <Textarea
+                  id="eventDescription"
+                  value={editedEventDescription}
+                  onChange={(e) => setEditedEventDescription(e.target.value)}
+                  placeholder="What is this event actually about? Include the theme, main topics or sessions, intended audience, and anything else that should ground the onboarding AI's follow-up questions (e.g. so it asks about sessions that actually exist instead of inventing topics)."
+                  className="mt-1 min-h-[160px]"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Used by the onboarding AI as ground truth for event-anchored follow-up
+                  questions (topics, sessions, audience). Leave blank to fall back to a generic
+                  clarifier.
+                </p>
+              </div>
               <div>
                 <Label>Event Logo</Label>
 

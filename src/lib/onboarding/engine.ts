@@ -395,13 +395,48 @@ function pickNeedAiMode(node: FlowNode): string {
   return "clarify_last_answer"
 }
 
+const EVENT_DESCRIPTION_MAX = 2400
+
 function buildEventContextBlock(ctx: OnboardingContext): string {
   const eventName = (ctx.event.event_name || "").trim()
+  const eventLocation = (ctx.event.event_location || "").trim()
+  const eventStarts = (ctx.event.event_starts_at || "").trim()
+  const eventEnds = (ctx.event.event_ends_at || "").trim()
+  const description = (ctx.event.event_description || "").trim()
   const schema = ctx.event.onboarding_question_schema
   const schemaText = schema ? JSON.stringify(schema).slice(0, 1400) : ""
-  const parts = [`Event name: ${eventName || "(unknown)"}`]
-  if (schemaText) parts.push(`Event onboarding schema: ${schemaText}`)
-  return parts.join("\n")
+
+  const parts: string[] = [`Event name: ${eventName || "(unknown)"}`]
+  if (eventLocation) parts.push(`Event location: ${eventLocation}`)
+  if (eventStarts || eventEnds) {
+    parts.push(`Event dates: ${eventStarts || "?"}${eventEnds ? ` → ${eventEnds}` : ""}`)
+  }
+
+  if (description) {
+    const truncated =
+      description.length > EVENT_DESCRIPTION_MAX
+        ? `${description.slice(0, EVENT_DESCRIPTION_MAX)}…`
+        : description
+    parts.push(
+      "Event description (organizer-authored — TREAT AS GROUND TRUTH for what is actually happening at this event):\n" +
+        truncated +
+        "\n" +
+        "Rules when asking event-anchored follow-ups (topics, sessions, speakers, agenda, audience):\n" +
+        "- Pull options/themes ONLY from concepts, sessions, themes, or audiences referenced (or directly implied) in the description.\n" +
+        "- Do NOT invent topics that have no anchor in the description.\n" +
+        "- If the description is silent on something the user already mentioned (e.g. an Other answer), prefer their words over generic guesses.",
+    )
+  } else {
+    parts.push(
+      "Event description: (not provided by organizer)\n" +
+        "When asking event-anchored follow-ups, do NOT guess specific session names or topics. Instead ask a question that lets the user supply their own framing (e.g. their own sub-topic, their own target audience).",
+    )
+  }
+
+  if (schemaText) {
+    parts.push(`Event onboarding schema (organizer-defined extra questions, secondary signal): ${schemaText}`)
+  }
+  return parts.join("\n\n")
 }
 
 function normalizeAiChoices(rawChoices: string[] | null | undefined, maxChoices: number): FlowOption[] {

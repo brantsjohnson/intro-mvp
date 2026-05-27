@@ -9,7 +9,14 @@ export async function POST(request: NextRequest) {
     const gate = await requirePlatformAdminForRoute()
     if (!gate.ok) return gate.response
 
-    const { eventCode, eventName, eventLocation, eventStartsAt, eventEndsAt } = await request.json()
+    const {
+      eventCode,
+      eventName,
+      eventLocation,
+      eventDescription,
+      eventStartsAt,
+      eventEndsAt,
+    } = await request.json()
     
     if (!eventCode || !eventName) {
       return NextResponse.json(
@@ -46,6 +53,7 @@ export async function POST(request: NextRequest) {
         event_code: cleanCode,
         event_name: eventName,
         event_location: eventLocation || null,
+        event_description: eventDescription || null,
         event_starts_at: eventStartsAt || null, // Store exactly as entered
         event_ends_at: eventEndsAt || null, // Store exactly as entered
         onboarding_question_schema: {},
@@ -101,7 +109,7 @@ export async function GET() {
 
     const { data: events, error } = await supabase
       .from('events')
-      .select('event_id, event_code, event_name, event_location, event_starts_at, event_ends_at')
+      .select('event_id, event_code, event_name, event_location, event_starts_at, event_ends_at, event_description')
       .order('event_starts_at', { ascending: false })
 
     if (error) {

@@ -42,8 +42,10 @@ interface UserProfileSummary {
 interface AttendanceRecord {
   eventId: string
   eventName: string
-  businessNeed: string
-  originalBusinessNeed: string
+  needSummary: string
+  originalNeedSummary: string
+  offerSummary: string
+  originalOfferSummary: string
   checkedInAt: string | null
 }
 
@@ -60,7 +62,7 @@ export function SettingsPage() {
 
   const [isLoading, setIsLoading] = useState(true)
   const [isSavingProfile, setIsSavingProfile] = useState(false)
-  const [isSavingBusinessNeed, setIsSavingBusinessNeed] = useState(false)
+  const [isSavingEvent, setIsSavingEvent] = useState(false)
   const [isPresenceUpdating, setIsPresenceUpdating] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [profile, setProfile] = useState<UserProfileSummary | null>(null)
@@ -78,16 +80,22 @@ export function SettingsPage() {
     return attendanceRecords.find((record) => record.eventId === selectedEventId) ?? null
   }, [attendanceRecords, selectedEventId])
 
-  const isBusinessNeedDirty = Boolean(
+  const isNeedSummaryDirty = Boolean(
     selectedAttendance &&
-      selectedAttendance.businessNeed.trim() !== selectedAttendance.originalBusinessNeed.trim()
+      selectedAttendance.needSummary.trim() !== selectedAttendance.originalNeedSummary.trim()
+  )
+
+  const isOfferSummaryDirty = Boolean(
+    selectedAttendance &&
+      selectedAttendance.offerSummary.trim() !== selectedAttendance.originalOfferSummary.trim()
   )
 
   const isEventSelectionDirty = Boolean(
     selectedEventId && originalSelectedEventId && selectedEventId !== originalSelectedEventId
   )
 
-  const isEventSectionDirty = isBusinessNeedDirty || isEventSelectionDirty
+  const isEventSectionDirty =
+    isNeedSummaryDirty || isOfferSummaryDirty || isEventSelectionDirty
 
   const isProfileDirty = profile
     ? (profile.company ?? "") !== profileDraft.company.trim() ||
@@ -128,7 +136,8 @@ export function SettingsPage() {
             .select(
               `
                 event_id,
-                business_need_text,
+                need_summary_final,
+                offer_summary_final,
                 checked_in_at,
                 events:event_id (
                   event_id,
@@ -177,8 +186,10 @@ export function SettingsPage() {
           (attendanceRows ?? []).map((row: any) => ({
             eventId: row.event_id,
             eventName: row.events?.event_name ?? "Unnamed event",
-            businessNeed: row.business_need_text ?? "",
-            originalBusinessNeed: row.business_need_text ?? "",
+            needSummary: row.need_summary_final ?? "",
+            originalNeedSummary: row.need_summary_final ?? "",
+            offerSummary: row.offer_summary_final ?? "",
+            originalOfferSummary: row.offer_summary_final ?? "",
             checkedInAt: row.checked_in_at,
           })) ?? []
 
@@ -290,31 +301,45 @@ export function SettingsPage() {
     }
   }
 
-  const handleBusinessNeedChange = (value: string) => {
+  const handleNeedSummaryChange = (value: string) => {
     if (!selectedAttendance) return
-
     setAttendanceRecords((records) =>
       records.map((record) =>
         record.eventId === selectedAttendance.eventId
-          ? { ...record, businessNeed: value }
+          ? { ...record, needSummary: value }
           : record
       )
     )
   }
 
-  const handleResetBusinessNeed = () => {
+  const handleOfferSummaryChange = (value: string) => {
     if (!selectedAttendance) return
-
     setAttendanceRecords((records) =>
       records.map((record) =>
         record.eventId === selectedAttendance.eventId
-          ? { ...record, businessNeed: record.originalBusinessNeed }
+          ? { ...record, offerSummary: value }
           : record
       )
     )
   }
 
-  const handleSaveBusinessNeed = async () => {
+  const handleResetEventSection = () => {
+    if (!selectedAttendance) return
+
+    setAttendanceRecords((records) =>
+      records.map((record) =>
+        record.eventId === selectedAttendance.eventId
+          ? {
+              ...record,
+              needSummary: record.originalNeedSummary,
+              offerSummary: record.originalOfferSummary,
+            }
+          : record
+      )
+    )
+  }
+
+  const handleSaveEventSection = async () => {
     if (!userId || !selectedAttendance) {
       toast.error("Unable to save: user or event not found")
       return
@@ -324,26 +349,36 @@ export function SettingsPage() {
       return
     }
 
-    const trimmedNeed = selectedAttendance.businessNeed.trim()
+    const trimmedNeedSummary = selectedAttendance.needSummary.trim()
+    const trimmedOfferSummary = selectedAttendance.offerSummary.trim()
 
-    setIsSavingBusinessNeed(true)
+    setIsSavingEvent(true)
     try {
-      // Save business need if it changed
-      if (isBusinessNeedDirty) {
+      // Save any dirty event-text fields together in one UPDATE
+      if (isNeedSummaryDirty || isOfferSummaryDirty) {
+        const updatePayload: Record<string, unknown> = {
+          last_profile_change_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }
+        if (isNeedSummaryDirty) {
+          updatePayload.need_summary_final =
+            trimmedNeedSummary.length > 0 ? trimmedNeedSummary : null
+        }
+        if (isOfferSummaryDirty) {
+          updatePayload.offer_summary_final =
+            trimmedOfferSummary.length > 0 ? trimmedOfferSummary : null
+        }
+
         const { error } = await supabase
           .from("attendance")
-          .update({
-            business_need_text: trimmedNeed.length > 0 ? trimmedNeed : null,
-            last_profile_change_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
+          .update(updatePayload)
           .eq("user_id", userId)
           .eq("event_id", selectedAttendance.eventId)
 
         if (error) {
-          console.error("Failed to update business need:", error)
-          toast.error("Failed to save business need. Please try again.")
-          setIsSavingBusinessNeed(false)
+          console.error("Failed to update event text fields:", error)
+          toast.error("Failed to save. Please try again.")
+          setIsSavingEvent(false)
           return
         }
       }
@@ -374,12 +409,12 @@ export function SettingsPage() {
       }
 
       // Show success feedback
-      if (isEventSelectionDirty && isBusinessNeedDirty) {
-        toast.success("Event switched and business need saved!")
+      if (isEventSelectionDirty && (isNeedSummaryDirty || isOfferSummaryDirty)) {
+        toast.success("Event switched and changes saved!")
       } else if (isEventSelectionDirty) {
         toast.success(`Switched to ${selectedAttendance.eventName}!`)
       } else {
-        toast.success("Business need saved successfully!")
+        toast.success("Saved successfully!")
       }
 
       // Update local state
@@ -388,8 +423,10 @@ export function SettingsPage() {
           record.eventId === selectedAttendance.eventId
             ? {
                 ...record,
-                businessNeed: trimmedNeed,
-                originalBusinessNeed: trimmedNeed,
+                needSummary: trimmedNeedSummary,
+                originalNeedSummary: trimmedNeedSummary,
+                offerSummary: trimmedOfferSummary,
+                originalOfferSummary: trimmedOfferSummary,
               }
             : record
         )
@@ -438,17 +475,17 @@ export function SettingsPage() {
           })(),
           {
             loading: "Refreshing matches with your updated info…",
-            success: "Your matches will reflect the new business need shortly.",
+            success: "Your matches will reflect your updates shortly.",
             error:
               "Saved your update, but we couldn’t refresh matches automatically. We’ll try again soon.",
           }
         )
       }
     } catch (updateError) {
-      console.error("Unexpected error updating business need:", updateError)
+      console.error("Unexpected error updating event section:", updateError)
       toast.error("An unexpected error occurred. Please try again.")
     } finally {
-      setIsSavingBusinessNeed(false)
+      setIsSavingEvent(false)
     }
   }
 
@@ -685,35 +722,70 @@ export function SettingsPage() {
                 </div>
 
                 {selectedAttendance && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-medium text-foreground font-body" style={{ textTransform: 'none' }}>
-                        {toTitleCase("Business need for this event")}
-                      </h3>
-                      {isEventSectionDirty && (
+                  <div className="space-y-5">
+                    {isEventSectionDirty && (
+                      <div className="flex justify-end">
                         <span className="text-xs font-medium text-primary">
-                          {isEventSelectionDirty && isBusinessNeedDirty 
-                            ? "Unsaved changes" 
-                            : isEventSelectionDirty 
-                            ? "Event switch pending" 
+                          {isEventSelectionDirty &&
+                          (isNeedSummaryDirty || isOfferSummaryDirty)
+                            ? "Unsaved changes"
+                            : isEventSelectionDirty
+                            ? "Event switch pending"
                             : "Unsaved changes"}
                         </span>
-                      )}
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <h3
+                        className="text-sm font-medium text-foreground font-body"
+                        style={{ textTransform: "none" }}
+                      >
+                        {toTitleCase("Why you’re attending")}
+                      </h3>
+                      <p
+                        className="text-xs text-muted-foreground"
+                        style={{ textTransform: "none" }}
+                      >
+                        Pulled from your onboarding answers. Edit to refine what we use for matching.
+                      </p>
+                      <Textarea
+                        value={selectedAttendance.needSummary}
+                        onChange={(event) => handleNeedSummaryChange(event.target.value)}
+                        placeholder="What you’re looking for at this event (complete onboarding to auto-fill, or write it here)…"
+                        rows={4}
+                      />
                     </div>
-                    <Textarea
-                      value={selectedAttendance.businessNeed}
-                      onChange={(event) => handleBusinessNeedChange(event.target.value)}
-                      placeholder="Tell attendees what business need you’re focused on right now…"
-                      rows={6}
-                    />
+
+                    <div className="space-y-2">
+                      <h3
+                        className="text-sm font-medium text-foreground font-body"
+                        style={{ textTransform: "none" }}
+                      >
+                        {toTitleCase("What you can offer")}
+                      </h3>
+                      <p
+                        className="text-xs text-muted-foreground"
+                        style={{ textTransform: "none" }}
+                      >
+                        How others can benefit from talking to you. Used to match you to people who need what you offer.
+                      </p>
+                      <Textarea
+                        value={selectedAttendance.offerSummary}
+                        onChange={(event) => handleOfferSummaryChange(event.target.value)}
+                        placeholder="What you can help others with at this event…"
+                        rows={4}
+                      />
+                    </div>
+
                     <div className="flex items-center justify-end gap-3">
                       <Button
                         variant="ghost"
                         size="sm"
-                        disabled={!isEventSectionDirty || isSavingBusinessNeed}
+                        disabled={!isEventSectionDirty || isSavingEvent}
                         onClick={() => {
-                          if (isBusinessNeedDirty) {
-                            handleResetBusinessNeed()
+                          if (isNeedSummaryDirty || isOfferSummaryDirty) {
+                            handleResetEventSection()
                           }
                           if (isEventSelectionDirty && originalSelectedEventId) {
                             setSelectedEventId(originalSelectedEventId)
@@ -725,11 +797,11 @@ export function SettingsPage() {
                       </Button>
                       <Button
                         size="sm"
-                        onClick={handleSaveBusinessNeed}
-                        disabled={!isEventSectionDirty || isSavingBusinessNeed}
+                        onClick={handleSaveEventSection}
+                        disabled={!isEventSectionDirty || isSavingEvent}
                         className="bg-primary text-primary-foreground hover:opacity-90"
                       >
-                        {isSavingBusinessNeed ? (
+                        {isSavingEvent ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Saving…

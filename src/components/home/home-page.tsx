@@ -41,6 +41,7 @@ import {
   clearPendingEventInvite,
 } from "@/lib/pending-event-invite"
 import { haptics } from "@/lib/haptics"
+import { matchNeedsExplanationUpgrade } from "@/lib/matching/match-explanation"
 import { toast } from "sonner"
 
 const changaOne = Changa_One({ weight: "400", subsets: ["latin"] })
@@ -178,7 +179,7 @@ export function HomePage() {
   const [connections, setConnections] = useState<ConnectionWithProfile[]>([])
   const [manualConnections, setManualConnections] = useState<ManualConnectionItem[]>([])
   const [directory, setDirectory] = useState<DirectoryPerson[]>([])
-  const [directoryFilter, setDirectoryFilter] = useState<"all" | "connected">("connected")
+  const [directoryFilter, setDirectoryFilter] = useState<"all" | "connected">("all")
   const [isPresent, setIsPresent] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false)
@@ -196,6 +197,7 @@ export function HomePage() {
   const isLoadingUserDataRef = useRef(false)
   const lastLoadedUserIdRef = useRef<string | null>(null)
   const unreadPollingRef = useRef<NodeJS.Timeout | null>(null)
+  const explanationRefreshInFlightRef = useRef<string | null>(null)
 
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -598,22 +600,45 @@ export function HomePage() {
       })
 
       console.log(`[loadMatches] Final matches: ${formatted.length}, showing top 3`)
+      const topThree = formatted.slice(0, 3)
+
       console.log(
         `[loadMatches] Match summaries:`,
-        formatted.map((m) => ({
+        topThree.map((m) => ({
           name: `${m.profile.first_name} ${m.profile.last_name}`,
           summary: m.summary?.substring(0, 50),
           algorithm: m.algorithm_version || "unknown",
-          isAI:
-            m.algorithm_version === "v4_ai_decision_tree"
-              ? "AI"
-              : m.algorithm_version === "v3_persona_intelligence"
-                ? "Rule-based"
-                : "Unknown",
         })),
       )
 
-      setMatches(formatted.slice(0, 3))
+      setMatches(topThree)
+
+      if (
+        user &&
+        !isDemoMode &&
+        matchNeedsExplanationUpgrade(topThree) &&
+        explanationRefreshInFlightRef.current !== eventId
+      ) {
+        explanationRefreshInFlightRef.current = eventId
+        void fetch("/api/refresh-match-explanations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ eventId, userId: user.id }),
+        })
+          .then(async (res) => {
+            if (!res.ok) {
+              console.warn("[loadMatches] explanation refresh failed:", await res.text())
+              return
+            }
+            await loadMatches(eventId)
+          })
+          .catch((err) => console.warn("[loadMatches] explanation refresh error:", err))
+          .finally(() => {
+            if (explanationRefreshInFlightRef.current === eventId) {
+              explanationRefreshInFlightRef.current = null
+            }
+          })
+      }
     } catch (error) {
       console.error("Failed to load matches:", error)
     }

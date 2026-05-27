@@ -110,6 +110,31 @@ const MIN_MATCH_SCORE = 8
 const FALLBACK_MIN_SCORE = 3
 const MATCH_SCORE_NORMALIZATION_MAX = 60
 const MAX_REASON_COUNT = 3
+const OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
+const MATCH_EXPLANATION_ALGORITHM_VERSION = "v6_ai_explanations_v2"
+
+const LEGACY_EXPLANATION_PATTERNS = [
+  /shared\s+\w+\s+domain\s+context/i,
+  /domain context for networking/i,
+  /worth a quick intro/i,
+  /networking fit on shared/i,
+  /general networking overlap/i,
+  /commercial fit:/i,
+  /fallback match/i,
+]
+
+function isStaleMatchExplanation(
+  text: string | null | undefined,
+  algorithmVersion: string | null | undefined,
+): boolean {
+  const normalized = cleanText(text || "")
+  if (!normalized) return true
+  if (algorithmVersion !== MATCH_EXPLANATION_ALGORITHM_VERSION) return true
+  if (LEGACY_EXPLANATION_PATTERNS.some((pattern) => pattern.test(normalized))) return true
+  const halves = normalized.split(/\.\s+/)
+  if (halves.length >= 2 && halves[0] && halves[0] === halves[1]) return true
+  return false
+}
 
 const COMMERCIAL_INTENTS = new Set<CanonicalIntent>([
   "customer_acquisition",
@@ -947,178 +972,209 @@ function selectCandidates(source: CanonicalProfile, scored: ScoredCandidate[]): 
   return selected.slice(0, SUGGESTIONS_PER_USER)
 }
 
-function conciseSummary(source: CanonicalProfile, row: ScoredCandidate): string {
+function truncateText(value: string | null | undefined, max: number): string {
+  const text = cleanText(value || "")
+  if (!text) return "—"
+  if (text.length <= max) return text
+  return `${text.slice(0, max)}…`
+}
+
+function formatIntent(intent: CanonicalIntent | null | undefined): string {
+  if (!intent || intent === "unknown") return "—"
+  return intent.replace(/_/g, " ")
+}
+
+function candidateFirstName(candidate: CanonicalProfile): string {
+  const fromField = cleanText(candidate.firstName)
+  if (fromField) return fromField
+  const fromName = cleanText(candidate.name.split(/\s+/)[0] || "")
+  return fromName || "They"
+}
+
+function enforceTwoSentences(text: string): string {
+  const cleaned = cleanText(text)
+  if (!cleaned) return ""
+
+  const parts = cleaned.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [cleaned]
+  const sentences = parts.map((part) => part.trim()).filter(Boolean)
+  if (sentences.length <= 2) return cleaned
+
+  return sentences.slice(0, 2).join(" ").trim()
+}
+
+function buildSingleMatchExplanationPrompt(viewer: CanonicalProfile, row: ScoredCandidate): string {
   const candidate = row.candidate
-  const mentorshipPoints = row.ruleHits?.mentorship ?? 0
-  const jobPoints = row.ruleHits?.job_hiring ?? 0
-  const fundraisingPoints = row.ruleHits?.fundraising ?? 0
-  const commercialPoints = row.ruleHits?.commercial ?? 0
-  const networkingPoints = row.ruleHits?.networking ?? 0
+  const firstName = candidateFirstName(candidate)
+  const roleLine = [candidate.jobTitle, candidate.company].filter(Boolean).join(" at ") || "—"
+  const scoringSignals = row.reasons.length ? row.reasons.join("; ") : "general fit"
+  const needLine = truncateText(
+    viewer.needSummary || viewer.businessNeed || viewer.needSignal,
+    650,
+  )
 
-  const candidateTitle = candidate.jobTitle || "candidate profile"
-  const candidateIdentity = candidate.company ? `${candidateTitle} at ${candidate.company}` : candidateTitle
-  const candidateRoleFamily =
-    candidate.commercialRoleFamily !== "unknown"
-      ? candidate.commercialRoleFamily.replace(/_/g, " ")
-      : roleFamily(candidate.targetRole).replace(/_/g, " ")
-  const sourceRoleFamily =
-    source.commercialRoleFamily !== "unknown"
-      ? source.commercialRoleFamily.replace(/_/g, " ")
-      : roleFamily(source.targetRole).replace(/_/g, " ")
+  return `Write the match card blurb for a networking app. Maximum 2 sentences total.
 
-  const domainLabel = (domain: string): string => {
-    const labels: Record<string, string> = {
-      ai_ml: "AI/ML",
-      fintech: "fintech",
-      healthcare: "healthcare",
-      education: "education",
-      media: "media",
-      startup: "startup",
-      enterprise: "enterprise",
-      nonprofit: "nonprofit",
-      general: "general",
-    }
-    return labels[domain] || domain.replace(/_/g, " ")
-  }
+WHAT THE READER IS LOOKING FOR (this is the anchor — reference it explicitly):
+${needLine}
 
-  const offerFamilyLabel = (family: string): string => {
-    const labels: Record<string, string> = {
-      sales_gtm: "sales/GTM support",
-      partnerships: "partnership development",
-      legal_risk: "legal/compliance guidance",
-      finance_strategy: "finance/fundraising guidance",
-      people_hr: "talent/hiring support",
-      technical_product: "technical/product guidance",
-      creative_brand: "creative/brand support",
-      founder_operator: "founder/operator guidance",
-      general: "general support",
-    }
-    return labels[family] || family.replace(/_/g, " ")
-  }
+SUGGESTED PERSON — ${firstName}:
+- ${roleLine}
+- What they offer: ${truncateText(candidate.offerSummary || candidate.offerSignal, 500)}
+- Company: ${truncateText(candidate.companySummary, 400)}
+- Matcher signals: ${scoringSignals}
 
-  const commercialSubtypeLabel = (subtype: CommercialSubtype): string => {
-    if (subtype === "likely_buyer") return "buyer/revenue-side commercial fit"
-    if (subtype === "likely_partner") return "partnership-oriented commercial fit"
-    if (subtype === "likely_advisor") return "advisor/operator commercial fit"
-    return "general commercial fit"
-  }
+RULES:
+- Sentence 1 MUST start by saying WHY ${firstName} is a good match for what the reader needs. Lead with the match reason, not ${firstName}'s job title or biography. Good opener patterns: "We matched you with ${firstName} because…" or "They're a fit for you because…" or "You'll want to meet ${firstName} — they can help with…"
+- Sentence 2: one simple follow-up (what to ask them, or what they bring that closes the gap).
+- Exactly 2 sentences. Plain English. Say "you" for the reader. Use ${firstName}'s first name once.
+- Do NOT open with "${firstName}, as the…" or list their credentials before explaining the match.
+- No jargon, no bullet points, no markdown.`
+}
 
-  if (row.fallbackUsed || row.rawScore <= FALLBACK_MIN_SCORE) {
-    return `Fallback match; limited strong fits were available, but ${candidateIdentity} offers some networking relevance.`
-  }
+function buildSingleMatchExplanationSystemPrompt(): string {
+  return (
+    "You write two-sentence match blurbs for event networking. " +
+    "The first sentence always answers why this person was matched to the reader's stated need. " +
+    "Never lead with the person's job title or a bio. Plain prose only."
+  )
+}
 
-  const clauses: string[] = []
-  const clauseSet = new Set<string>()
-  const addClause = (clause: string) => {
-    const cleaned = cleanText(clause)
-    if (!cleaned || clauseSet.has(cleaned)) return
-    clauseSet.add(cleaned)
-    clauses.push(cleaned)
-  }
+async function generateOneMatchExplanation(
+  apiKey: string,
+  viewer: CanonicalProfile,
+  row: ScoredCandidate,
+): Promise<string> {
+  try {
+    const response = await fetch(OPENAI_CHAT_COMPLETIONS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: buildSingleMatchExplanationSystemPrompt(),
+          },
+          { role: "user", content: buildSingleMatchExplanationPrompt(viewer, row) },
+        ],
+        temperature: 0.45,
+        max_tokens: 110,
+      }),
+    })
 
-  const commercialFocus = source.needsCustomers
-    ? "customer growth goals"
-    : source.needsPartnerships
-      ? "partnership goals"
-      : source.secondaryIntent && COMMERCIAL_INTENTS.has(source.secondaryIntent)
-        ? `${source.secondaryIntent.replace(/_/g, " ")} goals`
-        : "commercial goals"
-
-  const groupRank: Array<[string, number]> = [
-    ["job_hiring", jobPoints],
-    ["commercial", commercialPoints],
-    ["fundraising", fundraisingPoints],
-    ["mentorship", mentorshipPoints],
-    ["networking", networkingPoints],
-  ]
-    .filter(([, points]) => points > 0)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-
-  for (const [group] of groupRank) {
-    if (clauses.length >= 2) break
-    if (group === "job_hiring") {
-      if ((source.needsJob || source.needsInternship) && candidate.canHire) {
-        addClause(
-          source.needsInternship
-            ? `Internship alignment with hiring-capable ${candidateIdentity}.`
-            : `Job-search alignment with hiring-capable ${candidateIdentity}.`,
-        )
-        continue
-      }
-      if (source.canHire && (candidate.needsJob || candidate.needsInternship)) {
-        addClause(`${candidateIdentity} appears role-seeking while this attendee is hiring-capable.`)
-      }
-      continue
+    if (!response.ok) {
+      const errorBody = await response.text()
+      console.error("matchmaker OpenAI error:", response.status, errorBody)
+      return ""
     }
 
-    if (group === "commercial") {
-      let clause = `${commercialSubtypeLabel(candidate.offerCommercialSubtype)} for ${commercialFocus} via ${offerFamilyLabel(candidate.offerCapabilityFamily)}.`
-      if (source.commercialRoleFamily !== "unknown" && candidate.commercialRoleFamily !== "unknown") {
-        if (source.commercialRoleFamily === candidate.commercialRoleFamily) {
-          clause = `${commercialSubtypeLabel(candidate.offerCommercialSubtype)} for ${commercialFocus}; shared ${candidateRoleFamily} function.`
-        } else if (commercialRoleFamiliesComplementary(source.commercialRoleFamily, candidate.commercialRoleFamily)) {
-          clause = `${commercialSubtypeLabel(candidate.offerCommercialSubtype)} for ${commercialFocus}; complementary ${sourceRoleFamily} -> ${candidateRoleFamily} fit.`
-        }
-      }
-      addClause(clause)
-      continue
+    const data = await response.json()
+    return enforceTwoSentences(data?.choices?.[0]?.message?.content || "")
+  } catch (error) {
+    console.error("matchmaker single explanation failed:", error)
+    return ""
+  }
+}
+
+async function generateMatchExplanations(
+  viewer: CanonicalProfile,
+  selected: ScoredCandidate[],
+): Promise<Map<string, string>> {
+  const explanations = new Map<string, string>()
+  if (selected.length === 0) return explanations
+
+  const apiKey = Deno.env.get("OPENAI_API_KEY")?.trim()
+  if (!apiKey) {
+    console.warn("matchmaker: OPENAI_API_KEY not set; match explanations will be empty")
+    return explanations
+  }
+
+  const results = await Promise.all(
+    selected.map(async (row) => {
+      const text = await generateOneMatchExplanation(apiKey, viewer, row)
+      return { candidateId: row.candidate.id, text }
+    }),
+  )
+
+  for (const { candidateId, text } of results) {
+    if (candidateId && text) explanations.set(candidateId, text)
+  }
+
+  return explanations
+}
+
+async function refreshStoredMatchExplanations(
+  supabase: any,
+  eventId: string,
+  viewer: CanonicalProfile,
+  byId: Map<string, CanonicalProfile>,
+): Promise<number> {
+  const { data: rows, error } = await supabase
+    .from("connections")
+    .select("connection_id, a_id, b_id, match_score_breakdown_json")
+    .eq("event_id", eventId)
+    .eq("connection_kind", "system_match")
+    .eq("created_by_user_id", viewer.id)
+    .order("match_score", { ascending: false })
+    .limit(SUGGESTIONS_PER_USER)
+
+  if (error) {
+    throw new Error(`connections_load_failed: ${error.message}`)
+  }
+  if (!rows?.length) return 0
+
+  const pseudoSelected: ScoredCandidate[] = []
+  for (const row of rows) {
+    const otherId = row.a_id === viewer.id ? row.b_id : row.a_id
+    const candidate = otherId ? byId.get(otherId) : null
+    if (!candidate) continue
+    const breakdown =
+      row.match_score_breakdown_json && typeof row.match_score_breakdown_json === "object"
+        ? row.match_score_breakdown_json
+        : {}
+    pseudoSelected.push({
+      candidate,
+      rawScore: typeof breakdown.raw_score === "number" ? breakdown.raw_score : 0,
+      normalizedScore:
+        typeof breakdown.normalized_score === "number" ? breakdown.normalized_score : 0,
+      reasons: Array.isArray(breakdown.reasons) ? breakdown.reasons : [],
+      reasonWeights:
+        breakdown.reason_weights && typeof breakdown.reason_weights === "object"
+          ? breakdown.reason_weights
+          : {},
+      ruleHits:
+        breakdown.rule_hits && typeof breakdown.rule_hits === "object" ? breakdown.rule_hits : {},
+    })
+  }
+
+  if (pseudoSelected.length === 0) return 0
+
+  const explanationByCandidateId = await generateMatchExplanations(viewer, pseudoSelected)
+  let updated = 0
+
+  for (const row of rows) {
+    const otherId = row.a_id === viewer.id ? row.b_id : row.a_id
+    const text = otherId ? explanationByCandidateId.get(otherId) : ""
+    if (!text) continue
+
+    const { error: updateError } = await supabase
+      .from("connections")
+      .update({
+        match_explanation_text: text,
+        match_algorithm_version: MATCH_EXPLANATION_ALGORITHM_VERSION,
+      })
+      .eq("connection_id", row.connection_id)
+
+    if (updateError) {
+      throw new Error(`connections_explanation_update_failed: ${updateError.message}`)
     }
-
-    if (group === "fundraising") {
-      if (candidate.targetCompanyType === "investors_vc") {
-        addClause(`Fundraising support potential from ${candidateIdentity} with investor context.`)
-      } else {
-        addClause(`Fundraising-relevant perspective from ${candidateIdentity} with startup/operator context.`)
-      }
-      continue
-    }
-
-    if (group === "mentorship") {
-      if (
-        mentorshipPoints >= 8 &&
-        source.needsMentorship &&
-        (candidate.canMentor || candidate.seniority === "senior" || candidate.seniority === "executive")
-      ) {
-        addClause(
-          candidate.canMentor
-            ? `Mentorship value from mentor-capable ${candidateIdentity}.`
-            : `Mentorship value from senior ${candidateIdentity}.`,
-        )
-      }
-      continue
-    }
-
-    if (group === "networking") {
-      if (source.targetDomain !== "general" && source.targetDomain === candidate.targetDomain) {
-        addClause(`Shared ${domainLabel(candidate.targetDomain)} domain context for networking.`)
-      } else if (complementaryDomains(source.targetDomain, candidate.targetDomain)) {
-        addClause(
-          `Complementary domain context (${domainLabel(source.targetDomain)} + ${domainLabel(candidate.targetDomain)}).`,
-        )
-      } else {
-        addClause(`General networking overlap with ${candidateIdentity}.`)
-      }
-    }
+    updated += 1
   }
 
-  if (clauses.length < 2 && source.targetDomain !== "general" && source.targetDomain === candidate.targetDomain) {
-    addClause(`Shared ${domainLabel(candidate.targetDomain)} domain context.`)
-  }
-  if (clauses.length < 2 && complementaryDomains(source.targetDomain, candidate.targetDomain)) {
-    addClause(
-      `Complementary domain context (${domainLabel(source.targetDomain)} + ${domainLabel(candidate.targetDomain)}).`,
-    )
-  }
-  if (clauses.length < 2 && candidate.offerSummary) {
-    addClause(`Offer-side strength from ${candidateIdentity}: ${offerFamilyLabel(candidate.offerCapabilityFamily)}.`)
-  }
-
-  if (clauses.length === 0) {
-    if (row.reasons.length > 0) return cleanText(row.reasons[0])
-    return `Practical compatibility with ${candidateIdentity}.`
-  }
-
-  return clauses.slice(0, 2).join(" ")
+  return updated
 }
 
 async function loadCanonicalProfilesForEvent(supabase: any, eventId: string): Promise<CanonicalProfile[]> {
@@ -1148,6 +1204,7 @@ async function upsertMatches(
   eventId: string,
   viewer: CanonicalProfile,
   selected: ScoredCandidate[],
+  explanationByCandidateId: Map<string, string>,
 ): Promise<number> {
   await supabase
     .from("connections")
@@ -1206,8 +1263,8 @@ async function upsertMatches(
         fallback_used: row.fallbackUsed === true,
         selection_rule_version: "needs_offers_rules_v1",
       },
-      match_explanation_text: conciseSummary(viewer, row),
-      match_algorithm_version: "v5_rules_needs_offers",
+      match_explanation_text: explanationByCandidateId.get(candidate.id) || "",
+      match_algorithm_version: MATCH_EXPLANATION_ALGORITHM_VERSION,
     }
   })
 
@@ -1274,7 +1331,12 @@ async function upsertMatches(
   return persisted
 }
 
-async function processUser(eventId: string, userId: string, forceRecompute: boolean) {
+async function processUser(
+  eventId: string,
+  userId: string,
+  forceRecompute: boolean,
+  refreshExplanationsOnly: boolean,
+) {
   const supabase = getClient()
 
   const profiles = await loadCanonicalProfilesForEvent(supabase, eventId)
@@ -1285,16 +1347,43 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
     return { ok: false, processed: 0, inserted: 0, reason: "viewer_not_found" }
   }
 
+  if (refreshExplanationsOnly) {
+    const updated = await refreshStoredMatchExplanations(supabase, eventId, viewer, byId)
+    return {
+      ok: true,
+      processed: updated,
+      inserted: updated,
+      refreshed_explanations_only: true,
+      reason: updated > 0 ? "explanations_refreshed" : "no_viewer_matches_to_refresh",
+    }
+  }
+
   if (!forceRecompute) {
     const { data: existing } = await supabase
       .from("connections")
-      .select("connection_id")
+      .select("connection_id, match_explanation_text, match_algorithm_version")
       .eq("event_id", eventId)
       .eq("connection_kind", "system_match")
-      .or(`a_id.eq.${userId},b_id.eq.${userId}`)
+      .eq("created_by_user_id", userId)
+      .order("match_score", { ascending: false })
       .limit(SUGGESTIONS_PER_USER)
 
     if ((existing?.length ?? 0) >= SUGGESTIONS_PER_USER) {
+      const needsRefresh = existing!.some((row: any) =>
+        isStaleMatchExplanation(row.match_explanation_text, row.match_algorithm_version),
+      )
+
+      if (needsRefresh) {
+        const updated = await refreshStoredMatchExplanations(supabase, eventId, viewer, byId)
+        return {
+          ok: true,
+          processed: updated,
+          inserted: updated,
+          refreshed_explanations_only: true,
+          reason: "stale_explanations_refreshed",
+        }
+      }
+
       return {
         ok: true,
         processed: existing!.length,
@@ -1312,7 +1401,8 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
 
   const scored = candidates.map((candidate) => scorePair(viewer, candidate))
   const selected = selectCandidates(viewer, scored)
-  const inserted = await upsertMatches(supabase, eventId, viewer, selected)
+  const explanationByCandidateId = await generateMatchExplanations(viewer, selected)
+  const inserted = await upsertMatches(supabase, eventId, viewer, selected, explanationByCandidateId)
 
   return {
     ok: true,
@@ -1322,7 +1412,7 @@ async function processUser(eventId: string, userId: string, forceRecompute: bool
       id: row.candidate.id,
       raw_score: row.rawScore,
       score: row.normalizedScore,
-      reason_summary: conciseSummary(viewer, row),
+      reason_summary: explanationByCandidateId.get(row.candidate.id) || "",
       reasons: row.reasons,
       fallback_used: row.fallbackUsed === true,
     })),
@@ -1354,6 +1444,7 @@ serve(async (req) => {
   const eventId = cleanText(payload?.event_id)
   const userId = cleanText(payload?.user_id)
   const forceRecompute = payload?.force_recompute === true
+  const refreshExplanationsOnly = payload?.refresh_explanations_only === true
 
   if (!eventId || !userId) {
     return new Response(
@@ -1364,7 +1455,7 @@ serve(async (req) => {
 
   const startedAt = Date.now()
   try {
-    const result = await processUser(eventId, userId, forceRecompute)
+    const result = await processUser(eventId, userId, forceRecompute, refreshExplanationsOnly)
     return new Response(
       JSON.stringify({
         ...result,

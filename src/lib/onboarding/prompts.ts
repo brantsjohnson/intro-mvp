@@ -217,7 +217,11 @@ export function getAiMultipleChoiceInstructions(
     return (
       BASE +
       "\nMode override: event_topics_for_learning\n" +
-      "Use event context to propose concrete sub-topic options relevant to this event.\n"
+      "- The EVENT CONTEXT block above contains an organizer-authored event description. Treat it as ground truth for what is actually happening at this event.\n" +
+      "- Every option you propose for sub-topics, industries, or focus areas MUST be a concept, theme, session, or audience that is explicitly named or directly implied by the event description.\n" +
+      "- Do NOT invent topics that have no anchor in the event description (no generic catch-alls like \"Social media design\", \"Community building\", \"Ethical technology\" unless the event description actually frames them).\n" +
+      "- If the event description is empty/thin, do NOT guess specific topics. Instead ask one open-form clarifier that lets the user supply their own sub-topic (e.g. an MC with broader category buckets + Other).\n" +
+      "- If the user has already named an Other / free-text topic, anchor the next question on THAT term, not on event-wide guesses.\n"
     )
   }
 

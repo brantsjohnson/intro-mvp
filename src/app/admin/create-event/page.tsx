@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { EventQRCodeService } from "@/lib/event-qr-service"
 import { ArrowLeft, Plus, Edit, QrCode, Calendar, MapPin, Copy, Link as LinkIcon } from "lucide-react"
@@ -17,6 +18,7 @@ interface Event {
   event_location: string | null
   event_starts_at: string | null
   event_ends_at: string | null
+  event_description: string | null
 }
 
 export default function CreateEventPage() {
@@ -31,6 +33,7 @@ export default function CreateEventPage() {
     eventCode: "",
     eventName: "",
     eventLocation: "",
+    eventDescription: "",
     eventStartsAt: "",
     eventEndsAt: ""
   })
@@ -111,6 +114,7 @@ export default function CreateEventPage() {
           eventCode: formData.eventCode.toUpperCase(),
           eventName: formData.eventName,
           eventLocation: formData.eventLocation || null,
+          eventDescription: formData.eventDescription || null,
           // Store times exactly as entered (datetime-local format)
           eventStartsAt: formData.eventStartsAt || null,
           eventEndsAt: formData.eventEndsAt || null
@@ -128,6 +132,7 @@ export default function CreateEventPage() {
         eventCode: "",
         eventName: "",
         eventLocation: "",
+        eventDescription: "",
         eventStartsAt: "",
         eventEndsAt: ""
       })
@@ -165,6 +170,7 @@ export default function CreateEventPage() {
     setEditFormData({
       eventName: event.event_name,
       eventLocation: event.event_location || "",
+      eventDescription: event.event_description || "",
       eventStartsAt: formatForInput(event.event_starts_at),
       eventEndsAt: formatForInput(event.event_ends_at)
     })
@@ -186,6 +192,7 @@ export default function CreateEventPage() {
           eventId,
           eventName: editFormData.eventName,
           eventLocation: editFormData.eventLocation || null,
+          eventDescription: editFormData.eventDescription ?? null,
           // Store times exactly as entered (datetime-local format)
           eventStartsAt: editFormData.eventStartsAt || null,
           eventEndsAt: editFormData.eventEndsAt || null
@@ -306,6 +313,23 @@ export default function CreateEventPage() {
                     placeholder="e.g., San Francisco, CA"
                     className="mt-1"
                   />
+                </div>
+
+                <div>
+                  <Label htmlFor="eventDescription">Event Description</Label>
+                  <Textarea
+                    id="eventDescription"
+                    value={formData.eventDescription}
+                    onChange={(e) =>
+                      setFormData({ ...formData, eventDescription: e.target.value })
+                    }
+                    placeholder="What is this event actually about? Theme, main topics or sessions, intended audience, anything that should ground the onboarding AI's follow-up questions."
+                    className="mt-1 min-h-[140px]"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Used by the onboarding AI as ground truth for event-anchored follow-ups
+                    (topics, sessions, audience). Optional — you can fill it in later.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -479,6 +503,23 @@ export default function CreateEventPage() {
                               onChange={(e) => setEditFormData({ ...editFormData, eventLocation: e.target.value })}
                               className="mt-1"
                             />
+                          </div>
+                          <div>
+                            <Label>Event Description</Label>
+                            <Textarea
+                              value={editFormData.eventDescription || ""}
+                              onChange={(e) =>
+                                setEditFormData({
+                                  ...editFormData,
+                                  eventDescription: e.target.value,
+                                })
+                              }
+                              placeholder="What is this event actually about? Theme, topics, sessions, audience."
+                              className="mt-1 min-h-[120px]"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Used by the onboarding AI for event-anchored follow-up questions.
+                            </p>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
