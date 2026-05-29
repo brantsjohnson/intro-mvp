@@ -33,12 +33,17 @@ type MatchView = {
   summary: string
   reasons: string[]
   fallbackUsed: boolean
+  // v8 structured fields (empty for pre-v8 responses)
+  whyMeetCard: string
+  whyMeetParagraph: string
+  whatTheyAreLookingFor: string
 }
 
 type PerSourceResult = {
   sourceKey: string
   sourceName: string
   matches: MatchView[]
+  selectionPath: string
 }
 
 type AssertionResult = {
@@ -693,11 +698,15 @@ function buildMarkdownReport(params: {
 
   for (const row of results) {
     lines.push(`### ${row.sourceName} (${row.sourceKey})`)
+    lines.push(`- Selection path: ${row.selectionPath}`)
     if (row.matches.length === 0) {
       lines.push("- No matches returned")
     } else {
       row.matches.forEach((m, idx) => {
         lines.push(`- ${idx + 1}. ${summaryLine(m)}`)
+        if (m.whyMeetCard) lines.push(`    - why_meet_card: ${m.whyMeetCard}`)
+        if (m.whyMeetParagraph) lines.push(`    - why_meet_paragraph: ${m.whyMeetParagraph}`)
+        if (m.whatTheyAreLookingFor) lines.push(`    - what_they_are_looking_for: ${m.whatTheyAreLookingFor}`)
       })
     }
     lines.push("")
@@ -748,6 +757,9 @@ async function main() {
         summary: String(m.reason_summary || ""),
         reasons: Array.isArray(m.reasons) ? m.reasons.map((r: any) => String(r)) : [],
         fallbackUsed: Boolean(m.fallback_used),
+        whyMeetCard: String(m.why_meet_card || ""),
+        whyMeetParagraph: String(m.why_meet_paragraph || ""),
+        whatTheyAreLookingFor: String(m.what_they_are_looking_for || ""),
       }
     })
 
@@ -755,6 +767,7 @@ async function main() {
       sourceKey: fixture.key,
       sourceName: displayName(fixture.firstName, fixture.lastName),
       matches: rendered,
+      selectionPath: String(payload.selection_path || "unknown"),
     })
   }
 

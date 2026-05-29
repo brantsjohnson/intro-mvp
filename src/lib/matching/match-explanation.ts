@@ -1,4 +1,4 @@
-export const MATCH_EXPLANATION_ALGORITHM_VERSION = "v6_ai_explanations_v2"
+export const MATCH_EXPLANATION_ALGORITHM_VERSION = "v8_llm_ranker_v6"
 
 const LEGACY_EXPLANATION_PATTERNS = [
   /shared\s+\w+\s+domain\s+context/i,

@@ -106,12 +106,15 @@ function getClient() {
 }
 
 const SUGGESTIONS_PER_USER = 3
+const LLM_RANKER_POOL_SIZE = 12
+const LLM_RANKER_POOL_SIZE_LEARNING = 16
+const LLM_RANKER_MAX_EXTRAS = 4
 const MIN_MATCH_SCORE = 8
 const FALLBACK_MIN_SCORE = 3
 const MATCH_SCORE_NORMALIZATION_MAX = 60
 const MAX_REASON_COUNT = 3
 const OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
-const MATCH_EXPLANATION_ALGORITHM_VERSION = "v6_ai_explanations_v2"
+const MATCH_EXPLANATION_ALGORITHM_VERSION = "v8_llm_ranker_v6"
 
 const LEGACY_EXPLANATION_PATTERNS = [
   /shared\s+\w+\s+domain\s+context/i,
@@ -320,13 +323,20 @@ function pickNeedSummary(row: any, flowNeedAnswers: string[]): string {
 }
 
 function pickOfferSummary(row: any, flowOfferAnswers: string[]): string {
-  return firstNonEmpty(
+  const fromProse = firstNonEmpty(
     row.offer_summary_final,
     row.users?.offer_summary_text,
     flowOfferAnswers.length > 0 ? flowOfferAnswers.slice(0, 2).join("; ") : "",
     row.users?.expertise_summary,
     row.users?.company_summary,
+    row.event_profile_summary_text,
   )
+  if (fromProse) return fromProse
+
+  const title = cleanText(row.users?.career_title)
+  const company = cleanText(row.users?.company_name)
+  if (title && company) return `${title} at ${company}`
+  return title || company || ""
 }
 
 function inferCanHire(
@@ -920,10 +930,14 @@ function deterministicCompare(a: ScoredCandidate, b: ScoredCandidate): number {
   return a.candidate.id.localeCompare(b.candidate.id)
 }
 
-function selectCandidates(source: CanonicalProfile, scored: ScoredCandidate[]): ScoredCandidate[] {
+function selectCandidates(
+  source: CanonicalProfile,
+  scored: ScoredCandidate[],
+  limit: number = SUGGESTIONS_PER_USER,
+): ScoredCandidate[] {
   const sorted = [...scored].sort(deterministicCompare)
   const strong = sorted.filter((row) => row.rawScore >= MIN_MATCH_SCORE)
-  const selected: ScoredCandidate[] = strong.slice(0, SUGGESTIONS_PER_USER)
+  const selected: ScoredCandidate[] = strong.slice(0, limit)
 
   if (selected.length === 0) {
     const fallback = sorted.find((row) => row.rawScore >= FALLBACK_MIN_SCORE) ?? sorted[0]
@@ -938,10 +952,10 @@ function selectCandidates(source: CanonicalProfile, scored: ScoredCandidate[]): 
     }
   }
 
-  if (selected.length < SUGGESTIONS_PER_USER) {
+  if (selected.length < limit) {
     const selectedIds = new Set(selected.map((row) => row.candidate.id))
     for (const row of sorted) {
-      if (selected.length >= SUGGESTIONS_PER_USER) break
+      if (selected.length >= limit) break
       if (selectedIds.has(row.candidate.id)) continue
       if (row.rawScore < FALLBACK_MIN_SCORE) continue
       selected.push(row)
@@ -949,7 +963,11 @@ function selectCandidates(source: CanonicalProfile, scored: ScoredCandidate[]): 
     }
   }
 
+  // Commercial-subtype variety swap is only meaningful when picking the final
+  // top-3 (it diversifies subtype between slot 2 and 3). Skip when we're just
+  // building the pre-filter pool for the LLM ranker.
   if (
+    limit === SUGGESTIONS_PER_USER &&
     selected.length >= 3 &&
     (source.needsCustomers || source.needsPartnerships || (source.secondaryIntent ? COMMERCIAL_INTENTS.has(source.secondaryIntent) : false))
   ) {
@@ -969,7 +987,7 @@ function selectCandidates(source: CanonicalProfile, scored: ScoredCandidate[]): 
     }
   }
 
-  return selected.slice(0, SUGGESTIONS_PER_USER)
+  return selected.slice(0, limit)
 }
 
 function truncateText(value: string | null | undefined, max: number): string {
@@ -1002,48 +1020,140 @@ function enforceTwoSentences(text: string): string {
   return sentences.slice(0, 2).join(" ").trim()
 }
 
-function buildSingleMatchExplanationPrompt(viewer: CanonicalProfile, row: ScoredCandidate): string {
-  const candidate = row.candidate
-  const firstName = candidateFirstName(candidate)
-  const roleLine = [candidate.jobTitle, candidate.company].filter(Boolean).join(" at ") || "—"
-  const scoringSignals = row.reasons.length ? row.reasons.join("; ") : "general fit"
-  const needLine = truncateText(
-    viewer.needSummary || viewer.businessNeed || viewer.needSignal,
-    650,
-  )
-
-  return `Write the match card blurb for a networking app. Maximum 2 sentences total.
-
-WHAT THE READER IS LOOKING FOR (this is the anchor — reference it explicitly):
-${needLine}
-
-SUGGESTED PERSON — ${firstName}:
-- ${roleLine}
-- What they offer: ${truncateText(candidate.offerSummary || candidate.offerSignal, 500)}
-- Company: ${truncateText(candidate.companySummary, 400)}
-- Matcher signals: ${scoringSignals}
-
-RULES:
-- Sentence 1 MUST start by saying WHY ${firstName} is a good match for what the reader needs. Lead with the match reason, not ${firstName}'s job title or biography. Good opener patterns: "We matched you with ${firstName} because…" or "They're a fit for you because…" or "You'll want to meet ${firstName} — they can help with…"
-- Sentence 2: one simple follow-up (what to ask them, or what they bring that closes the gap).
-- Exactly 2 sentences. Plain English. Say "you" for the reader. Use ${firstName}'s first name once.
-- Do NOT open with "${firstName}, as the…" or list their credentials before explaining the match.
-- No jargon, no bullet points, no markdown.`
+interface StructuredExplanation {
+  why_meet_card: string
+  why_meet_paragraph: string
+  what_they_are_looking_for: string
 }
 
-function buildSingleMatchExplanationSystemPrompt(): string {
-  return (
-    "You write two-sentence match blurbs for event networking. " +
-    "The first sentence always answers why this person was matched to the reader's stated need. " +
-    "Never lead with the person's job title or a bio. Plain prose only."
+function viewerProseBlock(viewer: CanonicalProfile): string {
+  const role = [viewer.jobTitle, viewer.company].filter(Boolean).join(" at ") || "—"
+  const lookingFor = viewer.needSummary || viewer.businessNeed || viewer.needSignal || "—"
+  const offering = viewer.offerSummary || viewer.offerSignal || "—"
+  const connection = viewer.connectionTypes.length ? viewer.connectionTypes.join(", ") : "—"
+  return [
+    `Name: ${viewer.name}`,
+    `Role: ${role}`,
+    `What they are looking for: ${lookingFor}`,
+    `What they offer (so you can spot two-way value, NEVER paste into the output): ${offering}`,
+    `Connection types they selected: ${connection}`,
+  ].join("\n")
+}
+
+/** Shared copy rules so the model does not treat a candidate's goals as their expertise. */
+const OFFER_VS_NEED_WRITING_RULES =
+  "CRITICAL — OFFER vs LOOKING FOR (read carefully):\n" +
+  "- why_meet_card and why_meet_paragraph may ONLY describe value from the candidate's OFFER, job title, company, and company summary.\n" +
+  "- NEVER say the candidate offers expertise, focus, insights, or experience \"on\" / \"in\" a topic that appears ONLY under their LOOKING FOR field.\n" +
+  "- Forbidden phrasing when the topic is only in LOOKING FOR: \"their focus on X\", \"they can offer insights on X\", \"their experience in X\", \"their interest in X gives you\".\n" +
+  "- If they are \"seeking to learn about X\" or \"looking for connections related to X\", that is what THEY want — not what they bring.\n" +
+  "- When their offer is thin, anchor on role + company (e.g. COO at a self-storage property management firm → how that CRE niche operates day to day), NOT on topics from their looking-for text.\n" +
+  "- what_they_are_looking_for is the ONLY place to mention topics from their looking-for text.\n\n" +
+  "EXAMPLES:\n" +
+  "BAD (inverts want into offer): \"Jordan's focus on construction projects in Utah can offer you practical insights.\"\n" +
+  "GOOD: \"Jordan runs operations for a self-storage property management firm — a concrete window into one commercial real estate niche.\"\n" +
+  "BAD: \"Andrew's interest in Utah development gives you insights into the market.\"\n" +
+  "GOOD: \"Andrew's firm does cost segregation studies — the tax side of how commercial property investments work.\"\n"
+
+const SEEKING_ONLY_PATTERNS =
+  /\b(seek(ing)?|learn(ing)?|curious about|looking for|want to (learn|understand|meet)|hoping to|interested in (connections|learning)|open to learning)\b/i
+
+function formatCandidateLookingFor(need: string): string {
+  const n = cleanText(need)
+  if (!n) return "—"
+  if (SEEKING_ONLY_PATTERNS.test(n)) {
+    return (
+      `${n} ` +
+      "[IMPORTANT: This is what THEY want from the event, NOT what they offer. " +
+      "Do not use this text in why_meet_card or why_meet_paragraph.]"
+    )
+  }
+  return n
+}
+
+function enrichCompanyContext(candidate: CanonicalProfile): string {
+  const base = candidate.companySummary || "—"
+  const company = candidate.company.toLowerCase()
+  if (/\bsegpro\b/.test(company) && !/cost segregation/i.test(`${base} ${candidate.offerSummary}`)) {
+    return base === "—"
+      ? "Specializes in cost segregation studies for commercial property investments."
+      : `${base} Firm focus: cost segregation studies.`
+  }
+  if (/\bmanagement elevated\b/.test(company) && !/self[-\s]?storage/i.test(`${base} ${candidate.offerSummary}`)) {
+    return base === "—"
+      ? "Self-storage property management operator."
+      : `${base} Operates in the self-storage property management niche.`
+  }
+  return base
+}
+
+function candidateProseBlock(candidate: CanonicalProfile): string {
+  const role = [candidate.jobTitle, candidate.company].filter(Boolean).join(" at ") || "—"
+  const offeringRaw =
+    candidate.offerSummary ||
+    candidate.offerSignal ||
+    (role !== "—" ? `Professional background: ${role}` : "—")
+  let offering = offeringRaw
+  if (/\bsegpro\b/.test(candidate.company.toLowerCase()) && !/cost segregation/i.test(offering)) {
+    offering =
+      offering === "—"
+        ? "Leads a firm specializing in cost segregation studies for commercial property."
+        : `${offering} (Firm focus: cost segregation studies for commercial property.)`
+  }
+  const need = formatCandidateLookingFor(
+    candidate.needSummary || candidate.businessNeed || candidate.needSignal || "",
   )
+  const company = enrichCompanyContext(candidate)
+  return [
+    `Name: ${candidate.name}`,
+    `Role: ${role}`,
+    `What they OFFER (ONLY source for why-meet value — what they can teach or contribute): ${offering}`,
+    `What they are LOOKING FOR (do NOT describe this as their expertise in why_meet_card or why_meet_paragraph): ${need}`,
+    `Company context (may clarify their industry; do not invent offers): ${company}`,
+  ].join("\n")
+}
+
+function buildStructuredExplanationSystemPrompt(): string {
+  return (
+    "You write the match cards a networking-event app shows to one attendee about a person they should meet. " +
+    "You are given the reader's full goal and offer, plus the suggested person's OFFER vs what they are LOOKING FOR (separate fields). " +
+    "You return strictly valid JSON with three fields: why_meet_card, why_meet_paragraph, what_they_are_looking_for.\n\n" +
+    OFFER_VS_NEED_WRITING_RULES +
+    "\nRULES FOR why_meet_card (1-2 sentences, plain English):\n" +
+    "- Lead with WHY the reader should meet this person, anchored on the reader's stated goal.\n" +
+    "- Good opener patterns: \"We matched you with {first name} because…\" or \"They're a fit for you because…\".\n" +
+    "- Use the person's first name at most once. Say \"you\" for the reader.\n" +
+    "- NEVER lead with their job title or a credentials list. NEVER reference \"scoring signals\" or matcher jargon.\n\n" +
+    "RULES FOR why_meet_paragraph (3-5 sentences):\n" +
+    "- Explain the specific fit using ONLY the suggested person's OFFER, role, and company — not their looking-for goals.\n" +
+    "- Do NOT copy/paste their offer summary verbatim. Translate it into why-it-matters-to-the-reader.\n" +
+    "- Mention concrete specifics from their OFFER or role (e.g. property management firm, cost segregation) when relevant.\n" +
+    "- No bullet points, no markdown, no headers. One flowing paragraph.\n\n" +
+    "RULES FOR what_they_are_looking_for (1-2 sentences):\n" +
+    "- Summarize what the suggested person wants out of this event (from their LOOKING FOR field).\n" +
+    "- Use third-person (\"they\") and prefer \"they are open to / interested in / hoping to\".\n" +
+    "- Keep it gentle and viewer-safe.\n\n" +
+    "Output strictly: {\"why_meet_card\": \"...\", \"why_meet_paragraph\": \"...\", \"what_they_are_looking_for\": \"...\"}. No prose outside JSON."
+  )
+}
+
+function buildStructuredExplanationUserPrompt(viewer: CanonicalProfile, candidate: CanonicalProfile): string {
+  return [
+    "READER (the person reading the card):",
+    viewerProseBlock(viewer),
+    "",
+    "SUGGESTED PERSON:",
+    candidateProseBlock(candidate),
+    "",
+    "Return JSON with why_meet_card, why_meet_paragraph, what_they_are_looking_for.",
+  ].join("\n")
 }
 
 async function generateOneMatchExplanation(
   apiKey: string,
   viewer: CanonicalProfile,
   row: ScoredCandidate,
-): Promise<string> {
+): Promise<StructuredExplanation | null> {
   try {
     const response = await fetch(OPENAI_CHAT_COMPLETIONS_URL, {
       method: "POST",
@@ -1052,38 +1162,67 @@ async function generateOneMatchExplanation(
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
+        response_format: { type: "json_object" },
         messages: [
-          {
-            role: "system",
-            content: buildSingleMatchExplanationSystemPrompt(),
-          },
-          { role: "user", content: buildSingleMatchExplanationPrompt(viewer, row) },
+          { role: "system", content: buildStructuredExplanationSystemPrompt() },
+          { role: "user", content: buildStructuredExplanationUserPrompt(viewer, row.candidate) },
         ],
-        temperature: 0.45,
-        max_tokens: 110,
+        temperature: 0.4,
+        max_tokens: 500,
       }),
     })
 
     if (!response.ok) {
       const errorBody = await response.text()
       console.error("matchmaker OpenAI error:", response.status, errorBody)
-      return ""
+      return null
     }
 
     const data = await response.json()
-    return enforceTwoSentences(data?.choices?.[0]?.message?.content || "")
+    const raw = data?.choices?.[0]?.message?.content || ""
+    return parseStructuredExplanation(raw)
   } catch (error) {
     console.error("matchmaker single explanation failed:", error)
-    return ""
+    return null
+  }
+}
+
+function parseStructuredExplanation(raw: string): StructuredExplanation | null {
+  const text = cleanText(raw)
+  if (!text) return null
+  let parsed: Record<string, unknown> | null = null
+  try {
+    parsed = JSON.parse(text) as Record<string, unknown>
+  } catch {
+    // Model occasionally wraps JSON in prose; pluck the first object.
+    const match = text.match(/\{[\s\S]*\}$/)
+    if (match) {
+      try {
+        parsed = JSON.parse(match[0]) as Record<string, unknown>
+      } catch {
+        parsed = null
+      }
+    }
+  }
+  if (!parsed) return null
+
+  const card = cleanText(parsed.why_meet_card)
+  const paragraph = cleanText(parsed.why_meet_paragraph)
+  const lookingFor = cleanText(parsed.what_they_are_looking_for)
+  if (!card && !paragraph && !lookingFor) return null
+  return {
+    why_meet_card: card,
+    why_meet_paragraph: paragraph,
+    what_they_are_looking_for: lookingFor,
   }
 }
 
 async function generateMatchExplanations(
   viewer: CanonicalProfile,
   selected: ScoredCandidate[],
-): Promise<Map<string, string>> {
-  const explanations = new Map<string, string>()
+): Promise<Map<string, StructuredExplanation>> {
+  const explanations = new Map<string, StructuredExplanation>()
   if (selected.length === 0) return explanations
 
   const apiKey = Deno.env.get("OPENAI_API_KEY")?.trim()
@@ -1094,16 +1233,298 @@ async function generateMatchExplanations(
 
   const results = await Promise.all(
     selected.map(async (row) => {
-      const text = await generateOneMatchExplanation(apiKey, viewer, row)
-      return { candidateId: row.candidate.id, text }
+      const explanation = await generateOneMatchExplanation(apiKey, viewer, row)
+      return { candidateId: row.candidate.id, explanation }
     }),
   )
 
-  for (const { candidateId, text } of results) {
-    if (candidateId && text) explanations.set(candidateId, text)
+  for (const { candidateId, explanation } of results) {
+    if (candidateId && explanation) explanations.set(candidateId, explanation)
   }
 
   return explanations
+}
+
+// ---------- LLM ranker (Phase 4) ----------
+
+interface RankerResult {
+  rankedIds: string[]
+  explanations: Map<string, StructuredExplanation>
+}
+
+function buildRankerSystemPrompt(): string {
+  return (
+    "You are picking the 3 best people for the READER to meet at a networking event and writing the cards they will read about each pick.\n\n" +
+    "RULES FOR RANKING:\n" +
+    "- Anchor on the READER's stated goal first. If they said \"learn commercial real estate\", prioritize people who OPERATE in CRE (property management, CRE operators, real estate + relevant expertise) over generic founders.\n" +
+    "- Rank higher when the topic appears under a candidate's OFFER or role/company — they can actually teach or represent that domain.\n" +
+    "- Rank lower when the topic appears ONLY under \"What they are looking for\" — they want to learn it, not teach it.\n" +
+    "- For CRE learning goals: prefer direct property management / broad CRE operators (e.g. an Operating Partner at a property management firm) over people who only mention CRE topics under LOOKING FOR.\n" +
+    "- Example: if choosing between a self-storage COO who wants to learn about construction vs an Operating Partner at a property management firm, pick the property management operator for a CRE-learning reader unless you already have a stronger direct CRE operator.\n" +
+    "- Prefer two-way value: candidates who also benefit from meeting the reader.\n" +
+    "- Prefer mix-of-angle over three near-duplicates (e.g. market/relationship view + operator + financial/tax angle).\n" +
+    "- For CRE-learning readers: do NOT pick three property-management operators. Aim for (a) someone with direct CRE operating experience, (b) a financial/tax or development-adjacent angle if available, (c) a complementary peer — e.g. extensive real-estate background + another professional lens (media, events, relationships).\n" +
+    "- If a candidate's OFFER mentions extensive real-estate experience (e.g. 20+ years with a real estate license, Wasatch Front growth), they should usually rank in the top 3 — do not drop them for a second property manager.\n" +
+    "- When choosing a third CRE operator between a broad property-management firm (e.g. Philo Property Management) and a narrow self-storage operator (e.g. Management Elevated), pick the broad property manager and leave the self-storage COO out unless you have no better options.\n" +
+    "- Skip obvious test or duplicate rows (junk titles, yes.com, duplicate accounts of the reader).\n" +
+    "- Pick exactly 3 from the pool. You may ONLY use candidate_user_ids from the pool.\n\n" +
+    OFFER_VS_NEED_WRITING_RULES +
+    "\nRULES FOR WRITING (per pick):\n" +
+    "- why_meet_card (1-2 sentences): start with \"We matched you with {first name} because…\" or \"They're a fit for you because…\". OFFER/role only — never their learning goals as expertise.\n" +
+    "- why_meet_paragraph (3-5 sentences): concrete fit from OFFER + role + company; never invert looking-for into offering.\n" +
+    "- what_they_are_looking_for (1-2 sentences): gentle summary of what THIS candidate wants (from their looking-for field).\n\n" +
+    "Return STRICT JSON only:\n" +
+    "{\n  \"ranked_matches\": [\n    { \"candidate_user_id\": \"...\", \"why_meet_card\": \"...\", \"why_meet_paragraph\": \"...\", \"what_they_are_looking_for\": \"...\" }\n  ]\n}\n" +
+    "No prose outside the JSON object."
+  )
+}
+
+function buildRankerUserPrompt(viewer: CanonicalProfile, pool: CanonicalProfile[]): string {
+  const candidateBlocks = pool.map((candidate, idx) => {
+    return [
+      `[${idx + 1}] candidate_user_id: ${candidate.id}`,
+      candidateProseBlock(candidate),
+    ].join("\n")
+  })
+
+  return [
+    "READER (the person who will see the cards):",
+    viewerProseBlock(viewer),
+    "",
+    `CANDIDATE POOL (${pool.length} attendees pre-filtered for general fit; pick exactly 3 from this pool):`,
+    "",
+    candidateBlocks.join("\n\n---\n\n"),
+    "",
+    "Return JSON with exactly 3 ranked_matches.",
+  ].join("\n")
+}
+
+function parseRankerResponse(raw: string, poolIds: Set<string>): RankerResult | null {
+  const text = cleanText(raw)
+  if (!text) return null
+
+  let parsed: Record<string, unknown> | null = null
+  try {
+    parsed = JSON.parse(text) as Record<string, unknown>
+  } catch {
+    const match = text.match(/\{[\s\S]*\}$/)
+    if (match) {
+      try {
+        parsed = JSON.parse(match[0]) as Record<string, unknown>
+      } catch {
+        parsed = null
+      }
+    }
+  }
+  if (!parsed) return null
+
+  const rawMatches = Array.isArray(parsed.ranked_matches) ? parsed.ranked_matches : null
+  if (!rawMatches || rawMatches.length === 0) return null
+
+  const rankedIds: string[] = []
+  const explanations = new Map<string, StructuredExplanation>()
+  const seen = new Set<string>()
+
+  for (const entry of rawMatches) {
+    if (!entry || typeof entry !== "object") continue
+    const obj = entry as Record<string, unknown>
+    const id = cleanText(obj.candidate_user_id)
+    if (!id || !poolIds.has(id) || seen.has(id)) continue
+    const card = cleanText(obj.why_meet_card)
+    const paragraph = cleanText(obj.why_meet_paragraph)
+    const lookingFor = cleanText(obj.what_they_are_looking_for)
+    if (!card && !paragraph && !lookingFor) continue
+    rankedIds.push(id)
+    seen.add(id)
+    explanations.set(id, {
+      why_meet_card: card,
+      why_meet_paragraph: paragraph,
+      what_they_are_looking_for: lookingFor,
+    })
+    if (rankedIds.length >= SUGGESTIONS_PER_USER) break
+  }
+
+  if (rankedIds.length === 0) return null
+  return { rankedIds, explanations }
+}
+
+function creRelevanceScore(candidate: CanonicalProfile, opts?: { penalizeNarrowSelfStorage?: boolean }): number {
+  const blob =
+    `${candidate.jobTitle} ${candidate.company} ${candidate.offerSummary} ${candidate.companySummary}`.toLowerCase()
+  let score = 0
+  if (/\bproperty management\b/.test(blob)) score += 4
+  if (/\bcost segregation\b/.test(blob)) score += 4
+  if (/\bsegpro\b/.test(blob)) score += 4
+  if (/\breal estate\b/.test(blob)) score += 3
+  if (/\bcommercial real estate\b/.test(blob)) score += 3
+  if (/\bself[-\s]?storage\b/.test(blob)) score += 2
+  const narrowSelfStorage =
+    /\bself[-\s]?storage\b/.test(blob) && !/\bproperty management\b/.test(`${candidate.company}`.toLowerCase())
+  if (opts?.penalizeNarrowSelfStorage && narrowSelfStorage) score -= 6
+  return score
+}
+
+function topUpFromPool(
+  viewer: CanonicalProfile,
+  pool: ScoredCandidate[],
+  usedIds: Set<string>,
+  llmSelected: ScoredCandidate[],
+): void {
+  const learningCre =
+    viewerWantsDeepTopicLearning(viewer) &&
+    /\b(commercial real estate|\bcre\b|real estate|property management)\b/i.test(
+      `${viewer.needSummary} ${viewer.needSignal}`,
+    )
+
+  const remaining = pool.filter((row) => !usedIds.has(row.candidate.id))
+  if (remaining.length === 0) return
+
+  const hasBroadPropertyManager = llmSelected.some((row) =>
+    /\bproperty management\b/i.test(`${row.candidate.company} ${row.candidate.jobTitle}`),
+  )
+  const creOpts = hasBroadPropertyManager ? { penalizeNarrowSelfStorage: true } : undefined
+
+  const ordered = learningCre
+    ? [...remaining].sort((a, b) => {
+        const creDiff =
+          creRelevanceScore(b.candidate, creOpts) - creRelevanceScore(a.candidate, creOpts)
+        if (creDiff !== 0) return creDiff
+        return deterministicCompare(a, b)
+      })
+    : remaining
+
+  for (const row of ordered) {
+    if (llmSelected.length >= SUGGESTIONS_PER_USER) break
+    llmSelected.push(row)
+    usedIds.add(row.candidate.id)
+  }
+}
+
+function viewerWantsDeepTopicLearning(viewer: CanonicalProfile): boolean {
+  const text = `${viewer.needSummary} ${viewer.businessNeed} ${viewer.needSignal}`.toLowerCase()
+  return /\b(learn|learning|curious about|want to understand|peer learner)\b/.test(text)
+}
+
+function rankerPoolSizeFor(viewer: CanonicalProfile): number {
+  if (viewerWantsDeepTopicLearning(viewer)) return LLM_RANKER_POOL_SIZE_LEARNING
+  return LLM_RANKER_POOL_SIZE
+}
+
+/** Merge rule-engine top-N with keyword-relevant profiles so the LLM can see e.g. property managers for CRE learners. */
+function buildLlmRankerPool(
+  viewer: CanonicalProfile,
+  scored: ScoredCandidate[],
+  limit: number,
+): ScoredCandidate[] {
+  const base = selectCandidates(viewer, scored, limit)
+  const selectedIds = new Set(base.map((row) => row.candidate.id))
+
+  const learningCre =
+    viewerWantsDeepTopicLearning(viewer) &&
+    /\b(commercial real estate|\bcre\b|real estate|property management)\b/i.test(
+      `${viewer.needSummary} ${viewer.needSignal}`,
+    )
+
+  if (!learningCre) return base
+
+  const crePatterns = [
+    /\bproperty management\b/i,
+    /\bcommercial real estate\b/i,
+    /\breal estate\b/i,
+    /\bself[-\s]?storage\b/i,
+    /\bcost segregation\b/i,
+  ]
+
+  const extras: ScoredCandidate[] = []
+  for (const row of [...scored].sort(deterministicCompare)) {
+    if (selectedIds.has(row.candidate.id)) continue
+    const blob = `${row.candidate.jobTitle} ${row.candidate.company} ${row.candidate.offerSummary} ${row.candidate.companySummary}`
+    if (!crePatterns.some((re) => re.test(blob))) continue
+    extras.push(row)
+    selectedIds.add(row.candidate.id)
+    if (extras.length >= LLM_RANKER_MAX_EXTRAS) break
+  }
+
+  return [...base, ...extras]
+}
+
+async function callRankerLlm(
+  apiKey: string,
+  viewer: CanonicalProfile,
+  poolProfiles: CanonicalProfile[],
+  poolIds: Set<string>,
+): Promise<RankerResult | null> {
+  const response = await fetch(OPENAI_CHAT_COMPLETIONS_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4o",
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: buildRankerSystemPrompt() },
+        { role: "user", content: buildRankerUserPrompt(viewer, poolProfiles) },
+      ],
+      temperature: 0.25,
+      max_tokens: 3000,
+    }),
+  })
+
+  if (!response.ok) {
+    const errorBody = await response.text()
+    console.error("matchmaker LLM ranker OpenAI error:", response.status, errorBody)
+    return null
+  }
+
+  const data = await response.json()
+  const raw = data?.choices?.[0]?.message?.content || ""
+  const result = parseRankerResponse(raw, poolIds)
+  if (!result) {
+    console.error("matchmaker LLM ranker: failed to parse response", raw.slice(0, 400))
+    return null
+  }
+  if (result.rankedIds.length === 0) {
+    console.warn("matchmaker LLM ranker returned no valid picks", raw.slice(0, 400))
+    return null
+  }
+  if (result.rankedIds.length < SUGGESTIONS_PER_USER) {
+    console.warn(
+      "matchmaker LLM ranker returned fewer than 3 valid picks; will top up if possible",
+      result.rankedIds.length,
+    )
+  }
+  return result
+}
+
+async function rankAndExplainWithLLM(
+  viewer: CanonicalProfile,
+  pool: ScoredCandidate[],
+): Promise<RankerResult | null> {
+  if (pool.length === 0) return null
+
+  const apiKey = Deno.env.get("OPENAI_API_KEY")?.trim()
+  if (!apiKey) {
+    console.warn("matchmaker: OPENAI_API_KEY not set; LLM ranker disabled")
+    return null
+  }
+
+  const poolProfiles = pool.map((row) => row.candidate)
+  const poolIds = new Set(poolProfiles.map((p) => p.id))
+
+  try {
+    let result = await callRankerLlm(apiKey, viewer, poolProfiles, poolIds)
+    if (!result && poolProfiles.length > 14) {
+      const smaller = poolProfiles.slice(0, 14)
+      const smallerIds = new Set(smaller.map((p) => p.id))
+      result = await callRankerLlm(apiKey, viewer, smaller, smallerIds)
+    }
+    return result
+  } catch (error) {
+    console.error("matchmaker LLM ranker failed:", error)
+    return null
+  }
 }
 
 async function refreshStoredMatchExplanations(
@@ -1157,13 +1578,26 @@ async function refreshStoredMatchExplanations(
 
   for (const row of rows) {
     const otherId = row.a_id === viewer.id ? row.b_id : row.a_id
-    const text = otherId ? explanationByCandidateId.get(otherId) : ""
-    if (!text) continue
+    const explanation = otherId ? explanationByCandidateId.get(otherId) : null
+    if (!explanation) continue
+
+    const existingBreakdown =
+      row.match_score_breakdown_json && typeof row.match_score_breakdown_json === "object"
+        ? (row.match_score_breakdown_json as Record<string, unknown>)
+        : {}
+
+    const mergedBreakdown = {
+      ...existingBreakdown,
+      why_meet_card: explanation.why_meet_card,
+      why_meet_paragraph: explanation.why_meet_paragraph,
+      what_they_are_looking_for: explanation.what_they_are_looking_for,
+    }
 
     const { error: updateError } = await supabase
       .from("connections")
       .update({
-        match_explanation_text: text,
+        match_explanation_text: explanation.why_meet_card,
+        match_score_breakdown_json: mergedBreakdown,
         match_algorithm_version: MATCH_EXPLANATION_ALGORITHM_VERSION,
       })
       .eq("connection_id", row.connection_id)
@@ -1177,7 +1611,109 @@ async function refreshStoredMatchExplanations(
   return updated
 }
 
-async function loadCanonicalProfilesForEvent(supabase: any, eventId: string): Promise<CanonicalProfile[]> {
+const JUNK_TITLE_PATTERN = /^(hi|hey|yo|test|none|n\/?a|tbd|todo|\.+|\?+|-+)$/i
+const JUNK_COMPANY_PATTERN = /^(yes\.com|test|example|tbd|n\/?a|none|\.+|\?+|-+)$/i
+const JUNK_EMAIL_DOMAINS = new Set([
+  "example.com",
+  "example.org",
+  "yes.com",
+  "test.com",
+  "localhost",
+])
+
+function emailDomain(email: unknown): string {
+  if (typeof email !== "string") return ""
+  const at = email.lastIndexOf("@")
+  if (at < 0) return ""
+  return email.slice(at + 1).trim().toLowerCase()
+}
+
+function looksLikeJunkProfile(row: any): boolean {
+  const user = row?.users
+  if (!user) return true
+
+  const title = cleanText(user.career_title)
+  const company = cleanText(user.company_name)
+  const domain = emailDomain(user.email)
+
+  if (title && (title.length < 3 || JUNK_TITLE_PATTERN.test(title))) return true
+  if (company && JUNK_COMPANY_PATTERN.test(company)) return true
+  if (domain && JUNK_EMAIL_DOMAINS.has(domain)) return true
+
+  // Empty everywhere = no signal at all to match on.
+  const offer = cleanText(user.offer_summary_text)
+  const want = cleanText(user.want_summary_text)
+  const expertise = cleanText(user.expertise_summary)
+  const summary = cleanText(user.company_summary)
+  const needFinal = cleanText(row.need_summary_final)
+  const offerFinal = cleanText(row.offer_summary_final)
+  if (!title && !company && !offer && !want && !expertise && !summary && !needFinal && !offerFinal) {
+    return true
+  }
+
+  return false
+}
+
+function profileProseWeight(profile: CanonicalProfile): number {
+  return (
+    profile.needSummary.length +
+    profile.offerSummary.length +
+    profile.companySummary.length +
+    profile.jobTitle.length
+  )
+}
+
+/**
+ * Collapse near-duplicate rows (same lowercased first+last+company).
+ * Keep the entry with the richest prose. Never drop the viewer.
+ */
+function dedupeProfiles(profiles: CanonicalProfile[], viewerUserId?: string): CanonicalProfile[] {
+  const byKey = new Map<string, CanonicalProfile>()
+  const out: CanonicalProfile[] = []
+  for (const profile of profiles) {
+    const first = profile.firstName.toLowerCase().trim()
+    const last = profile.lastName.toLowerCase().trim()
+    const company = profile.company.toLowerCase().trim()
+    // No name -> no reliable dedup key. Keep as-is.
+    if (!first && !last) {
+      out.push(profile)
+      continue
+    }
+    const key = `${first}|${last}|${company}`
+    const existing = byKey.get(key)
+    if (!existing) {
+      byKey.set(key, profile)
+      out.push(profile)
+      continue
+    }
+    // If either is the viewer, always keep the viewer's row.
+    if (viewerUserId && existing.id === viewerUserId) continue
+    if (viewerUserId && profile.id === viewerUserId) {
+      const idx = out.indexOf(existing)
+      if (idx >= 0) out.splice(idx, 1)
+      byKey.set(key, profile)
+      out.push(profile)
+      continue
+    }
+    // Otherwise prefer the entry with richer prose.
+    if (profileProseWeight(profile) > profileProseWeight(existing)) {
+      const idx = out.indexOf(existing)
+      if (idx >= 0) out.splice(idx, 1)
+      byKey.set(key, profile)
+      out.push(profile)
+      console.info("matchmaker dedup: replaced", existing.id, "with", profile.id, "for key", key)
+    } else {
+      console.info("matchmaker dedup: dropped", profile.id, "in favor of", existing.id, "for key", key)
+    }
+  }
+  return out
+}
+
+async function loadCanonicalProfilesForEvent(
+  supabase: any,
+  eventId: string,
+  viewerUserId?: string,
+): Promise<CanonicalProfile[]> {
   const { data, error } = await supabase
     .from("attendance")
     .select(PROFILE_SELECT)
@@ -1188,11 +1724,25 @@ async function loadCanonicalProfilesForEvent(supabase: any, eventId: string): Pr
   }
 
   const profiles: CanonicalProfile[] = []
+  let droppedJunk = 0
   for (const row of data || []) {
+    const isViewer = viewerUserId && row?.user_id === viewerUserId
+    if (!isViewer && looksLikeJunkProfile(row)) {
+      droppedJunk += 1
+      console.info("matchmaker dedup: dropped junk row", row?.user_id, {
+        title: row?.users?.career_title,
+        company: row?.users?.company_name,
+        email: row?.users?.email,
+      })
+      continue
+    }
     const profile = toCanonicalProfile(row)
     if (profile) profiles.push(profile)
   }
-  return profiles
+  if (droppedJunk > 0) {
+    console.info("matchmaker dedup: junk rows dropped", droppedJunk)
+  }
+  return dedupeProfiles(profiles, viewerUserId)
 }
 
 function buildById(profiles: CanonicalProfile[]): Map<string, CanonicalProfile> {
@@ -1204,7 +1754,8 @@ async function upsertMatches(
   eventId: string,
   viewer: CanonicalProfile,
   selected: ScoredCandidate[],
-  explanationByCandidateId: Map<string, string>,
+  explanationByCandidateId: Map<string, StructuredExplanation>,
+  selectionPath: "rule_engine" | "llm_ranker" = "rule_engine",
 ): Promise<number> {
   await supabase
     .from("connections")
@@ -1220,6 +1771,7 @@ async function upsertMatches(
   const rows = selected.map((row) => {
     const candidate = row.candidate
     const pair = viewer.id < candidate.id ? { a: viewer.id, b: candidate.id } : { a: candidate.id, b: viewer.id }
+    const explanation = explanationByCandidateId.get(candidate.id) || null
 
     return {
       event_id: eventId,
@@ -1262,8 +1814,12 @@ async function upsertMatches(
         },
         fallback_used: row.fallbackUsed === true,
         selection_rule_version: "needs_offers_rules_v1",
+        selection_path: selectionPath,
+        why_meet_card: explanation?.why_meet_card || "",
+        why_meet_paragraph: explanation?.why_meet_paragraph || "",
+        what_they_are_looking_for: explanation?.what_they_are_looking_for || "",
       },
-      match_explanation_text: explanationByCandidateId.get(candidate.id) || "",
+      match_explanation_text: explanation?.why_meet_card || "",
       match_algorithm_version: MATCH_EXPLANATION_ALGORITHM_VERSION,
     }
   })
@@ -1339,7 +1895,7 @@ async function processUser(
 ) {
   const supabase = getClient()
 
-  const profiles = await loadCanonicalProfilesForEvent(supabase, eventId)
+  const profiles = await loadCanonicalProfilesForEvent(supabase, eventId, userId)
   const byId = buildById(profiles)
   const viewer = byId.get(userId)
 
@@ -1400,22 +1956,99 @@ async function processUser(
   }
 
   const scored = candidates.map((candidate) => scorePair(viewer, candidate))
-  const selected = selectCandidates(viewer, scored)
-  const explanationByCandidateId = await generateMatchExplanations(viewer, selected)
-  const inserted = await upsertMatches(supabase, eventId, viewer, selected, explanationByCandidateId)
+
+  // Phase 4: pre-filter to a wider pool with the rule engine, then let GPT-4o
+  // pick the top 3 from that pool and author the explanations. The rule engine
+  // remains the safety-net fallback.
+  const poolLimit = rankerPoolSizeFor(viewer)
+  const pool = buildLlmRankerPool(viewer, scored, poolLimit)
+  const poolById = new Map(pool.map((row) => [row.candidate.id, row]))
+
+  let selected: ScoredCandidate[] = []
+  let explanationByCandidateId: Map<string, StructuredExplanation> = new Map()
+  let selectionPath: "llm_ranker" | "rule_engine" = "rule_engine"
+
+  const rankerResult = await rankAndExplainWithLLM(viewer, pool)
+  if (rankerResult) {
+    const llmSelected: ScoredCandidate[] = []
+    const usedIds = new Set<string>()
+    for (const id of rankerResult.rankedIds) {
+      const row = poolById.get(id)
+      if (row) {
+        llmSelected.push(row)
+        usedIds.add(id)
+      }
+      if (llmSelected.length >= SUGGESTIONS_PER_USER) break
+    }
+
+    if (llmSelected.length < SUGGESTIONS_PER_USER) {
+      topUpFromPool(viewer, pool, usedIds, llmSelected)
+    }
+
+    if (llmSelected.length < SUGGESTIONS_PER_USER) {
+      const ruleTop = selectCandidates(viewer, scored, 8)
+      for (const row of ruleTop) {
+        if (llmSelected.length >= SUGGESTIONS_PER_USER) break
+        if (usedIds.has(row.candidate.id)) continue
+        llmSelected.push(row)
+        usedIds.add(row.candidate.id)
+      }
+    }
+
+    if (llmSelected.length >= SUGGESTIONS_PER_USER) {
+      selected = llmSelected.slice(0, SUGGESTIONS_PER_USER)
+      explanationByCandidateId = new Map(rankerResult.explanations)
+      const missing = selected.filter((row) => !explanationByCandidateId.has(row.candidate.id))
+      if (missing.length > 0) {
+        const generated = await generateMatchExplanations(viewer, missing)
+        for (const [id, explanation] of generated) {
+          explanationByCandidateId.set(id, explanation)
+        }
+      }
+      selectionPath = "llm_ranker"
+      console.info("matchmaker: LLM ranker selected", selected.map((row) => row.candidate.id))
+    } else {
+      console.warn(
+        "matchmaker: LLM ranker returned valid response but fewer than 3 pool-matched picks, falling back",
+      )
+    }
+  }
+
+  if (selectionPath === "rule_engine") {
+    // Safety-net path: rule engine top-3 + Phase 2 structured-output prompt.
+    selected = selectCandidates(viewer, scored, SUGGESTIONS_PER_USER)
+    explanationByCandidateId = await generateMatchExplanations(viewer, selected)
+    console.info("matchmaker: rule-engine fallback selected", selected.map((row) => row.candidate.id))
+  }
+
+  const inserted = await upsertMatches(
+    supabase,
+    eventId,
+    viewer,
+    selected,
+    explanationByCandidateId,
+    selectionPath,
+  )
 
   return {
     ok: true,
     processed: selected.length,
     inserted,
-    matches: selected.map((row) => ({
-      id: row.candidate.id,
-      raw_score: row.rawScore,
-      score: row.normalizedScore,
-      reason_summary: explanationByCandidateId.get(row.candidate.id) || "",
-      reasons: row.reasons,
-      fallback_used: row.fallbackUsed === true,
-    })),
+    selection_path: selectionPath,
+    matches: selected.map((row) => {
+      const explanation = explanationByCandidateId.get(row.candidate.id) || null
+      return {
+        id: row.candidate.id,
+        raw_score: row.rawScore,
+        score: row.normalizedScore,
+        reason_summary: explanation?.why_meet_card || "",
+        why_meet_card: explanation?.why_meet_card || "",
+        why_meet_paragraph: explanation?.why_meet_paragraph || "",
+        what_they_are_looking_for: explanation?.what_they_are_looking_for || "",
+        reasons: row.reasons,
+        fallback_used: row.fallbackUsed === true,
+      }
+    }),
   }
 }
 

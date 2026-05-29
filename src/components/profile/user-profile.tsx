@@ -31,6 +31,11 @@ interface MatchBreakdown {
   pillars?: { name: string; score: number; hit: boolean; evidence: string }[]
   tier?: number
   score?: number
+  // v8 structured fields written by the LLM matcher. Optional; absence means we
+  // render the legacy fields above instead.
+  why_meet_card?: string
+  why_meet_paragraph?: string
+  what_they_are_looking_for?: string
 }
 
 interface ProfileDetails extends Profile {
@@ -165,6 +170,18 @@ const parseMatchBreakdown = (input: unknown): MatchBreakdown | null => {
   const whyMeet = typeof panelRecord.why_meet === "string" ? panelRecord.why_meet.trim() : ""
   const diveDeeper = typeof panelRecord.dive_deeper === "string" ? panelRecord.dive_deeper.trim() : ""
 
+  // v8 structured fields. Read both panel and root because older payloads
+  // sometimes wrapped them under `panel`; new ones write them at the top level.
+  const readString = (key: string): string => {
+    const fromPanel = typeof panelRecord[key] === "string" ? (panelRecord[key] as string).trim() : ""
+    if (fromPanel) return fromPanel
+    const fromRoot = typeof record[key] === "string" ? (record[key] as string).trim() : ""
+    return fromRoot
+  }
+  const whyMeetCard = readString("why_meet_card")
+  const whyMeetParagraph = readString("why_meet_paragraph")
+  const whatTheyAreLookingFor = readString("what_they_are_looking_for")
+
   const sharedActivities = normalizeToStringArray(
     panelRecord.shared_activities ?? panelRecord.activities
   )
@@ -207,7 +224,10 @@ const parseMatchBreakdown = (input: unknown): MatchBreakdown | null => {
     shared_points: sharedPoints.length > 0 ? sharedPoints : undefined,
     pillars: pillars.length > 0 ? pillars : undefined,
     tier,
-    score
+    score,
+    why_meet_card: whyMeetCard || undefined,
+    why_meet_paragraph: whyMeetParagraph || undefined,
+    what_they_are_looking_for: whatTheyAreLookingFor || undefined,
   }
 }
 
@@ -262,8 +282,13 @@ export function UserProfile({ userId }: UserProfileProps) {
         .filter((tag): tag is string => Boolean(tag && tag.length > 0))
     )
   )
+  // Prefer the v8 LLM-authored, viewer-safe summary of what the candidate is
+  // looking for. Fall back to the global want_summary / viewerNeeds when this
+  // is a directory click (no system_match context) or pre-v8 record.
+  const whatTheyAreLookingForText = matchBreakdown?.what_they_are_looking_for?.trim()
   const hasWhatLookingForContent = Boolean(
-    viewerNeeds.length > 0 ||
+    whatTheyAreLookingForText ||
+      viewerNeeds.length > 0 ||
       (profile?.want_summary?.trim()?.length ?? 0) > 0 ||
       wantTags.length > 0
   )
@@ -292,32 +317,42 @@ export function UserProfile({ userId }: UserProfileProps) {
   const formatPillarScore = (value?: number) =>
     typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : ""
 
+  // v8 prefers the LLM-authored card line; older matches fall back to summary/explanation.
+  const whyMeetCardText = matchBreakdown?.why_meet_card?.trim()
   const matchSummaryText =
+    (whyMeetCardText && whyMeetCardText) ||
     (matchBreakdown?.summary && matchBreakdown.summary.trim()) ||
     (matchExplanation && matchExplanation.trim()) ||
     null
+
+  const whyMeetParagraphText = matchBreakdown?.why_meet_paragraph?.trim()
   const whyMeetText = matchBreakdown?.why_meet?.trim()
   const offerSummaryText = profile?.offer_summary?.trim()
-  const helpParagraphParts: string[] = []
 
-  if (whyMeetText) {
-    helpParagraphParts.push(whyMeetText)
+  // When the v8 LLM paragraph is present, render it on its own — do NOT append
+  // the candidate's standalone offer_summary_text. That concatenation is what
+  // produced the awkward two-paragraph look on the legacy detail page.
+  let matchParagraphText: string | null = null
+  if (whyMeetParagraphText) {
+    matchParagraphText = whyMeetParagraphText
+  } else {
+    const helpParagraphParts: string[] = []
+    if (whyMeetText) {
+      helpParagraphParts.push(whyMeetText)
+    }
+    if (offerSummaryText) {
+      helpParagraphParts.push(offerSummaryText)
+    } else if (candidateStrengths.length > 0) {
+      helpParagraphParts.push(
+        `Key ways ${profile?.first_name ?? "they"} can help include ${toSentence(candidateStrengths)}.`
+      )
+    } else if (offerTags.length > 0) {
+      helpParagraphParts.push(
+        `${profile?.first_name ?? "They"} focuses on ${toSentence(offerTags)}.`
+      )
+    }
+    matchParagraphText = helpParagraphParts.length > 0 ? helpParagraphParts.join(" ") : null
   }
-
-  if (offerSummaryText) {
-    helpParagraphParts.push(offerSummaryText)
-  } else if (candidateStrengths.length > 0) {
-    helpParagraphParts.push(
-      `Key ways ${profile?.first_name ?? "they"} can help include ${toSentence(candidateStrengths)}.`
-    )
-  } else if (offerTags.length > 0) {
-    helpParagraphParts.push(
-      `${profile?.first_name ?? "They"} focuses on ${toSentence(offerTags)}.`
-    )
-  }
-
-  const matchParagraphText =
-    helpParagraphParts.length > 0 ? helpParagraphParts.join(" ") : null
   const shouldShowMatchCard = Boolean(matchSummaryText || matchParagraphText)
   const tierValue = matchBreakdown?.tier
   const tierLabel = tierValue ? tierLabels[tierValue] ?? `Tier ${tierValue}` : null
@@ -991,15 +1026,21 @@ export function UserProfile({ userId }: UserProfileProps) {
                 <CardTitle className="text-primary">What {profile.first_name} is looking for</CardTitle>
               </CardHeader>
               <CardContent className="pt-0 pb-6 space-y-3">
-                {profile.want_summary?.trim() && (
-                  <p className="text-foreground leading-relaxed">{profile.want_summary}</p>
-                )}
-                {viewerNeeds.length > 0 && (
-                  <ul className="list-disc list-inside space-y-2 text-foreground">
-                    {viewerNeeds.map((need, index) => (
-                      <li key={`need-expanded-${index}`}>{need}</li>
-                    ))}
-                  </ul>
+                {whatTheyAreLookingForText ? (
+                  <p className="text-foreground leading-relaxed">{whatTheyAreLookingForText}</p>
+                ) : (
+                  <>
+                    {profile.want_summary?.trim() && (
+                      <p className="text-foreground leading-relaxed">{profile.want_summary}</p>
+                    )}
+                    {viewerNeeds.length > 0 && (
+                      <ul className="list-disc list-inside space-y-2 text-foreground">
+                        {viewerNeeds.map((need, index) => (
+                          <li key={`need-expanded-${index}`}>{need}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
